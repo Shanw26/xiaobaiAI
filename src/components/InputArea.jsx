@@ -190,7 +190,7 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, onOpenS
         {!currentUser && guestStatus && (
           <div className="guest-status-bar">
             <span className="guest-status-text">
-              游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次
+              游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次（登录可获得更多次数）
             </span>
           </div>
         )}
