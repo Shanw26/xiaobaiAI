@@ -202,3 +202,23 @@ textarea::placeholder {
   stroke-width: 2;
   flex-shrink: 0;
 }
+
+.guest-status-bar {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.guest-status-text {
+  font-size: 13px;
+  color: #0369a1;
+}
+
+.guest-status-text strong {
+  color: #0284c7;
+  font-size: 15px;
+  font-weight: 600;
+}

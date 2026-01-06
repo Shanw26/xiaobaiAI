@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ScreenshotPreview from './ScreenshotPreview';
 import './InputArea.css';
 
-function InputArea({ onSendMessage, hasApiKey, onOpenSettings }) {
+function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, onOpenSettings }) {
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
@@ -25,9 +25,12 @@ function InputArea({ onSendMessage, hasApiKey, onOpenSettings }) {
   }, [message]);
 
   const handleFocus = () => {
-    console.log('输入框获得焦点', { hasApiKey, hasPrompted });
-    // 如果没有配置 API Key 且还没提示过，自动打开设置
-    if (!hasApiKey && !hasPrompted) {
+    console.log('输入框获得焦点', { hasApiKey, hasPrompted, isGuest: !currentUser && guestStatus });
+
+    // 游客模式下不需要提示输入API Key（使用官方Key）
+    // 只有登录用户没有配置API Key时，才提示输入
+    const isGuest = !currentUser && guestStatus;
+    if (!hasApiKey && !hasPrompted && !isGuest) {
       console.log('自动打开设置窗口');
       setHasPrompted(true);
       onOpenSettings();
@@ -184,6 +187,13 @@ function InputArea({ onSendMessage, hasApiKey, onOpenSettings }) {
             </svg>
           </button>
         </div>
+        {!currentUser && guestStatus && (
+          <div className="guest-status-bar">
+            <span className="guest-status-text">
+              游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

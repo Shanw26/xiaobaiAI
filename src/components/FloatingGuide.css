@@ -1,6 +1,6 @@
 .floating-guide {
   position: fixed;
-  bottom: 100px;
+  bottom: 160px;
   right: 30px;
   z-index: 1000;
 }

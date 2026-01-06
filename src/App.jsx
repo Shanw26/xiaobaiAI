@@ -6,6 +6,12 @@ import Header from './components/Header';
 import Welcome from './components/Welcome';
 import SettingsModal from './components/SettingsModal';
 import FloatingGuide from './components/FloatingGuide';
+import LoginModal from './components/LoginModal';
+import GuestLimitModal from './components/GuestLimitModal';
+import ToastModal from './components/ToastModal';
+import AdminPanel from './components/AdminPanel';
+import UpdateAvailableModal from './components/UpdateAvailableModal';
+import ForceUpdateModal from './components/ForceUpdateModal';
 import './App.css';
 
 function App() {
@@ -20,14 +26,26 @@ function App() {
   const [memoryContent, setMemoryContent] = useState('');
   const streamingMessageRef = useRef(null);
 
+  // 用户系统状态
+  const [currentUser, setCurrentUser] = useState(null);
+  const [guestStatus, setGuestStatus] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
+  const [toast, setToast] = useState(null); // { message, type }
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [showForceUpdate, setShowForceUpdate] = useState(false);
+
   // 加载配置
   useEffect(() => {
     loadConfig();
     loadConversations();
+    loadUserStatus();
 
     // 清理流式响应监听器
     return () => {
       window.electronAPI.removeMessageDeltaListener();
+      window.electronAPI.removeGuestUsageUpdatedListener();
     };
   }, []);
 
@@ -38,6 +56,33 @@ function App() {
         streamingMessageRef.current(fullText);
       }
     });
+
+    // 监听游客使用次数更新
+    window.electronAPI.onGuestUsageUpdated((data) => {
+      setGuestStatus((prev) => ({
+        ...prev,
+        usedCount: data.usedCount,
+        remaining: data.remaining
+      }));
+    });
+  }, []);
+
+  // 监听自动更新事件
+  useEffect(() => {
+    window.electronAPI.onUpdateAvailable((data) => {
+      if (data.forceUpdate) {
+        // 强制更新
+        setUpdateInfo(data);
+        setShowForceUpdate(true);
+      } else {
+        // 普通更新，显示弹窗
+        setUpdateInfo(data);
+      }
+    });
+
+    return () => {
+      window.electronAPI.removeUpdateListeners();
+    };
   }, []);
 
   const loadConfig = async () => {
@@ -54,22 +99,110 @@ function App() {
         setShowFloatingGuide(true);
       }
 
-      // 如果有 API Key，初始化 Agent
-      if (savedConfig?.apiKey && savedConfig.apiKey.trim() !== '') {
-        const result = await window.electronAPI.initAgent(savedConfig);
-        console.log('Agent 初始化结果', result);
-        if (result.success) {
-          setIsAgentReady(true);
+      // 获取当前用户状态
+      let userStatus = await window.electronAPI.getCurrentUser();
+
+      // 如果没有用户状态，自动进入游客模式
+      if (!userStatus) {
+        await window.electronAPI.useGuestMode();
+        userStatus = await window.electronAPI.getCurrentUser();
+      }
+
+      if (userStatus) {
+        if (userStatus.isGuest) {
+          // 游客模式
+          setGuestStatus({
+            canUse: userStatus.canUse,
+            remaining: userStatus.remaining,
+            usedCount: userStatus.usedCount
+          });
+
+          // 游客模式直接使用官方Key初始化Agent
+          const result = await window.electronAPI.initAgent({
+            modelProvider: 'zhipu', // 智谱GLM
+            apiKey: '', // 游客模式不需要Key
+            model: 'glm-4.7' // 使用旗舰模型
+          });
+
+          if (result.success) {
+            setIsAgentReady(true);
+          } else {
+            console.error('Agent 初始化失败', result.error);
+          }
         } else {
-          console.error('Agent 初始化失败', result.error);
+          // 登录用户
+          setCurrentUser(userStatus.user);
+
+          // 如果用户有API Key，初始化Agent
+          if (userStatus.user.hasApiKey) {
+            const result = await window.electronAPI.initAgent(savedConfig);
+            if (result.success) {
+              setIsAgentReady(true);
+            }
+          }
         }
-      } else {
-        console.log('没有配置 API Key，跳过 Agent 初始化');
       }
     } catch (error) {
       console.error('加载配置失败:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 加载用户状态
+  const loadUserStatus = async () => {
+    try {
+      const guestStatusResult = await window.electronAPI.getGuestStatus();
+      if (guestStatusResult.success) {
+        setGuestStatus({
+          canUse: guestStatusResult.canUse,
+          remaining: guestStatusResult.remaining,
+          usedCount: guestStatusResult.usedCount
+        });
+      }
+    } catch (error) {
+      console.error('加载用户状态失败:', error);
+    }
+  };
+
+  // 处理登录成功
+  const handleLoginSuccess = async (user) => {
+    setCurrentUser(user);
+    setShowLoginModal(false);
+
+    // 提示用户配置API Key
+    if (!user.hasApiKey) {
+      alert('登录成功！请先配置您的API Key');
+      setShowSettings(true);
+    } else {
+      // 重新初始化Agent
+      const savedConfig = await window.electronAPI.readConfig();
+      const result = await window.electronAPI.initAgent(savedConfig);
+      if (result.success) {
+        setIsAgentReady(true);
+      }
+    }
+  };
+
+  // 处理退出登录
+  const handleLogout = async () => {
+    await window.electronAPI.logout();
+    setCurrentUser(null);
+    setIsAgentReady(false);
+
+    // 切换到游客模式
+    await window.electronAPI.useGuestMode();
+    const status = await loadUserStatus();
+
+    // 重新初始化Agent
+    const result = await window.electronAPI.initAgent({
+      modelProvider: 'anthropic',
+      apiKey: '',
+      model: 'claude-3-5-sonnet-20241022'
+    });
+
+    if (result.success) {
+      setIsAgentReady(true);
     }
   };
 
@@ -203,7 +336,16 @@ function App() {
   };
 
   const handleSendMessage = async (content, files) => {
-    if (!config?.apiKey) {
+    // 检查游客使用次数
+    if (!currentUser && guestStatus) {
+      if (!guestStatus.canUse) {
+        setShowGuestLimitModal(true);
+        return;
+      }
+    }
+
+    // 登录用户需要配置API Key
+    if (currentUser && !config?.apiKey) {
       alert('请先在设置中配置 API Key');
       setShowSettings(true);
       return;
@@ -311,7 +453,18 @@ function App() {
       }
     } catch (error) {
       console.error('发送消息失败:', error);
-      alert('发送消息失败: ' + error.message);
+
+      // 检查是否是频率限制错误
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('1305') || errorMessage.includes('当前API请求过多') || errorMessage.includes('频率限制')) {
+        setToast({
+          message: '当前使用人数较多，请稍后尝试',
+          type: 'error'
+        });
+      } else {
+        // 其他错误显示alert
+        alert('发送消息失败: ' + error.message);
+      }
 
       // 移除 AI 消息占位符
       chat.messages.pop();
@@ -342,25 +495,38 @@ function App() {
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
         onOpenSettings={() => setShowSettings(true)}
+        currentUser={currentUser}
+        guestStatus={guestStatus}
+        onLoginClick={() => setShowLoginModal(true)}
+        onLogout={handleLogout}
       />
 
       <div className="main">
         <Header
           title={currentChat?.title || '新对话'}
           messages={currentChat?.messages || []}
+          currentUser={currentUser}
+          guestStatus={guestStatus}
+          onOpenAdmin={() => setShowAdminPanel(true)}
         />
 
         <div className="content">
           {currentChat ? (
             <ChatArea messages={currentChat.messages} />
           ) : (
-            <Welcome />
+            <Welcome
+              currentUser={currentUser}
+              guestStatus={guestStatus}
+              onLoginClick={() => setShowLoginModal(true)}
+            />
           )}
         </div>
 
         <InputArea
           onSendMessage={handleSendMessage}
           hasApiKey={!!config?.apiKey}
+          currentUser={currentUser}
+          guestStatus={guestStatus}
           onOpenSettings={() => {
             console.log('打开设置窗口');
             setShowSettings(true);
@@ -371,12 +537,61 @@ function App() {
       {showSettings && (
         <SettingsModal
           config={config}
+          currentUser={currentUser}
           onSave={handleSaveConfig}
           onClose={() => setShowSettings(false)}
         />
       )}
 
+      {showLoginModal && (
+        <LoginModal
+          onClose={() => setShowLoginModal(false)}
+          onLoginSuccess={handleLoginSuccess}
+        />
+      )}
+
+      {showGuestLimitModal && (
+        <GuestLimitModal
+          onClose={() => setShowGuestLimitModal(false)}
+          onLogin={() => {
+            setShowGuestLimitModal(false);
+            setShowLoginModal(true);
+          }}
+        />
+      )}
+
+      {toast && (
+        <ToastModal
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       {showFloatingGuide && <FloatingGuide />}
+
+      {showAdminPanel && (
+        <AdminPanel onClose={() => setShowAdminPanel(false)} />
+      )}
+
+      {updateInfo && !showForceUpdate && (
+        <UpdateAvailableModal
+          version={updateInfo.version}
+          releaseNotes={updateInfo.releaseNotes}
+          onDownload={async () => {
+            await window.electronAPI.downloadUpdate();
+          }}
+          onLater={() => setUpdateInfo(null)}
+          onClose={() => setUpdateInfo(null)}
+        />
+      )}
+
+      {showForceUpdate && updateInfo && (
+        <ForceUpdateModal
+          version={updateInfo.version}
+          releaseNotes={updateInfo.releaseNotes}
+        />
+      )}
     </div>
   );
 }

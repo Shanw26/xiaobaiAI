@@ -30,13 +30,6 @@ const MODEL_PROVIDERS = {
   },
 };
 
-// 设置分类
-const SETTINGS_CATEGORIES = [
-  { id: 'basic', name: '基础配置', icon: '⚙️' },
-  { id: 'advanced', name: '高级功能', icon: '🔧' },
-  { id: 'about', name: '关于', icon: 'ℹ️' },
-];
-
 function SettingsModal({ config, onSave, onClose }) {
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [userInfoPathDisplay, setUserInfoPathDisplay] = useState('');
@@ -44,6 +37,15 @@ function SettingsModal({ config, onSave, onClose }) {
   const [userDataPathDisplay, setUserDataPathDisplay] = useState('');
   const [tokenUsage, setTokenUsage] = useState(null);
   const [activeCategory, setActiveCategory] = useState('basic');
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null);
+
+  // 设置分类（动态添加徽章）
+  const SETTINGS_CATEGORIES = [
+    { id: 'basic', name: '基础配置', icon: '⚙️' },
+    { id: 'advanced', name: '高级功能', icon: '🔧' },
+    { id: 'about', name: '关于', icon: 'ℹ️', badge: updateAvailable },
+  ];
 
   useEffect(() => {
     setLocalConfig({ ...config });
@@ -65,6 +67,18 @@ function SettingsModal({ config, onSave, onClose }) {
         setTokenUsage(result.data);
       }
     });
+
+    // 监听更新可用事件
+    window.electronAPI.onUpdateAvailable((data) => {
+      if (!data.forceUpdate) {
+        setUpdateAvailable(true);
+        setUpdateStatus(data);
+      }
+    });
+
+    return () => {
+      window.electronAPI.removeUpdateListeners();
+    };
   }, [config]);
 
   const handleSave = async () => {
@@ -74,6 +88,17 @@ function SettingsModal({ config, onSave, onClose }) {
     }
 
     onSave(localConfig);
+  };
+
+  const handleCheckUpdate = async () => {
+    const result = await window.electronAPI.checkForUpdates();
+    if (!result) {
+      alert('当前已是最新版本');
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    await window.electronAPI.downloadUpdate();
   };
 
   const currentProvider = MODEL_PROVIDERS[localConfig.modelProvider];
@@ -302,11 +327,35 @@ function SettingsModal({ config, onSave, onClose }) {
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
         </div>
-        <h2 className="about-title">小白AI</h2>
-        <div className="about-version">v2.0.0</div>
+        <div className="about-title-wrapper">
+          <h2 className="about-title">小白AI</h2>
+          <span className="about-version">v2.3.0</span>
+
+          {updateAvailable && updateStatus && (
+            <button className="update-tag" onClick={handleDownloadUpdate}>
+              🔔 v{updateStatus.version}
+            </button>
+          )}
+
+          {!updateAvailable && (
+            <button className="check-update-tag" onClick={handleCheckUpdate}>
+              检查更新
+            </button>
+          )}
+        </div>
+
+        {updateAvailable && updateStatus && (
+          <div className="update-notice">
+            <div className="update-notice-text">
+              发现新版本，点击版本标签可立即更新
+            </div>
+          </div>
+        )}
+
         <p className="about-description">
-          基于 Claude Agent SDK 的 AI 助手客户端，简单、强大、易用。
+          一款操作系统级AI助手
         </p>
+
         <div className="about-info">
           <div className="about-info-item">
             <span className="about-info-label">开发者</span>
@@ -358,6 +407,7 @@ function SettingsModal({ config, onSave, onClose }) {
               >
                 <span className="settings-nav-icon">{category.icon}</span>
                 <span className="settings-nav-text">{category.name}</span>
+                {category.badge && <span className="update-badge">🔔</span>}
               </div>
             ))}
           </div>

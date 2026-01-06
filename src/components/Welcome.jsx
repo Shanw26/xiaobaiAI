@@ -1,6 +1,6 @@
 import './Welcome.css';
 
-function Welcome() {
+function Welcome({ currentUser, guestStatus, onLoginClick }) {
   return (
     <div className="welcome">
       <div className="welcome-icon">
@@ -9,7 +9,23 @@ function Welcome() {
         </svg>
       </div>
       <h1>欢迎使用小白AI</h1>
-      <p>
+
+      {!currentUser && guestStatus && (
+        <div className="guest-info">
+          <p className="guest-message">
+            👋 游客模式可免费使用 <strong>{guestStatus.remaining}</strong> 次
+          </p>
+          <button className="btn-login" onClick={onLoginClick}>
+            登录获取更多次数
+          </button>
+        </div>
+      )}
+
+      {currentUser && (
+        <p className="user-welcome">👋 欢迎回来，{currentUser.phone}</p>
+      )}
+
+      <p className="welcome-description">
         上传文件或图片，通过自然语言操作本地文件
         <br />
         分析数据、编写代码、生成报告

@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
@@ -6,13 +7,29 @@ const path = require('path');
 const fs = require('fs').promises;
 const os = require('os');
 const agent = require('./agent');
+const db = require('./database');
+const officialConfig = require('./official-config');
 
 // 当前应用版本
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.3.0'; // 新功能：在线自动更新
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
 let agentInstance = null;
+let currentUser = null; // 当前登录用户
+let isGuestMode = false; // 是否为游客模式
+
+// 自动更新状态
+let updateStatus = {
+  available: false,
+  forceUpdate: false,
+  downloaded: false,
+  downloading: false,
+  error: null,
+  version: null,
+  releaseNotes: null
+};
+let powerSaveBlockId = null;
 
 // 检查版本并清理旧数据
 async function checkAndCleanOldData() {
@@ -57,6 +74,149 @@ async function checkAndCleanOldData() {
   console.log(`当前版本：${APP_VERSION}`);
 }
 
+// ========== 自动更新功能 ==========
+
+// 检查是否强制更新
+function isForceUpdate(version, releaseNotes) {
+  const forceKeywords = ['[强制]', '[force]', '[强制更新]'];
+  const text = (releaseNotes || '') + ' ' + version;
+  return forceKeywords.some(keyword => text.toLowerCase().includes(keyword.toLowerCase()));
+}
+
+// 检查更新
+async function checkForUpdates(isManual = false) {
+  try {
+    console.log('[更新] 开始检查更新...');
+    autoUpdater.autoDownload = false; // 手动控制下载
+
+    const updateResult = await autoUpdater.checkForUpdates();
+
+    if (!updateResult || updateResult.updateInfo.version === APP_VERSION) {
+      console.log('[更新] 当前已是最新版本');
+      if (isManual) {
+        mainWindow?.webContents.send('update-not-available', {
+          version: APP_VERSION
+        });
+      }
+      return null;
+    }
+
+    // 发现新版本
+    const newVersion = updateResult.updateInfo.version;
+    const releaseNotes = updateResult.updateInfo.releaseNotes;
+    const forceUpdate = isForceUpdate(newVersion, releaseNotes);
+
+    updateStatus = {
+      available: true,
+      forceUpdate,
+      downloaded: false,
+      downloading: false,
+      error: null,
+      version: newVersion,
+      releaseNotes
+    };
+
+    console.log(`[更新] 发现新版本: ${newVersion}, 强制更新: ${forceUpdate}`);
+
+    // 通知前端
+    mainWindow?.webContents.send('update-available', {
+      version: newVersion,
+      releaseNotes,
+      forceUpdate
+    });
+
+    // 如果是强制更新，自动开始下载
+    if (forceUpdate) {
+      console.log('[更新] 强制更新，开始自动下载...');
+      await downloadUpdate();
+    }
+
+    return updateResult;
+  } catch (error) {
+    console.error('[更新] 检查更新失败:', error);
+    updateStatus.error = error.message;
+    mainWindow?.webContents.send('update-error', {
+      error: error.message
+    });
+    return null;
+  }
+}
+
+// 下载更新
+async function downloadUpdate() {
+  try {
+    console.log('[更新] 开始下载更新...');
+    updateStatus.downloading = true;
+
+    // 防止系统休眠
+    if (powerSaveBlockId === null) {
+      powerSaveBlockId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log('[更新] 已阻止系统休眠');
+    }
+
+    await autoUpdater.downloadUpdate();
+
+    updateStatus.downloading = false;
+    updateStatus.downloaded = true;
+
+    console.log('[更新] 下载完成');
+
+    // 释放电源阻止
+    if (powerSaveBlockId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockId);
+      powerSaveBlockId = null;
+    }
+
+    // 通知前端下载完成
+    mainWindow?.webContents.send('update-downloaded', {
+      version: updateStatus.version
+    });
+
+    return true;
+  } catch (error) {
+    console.error('[更新] 下载失败:', error);
+    updateStatus.downloading = false;
+    updateStatus.error = error.message;
+
+    // 释放电源阻止
+    if (powerSaveBlockId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockId);
+      powerSaveBlockId = null;
+    }
+
+    mainWindow?.webContents.send('update-error', {
+      error: error.message
+    });
+
+    return false;
+  }
+}
+
+// 安装并重启
+function installUpdate() {
+  console.log('[更新] 安装更新并重启...');
+  autoUpdater.quitAndInstall(false, true);
+}
+
+// 监听下载进度
+autoUpdater.on('download-progress', (progress) => {
+  const percent = Math.floor(progress.percent);
+  const speed = Math.floor(progress.bytesPerSecond / 1024);
+  const transferred = Math.floor(progress.transferred / 1024 / 1024);
+  const total = Math.floor(progress.total / 1024 / 1024);
+
+  console.log(`[更新] 下载进度: ${percent}%, ${speed}KB/s, ${transferred}MB/${total}MB`);
+
+  mainWindow?.webContents.send('update-progress', {
+    percent,
+    speed,
+    transferred,
+    total
+  });
+});
+
+// ========== 自动更新功能结束 ==========
+
 // 创建主窗口
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -92,7 +252,34 @@ app.whenReady().then(async () => {
   // 检查版本并清理旧数据
   await checkAndCleanOldData();
 
+  // 初始化数据库
+  db.initDatabase();
+  console.log('数据库初始化完成');
+
+  // 初始化官方配置到数据库（首次启动时）
+  db.initOfficialConfig();
+
+  // 定时清理过期验证码（每5分钟）
+  setInterval(() => {
+    db.cleanExpiredCodes();
+  }, 5 * 60 * 1000);
+
   createWindow();
+
+  // 配置自动更新
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'Shanw26',
+    repo: 'xiaobaiAI'
+  });
+
+  // 启动时检查更新
+  await checkForUpdates();
+
+  // 定期检查更新（每24小时）
+  setInterval(async () => {
+    await checkForUpdates();
+  }, 24 * 60 * 60 * 1000);
 
   // macOS 特性：点击 Dock 图标时重新创建窗口
   app.on('activate', () => {
@@ -367,31 +554,313 @@ ipcMain.handle('export-markdown', async (event, messages, title) => {
   }
 });
 
+// ==================== 用户系统 API ====================
+
+// 获取游客使用状态
+ipcMain.handle('get-guest-status', async () => {
+  try {
+    const deviceId = db.getDeviceId();
+    const status = db.canGuestUse(deviceId);
+
+    console.log('游客状态:', status);
+
+    return {
+      success: true,
+      deviceId,
+      canUse: status.canUse,
+      remaining: status.remaining,
+      usedCount: status.usedCount || 0,
+      limit: officialConfig.freeUsageLimit
+    };
+  } catch (error) {
+    console.error('获取游客状态失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 发送验证码
+ipcMain.handle('send-verification-code', async (event, phone) => {
+  try {
+    // 验证手机号格式
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      return { success: false, error: '请输入正确的手机号' };
+    }
+
+    const result = db.createVerificationCode(phone);
+
+    if (result.success) {
+      // 开发阶段：在控制台显示验证码
+      console.log('═══════════════════════════════════════');
+      console.log('📱 验证码已生成');
+      console.log('手机号:', phone);
+      console.log('验证码:', result.code);
+      console.log('═══════════════════════════════════════');
+
+      // 生产环境：对接短信服务
+      // await sendSMS(phone, result.code);
+
+      return { success: true, message: '验证码已发送' };
+    }
+
+    return result;
+  } catch (error) {
+    console.error('发送验证码失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 登录/注册
+ipcMain.handle('login-with-code', async (event, phone, code) => {
+  try {
+    // 验证验证码
+    const verifyResult = db.verifyCode(phone, code);
+    if (!verifyResult.valid) {
+      return { success: false, error: verifyResult.error };
+    }
+
+    // 检查用户是否存在
+    let user = db.getUserByPhone(phone);
+
+    if (!user) {
+      // 新用户，创建账号
+      const createResult = db.createUser(phone);
+      if (!createResult.success) {
+        return createResult;
+      }
+      user = db.getUserByPhone(phone);
+    }
+
+    // 更新最后登录时间
+    db.updateLastLogin(user.id);
+
+    // 设置当前用户
+    currentUser = user;
+    isGuestMode = false;
+
+    console.log('用户登录成功:', user);
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        hasApiKey: !!user.api_key,
+        totalRequests: user.total_requests
+      }
+    };
+  } catch (error) {
+    console.error('登录失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 退出登录
+ipcMain.handle('logout', async () => {
+  currentUser = null;
+  isGuestMode = false;
+
+  // 重新初始化Agent
+  agentInstance = null;
+
+  console.log('用户已退出登录');
+  return { success: true };
+});
+
+// 获取当前用户信息
+ipcMain.handle('get-current-user', async () => {
+  if (isGuestMode) {
+    const deviceId = db.getDeviceId();
+    const status = db.canGuestUse(deviceId);
+
+    return {
+      isGuest: true,
+      canUse: status.canUse,
+      remaining: status.remaining,
+      usedCount: status.usedCount || 0
+    };
+  }
+
+  if (currentUser) {
+    return {
+      isGuest: false,
+      user: {
+        id: currentUser.id,
+        phone: currentUser.phone,
+        hasApiKey: !!currentUser.api_key,
+        totalRequests: currentUser.total_requests
+      }
+    };
+  }
+
+  return null;
+});
+
+// 更新用户API Key
+ipcMain.handle('update-user-api-key', async (event, apiKey) => {
+  if (!currentUser) {
+    return { success: false, error: '用户未登录' };
+  }
+
+  const result = db.updateUserApiKey(currentUser.id, apiKey);
+  if (result.success) {
+    // 更新当前用户信息
+    currentUser = db.getUserById(currentUser.id);
+  }
+
+  return result;
+});
+
+// 使用游客模式
+ipcMain.handle('use-guest-mode', async () => {
+  const deviceId = db.getDeviceId();
+  db.initGuestUsage(deviceId);
+
+  isGuestMode = true;
+  currentUser = null;
+
+  console.log('切换到游客模式');
+  return { success: true };
+});
+
 console.log('小白AI 后端启动成功！');
+
+// ==================== 后台管理 API ====================
+
+// 获取用户列表
+ipcMain.handle('admin-get-users', async () => {
+  try {
+    const db = require('./database').initDatabase();
+    const stmt = db.prepare('SELECT id, phone, created_at, last_login_at, total_requests FROM users ORDER BY created_at DESC');
+    const users = stmt.all();
+    return { success: true, users };
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 获取用户统计信息
+ipcMain.handle('admin-get-stats', async () => {
+  try {
+    const db = require('./database').initDatabase();
+
+    // 用户总数
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+
+    // 游客使用统计
+    const guestUsage = db.prepare('SELECT SUM(used_count) as total_usage, COUNT(*) as unique_guests FROM guest_usage').get();
+
+    // 请求总数
+    const totalRequests = db.prepare('SELECT COUNT(*) as count FROM request_logs').get().count;
+
+    // 今日请求数
+    const today = new Date().toLocaleDateString('zh-CN');
+    const todayRequests = db.prepare('SELECT COUNT(*) as count FROM request_logs WHERE DATE(created_at) = ?').get(today)?.count || 0;
+
+    // 最近7天请求趋势
+    const weekTrend = db.prepare(`
+      SELECT DATE(created_at) as date, COUNT(*) as requests
+      FROM request_logs
+      WHERE DATE(created_at) >= DATE('now', '-7 days')
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `).all();
+
+    return {
+      success: true,
+      stats: {
+        userCount,
+        guestUsage: guestUsage?.total_usage || 0,
+        uniqueGuests: guestUsage?.unique_guests || 0,
+        totalRequests,
+        todayRequests,
+        weekTrend
+      }
+    };
+  } catch (error) {
+    console.error('获取统计信息失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 获取用户详情
+ipcMain.handle('admin-get-user-detail', async (event, userId) => {
+  try {
+    const db = require('./database').initDatabase();
+
+    // 用户基本信息
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+
+    if (!user) {
+      return { success: false, error: '用户不存在' };
+    }
+
+    // 请求记录
+    const requests = db.prepare(`
+      SELECT * FROM request_logs
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).all(userId);
+
+    return { success: true, user, requests };
+  } catch (error) {
+    console.error('获取用户详情失败:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // ==================== AI Agent 功能 ====================
 
 // 初始化 Agent
 ipcMain.handle('init-agent', async (event, config) => {
   try {
-    console.log('开始初始化 Agent，配置:', {
-      provider: config.modelProvider,
-      hasApiKey: !!config.apiKey,
-      apiKeyLength: config.apiKey?.length,
-      model: config.model,
-    });
+    let apiKey = config.apiKey;
+    let provider = config.modelProvider || 'anthropic';
+    let model = config.model || officialConfig.defaultModel;
 
-    if (!config.apiKey || config.apiKey.trim() === '') {
+    // 游客模式：使用官方API Key
+    if (isGuestMode) {
+      const deviceId = db.getDeviceId();
+      const guestStatus = db.canGuestUse(deviceId);
+
+      if (!guestStatus.canUse) {
+        return {
+          success: false,
+          error: '游客免费次数已用完，请登录后继续使用',
+          needLogin: true
+        };
+      }
+
+      apiKey = officialConfig.apiKey;
+      provider = officialConfig.provider; // 使用官方配置的provider
+      model = officialConfig.defaultModel;
+      console.log('游客模式：使用官方API Key', { provider, model });
+    }
+    // 登录用户：使用用户自己的API Key（如果有）
+    else if (currentUser && currentUser.api_key) {
+      apiKey = currentUser.api_key;
+      console.log('登录用户：使用用户API Key');
+    }
+
+    if (!apiKey || apiKey.trim() === '') {
       throw new Error('API Key 为空');
     }
+
+    console.log('开始初始化 Agent，配置:', {
+      provider,
+      hasApiKey: !!apiKey,
+      isGuestMode,
+      model,
+    });
 
     // 设置工作目录为固定的 userData 目录
     agent.setWorkDirectory(app.getPath('userData'));
 
     agentInstance = await agent.createAgent(
-      config.modelProvider,
-      config.apiKey,
-      config.model
+      provider,
+      apiKey,
+      model
     );
 
     console.log('Agent 初始化成功');
@@ -409,6 +878,25 @@ ipcMain.handle('send-message', async (event, message, files) => {
   if (!agentInstance) {
     console.error('Agent 未初始化');
     throw new Error('Agent 未初始化，请先配置 API Key');
+  }
+
+  // 游客模式：增加使用次数
+  if (isGuestMode) {
+    const deviceId = db.getDeviceId();
+    db.incrementGuestUsage(deviceId);
+    console.log('游客使用次数已更新');
+
+    // 通知前端更新剩余次数
+    const status = db.canGuestUse(deviceId);
+    mainWindow.webContents.send('guest-usage-updated', {
+      usedCount: status.usedCount,
+      remaining: status.remaining
+    });
+  }
+  // 登录用户：增加请求次数
+  else if (currentUser) {
+    db.incrementUserRequests(currentUser.id);
+    console.log('用户请求次数已更新');
   }
 
   // 准备文件信息（如果有的话）
@@ -449,6 +937,16 @@ ipcMain.handle('send-message', async (event, message, files) => {
     // 保存 token 使用记录
     if (result.inputTokens !== undefined && result.outputTokens !== undefined) {
       await saveTokenUsage(result.inputTokens, result.outputTokens);
+
+      // 记录到数据库
+      db.logRequest({
+        userId: currentUser?.id || null,
+        deviceId: isGuestMode ? db.getDeviceId() : null,
+        model: agentInstance.model || officialConfig.defaultModel,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens
+      });
+
       console.log('Token 使用记录已保存:', {
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
@@ -638,3 +1136,27 @@ ipcMain.handle('save-screenshot', async (event, imageDataUrl) => {
     return { success: false, error: error.message };
   }
 });
+
+// ========== 自动更新 IPC 处理器 ==========
+
+// 手动检查更新
+ipcMain.handle('check-for-updates', async () => {
+  return await checkForUpdates(true);
+});
+
+// 下载更新
+ipcMain.handle('download-update', async () => {
+  return await downloadUpdate();
+});
+
+// 安装更新
+ipcMain.handle('install-update', () => {
+  installUpdate();
+});
+
+// 获取更新状态
+ipcMain.handle('get-update-status', () => {
+  return updateStatus;
+});
+
+// ========== 自动更新 IPC 处理器结束 ==========

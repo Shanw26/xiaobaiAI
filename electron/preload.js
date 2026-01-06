@@ -48,9 +48,47 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreen: () => ipcRenderer.invoke('capture-screen'),
   saveScreenshot: (imageDataUrl) => ipcRenderer.invoke('save-screenshot', imageDataUrl),
 
+  // 用户系统
+  getGuestStatus: () => ipcRenderer.invoke('get-guest-status'),
+  sendVerificationCode: (phone) => ipcRenderer.invoke('send-verification-code', phone),
+  loginWithCode: (phone, code) => ipcRenderer.invoke('login-with-code', phone, code),
+  logout: () => ipcRenderer.invoke('logout'),
+  getCurrentUser: () => ipcRenderer.invoke('get-current-user'),
+  updateUserApiKey: (apiKey) => ipcRenderer.invoke('update-user-api-key', apiKey),
+  useGuestMode: () => ipcRenderer.invoke('use-guest-mode'),
+
+  // 后台管理
+  adminGetUsers: () => ipcRenderer.invoke('admin-get-users'),
+  adminGetStats: () => ipcRenderer.invoke('admin-get-stats'),
+  adminGetUserDetail: (userId) => ipcRenderer.invoke('admin-get-user-detail', userId),
+
+  // 自动更新
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+
+  // 监听更新事件
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, data) => callback(data)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (event, data) => callback(data)),
+  onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (event, data) => callback(data)),
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, data) => callback(data)),
+  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', (event, data) => callback(data)),
+  removeUpdateListeners: () => {
+    ipcRenderer.removeAllListeners('update-available');
+    ipcRenderer.removeAllListeners('update-downloaded');
+    ipcRenderer.removeAllListeners('update-progress');
+    ipcRenderer.removeAllListeners('update-error');
+    ipcRenderer.removeAllListeners('update-not-available');
+  },
+
   // 监听流式响应
   onMessageDelta: (callback) => ipcRenderer.on('message-delta', (event, data) => callback(data)),
   removeMessageDeltaListener: () => ipcRenderer.removeAllListeners('message-delta'),
+
+  // 监听游客使用次数更新
+  onGuestUsageUpdated: (callback) => ipcRenderer.on('guest-usage-updated', (event, data) => callback(data)),
+  removeGuestUsageUpdatedListener: () => ipcRenderer.removeAllListeners('guest-usage-updated'),
 
   // 平台信息
   platform: process.platform,

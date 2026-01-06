@@ -1,0 +1,96 @@
+/* 游客限制弹窗样式 */
+.guest-limit-modal {
+  max-width: 420px;
+  text-align: center;
+  padding: 40px 32px;
+}
+
+.guest-limit-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.guest-limit-modal h2 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.description {
+  margin: 0 0 24px 0;
+  font-size: 15px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.benefits {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.benefits h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.benefits ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+}
+
+.benefits li {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.benefits li:last-child {
+  margin-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.actions .btn-primary {
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actions .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.actions .btn-secondary {
+  padding: 12px 24px;
+  background: white;
+  color: #666;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actions .btn-secondary:hover {
+  border-color: #999;
+  color: #333;
+}

@@ -41,3 +41,46 @@
   max-width: 460px;
   line-height: 1.6;
 }
+
+.guest-info {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.guest-message {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.guest-message strong {
+  color: var(--primary);
+  font-size: 20px;
+}
+
+.btn-login {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-login:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.user-welcome {
+  font-size: 16px;
+  color: var(--text);
+  margin: 20px 0;
+}
+
+.welcome-description {
+  margin-top: 20px !important;
+}
