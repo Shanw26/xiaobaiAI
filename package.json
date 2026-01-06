@@ -117,8 +117,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "your-username",
-      "repo": "xiaobai-ai"
+      "owner": "Shanw26",
+      "repo": "xiaobaiAI"
     }
   }
 }
