@@ -64,7 +64,7 @@
 
 .actions .btn-primary {
   padding: 14px 24px;
-  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -76,7 +76,7 @@
 
 .actions .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 204, 102, 0.3);
 }
 
 .actions .btn-secondary {

@@ -33,7 +33,7 @@ function FloatingGuide() {
         <div className="floating-ball">
           <span className="floating-icon">👋</span>
           <div className="floating-tooltip">
-            <span class="floating-tooltip-text">完善个人信息</span>
+            <span className="floating-tooltip-text">完善个人信息</span>
           </div>
           <button className="floating-dismiss" onClick={(e) => {
             e.stopPropagation();

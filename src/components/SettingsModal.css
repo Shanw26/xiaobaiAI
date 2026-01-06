@@ -464,6 +464,34 @@ select.form-input {
   transform: translateY(0);
 }
 
+/* 关于页面中的退出登录按钮 */
+.btn-about-logout {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 24px;
+  padding: 14px 20px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1.5px solid #fecaca;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
+}
+
+.btn-about-logout:hover {
+  background: #fecaca;
+  border-color: #f87171;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-about-logout:active {
+  transform: translateY(0);
+}
+
 .form-section {
   border-top: 1px solid var(--border);
   margin-top: 20px;

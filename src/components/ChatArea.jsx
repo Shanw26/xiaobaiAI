@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import './ChatArea.css';
 
-function ChatArea({ messages }) {
+function ChatArea({ messages, currentUser }) {
   const messagesEndRef = useRef(null);
   const [expandedThinking, setExpandedThinking] = useState({});
 
@@ -24,14 +24,18 @@ function ChatArea({ messages }) {
         <div key={index} className={`message ${msg.role === 'user' ? 'user' : 'assistant'}`}>
           <div className={`avatar ${msg.role === 'user' ? 'user' : 'assistant'}`}>
             {msg.role === 'user' ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
+              currentUser && currentUser.phone ? (
+                <span className="user-avatar-text">
+                  {currentUser.phone.slice(-2)}
+                </span>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              )
             ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
+              <img src="/logo.svg" alt="小白AI" />
             )}
           </div>
           <div className="bubble">

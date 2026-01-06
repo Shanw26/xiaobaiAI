@@ -30,7 +30,7 @@ const MODEL_PROVIDERS = {
   },
 };
 
-function SettingsModal({ config, onSave, onClose }) {
+function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [userInfoPathDisplay, setUserInfoPathDisplay] = useState('');
   const [memoryPathDisplay, setMemoryPathDisplay] = useState('');
@@ -323,13 +323,11 @@ function SettingsModal({ config, onSave, onClose }) {
     <div className="settings-content animate-in">
       <div className="about-section">
         <div className="about-logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
+          <img src="/logo.svg" alt="小白AI Logo" />
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.3.0</span>
+          <span className="about-version">v2.3.3</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>
@@ -366,6 +364,13 @@ function SettingsModal({ config, onSave, onClose }) {
             <span className="about-info-value">Electron + React + Claude SDK</span>
           </div>
         </div>
+
+        {/* 退出登录按钮 - 仅登录用户显示 */}
+        {currentUser && (
+          <button className="btn-about-logout" onClick={onLogout}>
+            退出登录
+          </button>
+        )}
       </div>
     </div>
   );

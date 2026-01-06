@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { sendVerificationCode, signInWithPhone } from '../lib/cloudService';
 import './LoginModal.css';
 
 function LoginModal({ onClose, onLoginSuccess }) {
@@ -22,7 +23,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const result = await window.electronAPI.sendVerificationCode(phone);
+      const result = await sendVerificationCode(phone);
 
       if (result.success) {
         // 开始倒计时
@@ -38,8 +39,8 @@ function LoginModal({ onClose, onLoginSuccess }) {
           });
         }, 1000);
 
-        // 提示用户查看控制台
-        setError('验证码已生成，请在应用控制台中查看（开发阶段）');
+        // 提示用户查看手机短信
+        setError('验证码已发送，请查收短信');
       } else {
         setError(result.error || '发送失败，请重试');
       }
@@ -63,7 +64,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const result = await window.electronAPI.loginWithCode(phone, code);
+      const result = await signInWithPhone(phone, code);
 
       if (result.success) {
         onLoginSuccess(result.user);
@@ -136,7 +137,6 @@ function LoginModal({ onClose, onLoginSuccess }) {
                     {countdown > 0 ? `${countdown}秒后重试` : '重新发送'}
                   </button>
                 </div>
-                <p className="hint">💡 开发阶段：验证码会显示在应用控制台中</p>
               </div>
 
               <button

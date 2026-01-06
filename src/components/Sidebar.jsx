@@ -19,6 +19,7 @@ function Sidebar({
   onSelectChat,
   onDeleteChat,
   onOpenSettings,
+  currentUser,
 }) {
   const groupedConversations = conversations.reduce((groups, conv) => {
     const group = getDateGroup(conv.createdAt);
@@ -39,13 +40,11 @@ function Sidebar({
       <div className="sidebar-header">
         <div className="logo">
           <div className="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+            <img src="/logo.svg" alt="小白AI Logo" />
           </div>
           <div className="logo-info">
             <span className="logo-text">小白AI</span>
-            <span className="logo-version">v2.3.0</span>
+            <span className="logo-version">v2.3.3</span>
           </div>
         </div>
         <button className="btn-new-chat" onClick={onNewChat}>
@@ -103,11 +102,17 @@ function Sidebar({
 
       <div className="sidebar-footer">
         <button className="btn-settings" onClick={onOpenSettings}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
-            <circle cx="12" cy="12" r="9" strokeDasharray="4 4" />
-          </svg>
+          {currentUser ? (
+            <span className="settings-user-avatar">
+              {currentUser.phone ? currentUser.phone.slice(-2) : '用户'}
+            </span>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
+              <circle cx="12" cy="12" r="9" strokeDasharray="4 4" />
+            </svg>
+          )}
           设置
         </button>
       </div>
