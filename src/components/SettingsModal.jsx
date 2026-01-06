@@ -343,7 +343,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
 
         {updateAvailable && updateStatus && (
-          <div className="update-notice">
+          <div className="update-notice" onClick={handleCheckUpdate} title="点击立即更新">
             <div className="update-notice-text">
               发现新版本，点击版本标签可立即更新
             </div>
