@@ -5,6 +5,7 @@ import InputArea from './components/InputArea';
 import Header from './components/Header';
 import Welcome from './components/Welcome';
 import SettingsModal from './components/SettingsModal';
+import FloatingGuide from './components/FloatingGuide';
 import './App.css';
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showFloatingGuide, setShowFloatingGuide] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
@@ -45,6 +47,12 @@ function App() {
 
       // 加载全局提示和记忆文件
       await loadGlobalPromptAndMemory(savedConfig);
+
+      // 检查是否是首次使用，显示悬浮球引导
+      const firstTimeCheck = await window.electronAPI.isFirstTimeUser();
+      if (firstTimeCheck.isFirstTime) {
+        setShowFloatingGuide(true);
+      }
 
       // 如果有 API Key，初始化 Agent
       if (savedConfig?.apiKey && savedConfig.apiKey.trim() !== '') {
@@ -367,6 +375,8 @@ function App() {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {showFloatingGuide && <FloatingGuide />}
     </div>
   );
 }

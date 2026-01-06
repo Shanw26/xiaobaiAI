@@ -1,0 +1,165 @@
+.welcome-modal {
+  max-width: 600px;
+  width: 90%;
+  padding: 40px;
+}
+
+.welcome-header {
+  margin-bottom: 30px;
+}
+
+.welcome-progress {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.progress-dot.active {
+  background: #00cc66;
+  transform: scale(1.2);
+}
+
+.welcome-content {
+  text-align: center;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  animation: bounce 1s ease;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.welcome-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 12px 0;
+}
+
+.welcome-description {
+  font-size: 15px;
+  color: #666;
+  margin: 0 0 30px 0;
+  line-height: 1.6;
+}
+
+.welcome-features {
+  display: flex;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-icon {
+  font-size: 32px;
+}
+
+.feature-text {
+  font-size: 14px;
+  color: #666;
+}
+
+.welcome-content .form-group {
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.welcome-content .form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.welcome-content .form-input,
+.welcome-content .form-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.welcome-content .form-input:focus,
+.welcome-content .form-textarea:focus {
+  outline: none;
+  border-color: #00cc66;
+  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.1);
+}
+
+.welcome-content .form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.required {
+  color: #ff4444;
+}
+
+.welcome-summary {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.welcome-summary p {
+  margin: 8px 0;
+  color: #333;
+}
+
+.welcome-tip {
+  font-size: 13px;
+  color: #999;
+  margin-top: 20px;
+}
+
+.animate-in {
+  animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

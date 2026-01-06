@@ -7,8 +7,55 @@ const fs = require('fs').promises;
 const os = require('os');
 const agent = require('./agent');
 
+// 当前应用版本
+const APP_VERSION = '2.0.0';
+const VERSION_FILE = '.version';
+
 let mainWindow = null;
 let agentInstance = null;
+
+// 检查版本并清理旧数据
+async function checkAndCleanOldData() {
+  const userDataPath = app.getPath('userData');
+  const versionFilePath = path.join(userDataPath, VERSION_FILE);
+
+  try {
+    // 读取保存的版本号
+    const savedVersion = await fs.readFile(versionFilePath, 'utf-8');
+
+    // 如果版本不匹配，清空所有数据
+    if (savedVersion.trim() !== APP_VERSION) {
+      console.log(`版本升级：${savedVersion} -> ${APP_VERSION}，清空旧数据...`);
+
+      // 删除所有文件和文件夹（除了版本文件会稍后重新创建）
+      const files = await fs.readdir(userDataPath);
+
+      for (const file of files) {
+        const filePath = path.join(userDataPath, file);
+        try {
+          const stat = await fs.stat(filePath);
+          if (stat.isDirectory()) {
+            await fs.rm(filePath, { recursive: true, force: true });
+          } else {
+            await fs.unlink(filePath);
+          }
+          console.log(`已删除：${file}`);
+        } catch (error) {
+          console.error(`删除失败 ${file}:`, error.message);
+        }
+      }
+
+      console.log('旧数据清空完成');
+    }
+  } catch (error) {
+    // 版本文件不存在，说明是首次安装
+    console.log('首次安装，无需清理旧数据');
+  }
+
+  // 写入当前版本号
+  await fs.writeFile(versionFilePath, APP_VERSION, 'utf-8');
+  console.log(`当前版本：${APP_VERSION}`);
+}
 
 // 创建主窗口
 function createWindow() {
@@ -41,7 +88,10 @@ function createWindow() {
 }
 
 // 应用准备就绪时创建窗口
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 检查版本并清理旧数据
+  await checkAndCleanOldData();
+
   createWindow();
 
   // macOS 特性：点击 Dock 图标时重新创建窗口
@@ -164,28 +214,70 @@ ipcMain.handle('execute-command', async (event, command, options = {}) => {
   }
 });
 
-// 获取用户数据目录
-ipcMain.handle('get-user-data-path', () => {
-  return app.getPath('userData');
-});
-
 // 获取配置文件路径
 ipcMain.handle('get-config-path', () => {
   return path.join(app.getPath('userData'), 'config.json');
 });
 
-// 获取记忆文件路径
+// 获取应用数据目录路径
+ipcMain.handle('get-user-data-path', async () => {
+  return app.getPath('userData');
+});
+
+// 获取用户信息文件路径（固定在 userData 目录）
+ipcMain.handle('get-user-info-file-path', async () => {
+  return path.join(app.getPath('userData'), 'user-info.md');
+});
+
+// 获取记忆文件路径（固定在 userData 目录）
 ipcMain.handle('get-memory-file-path', async () => {
-  const configPath = path.join(app.getPath('userData'), 'config.json');
+  return path.join(app.getPath('userData'), 'memory.md');
+});
+
+// 打开文件或目录
+ipcMain.handle('open-path', async (event, filePath) => {
   try {
-    const configContent = await fs.readFile(configPath, 'utf-8');
-    const config = JSON.parse(configContent);
-    const workDir = config.workDir || path.join(require('os').homedir(), 'Downloads', '小白AI工作目录');
-    return path.join(workDir, '小白AI记忆.md');
+    await shell.openPath(filePath);
+    return { success: true };
   } catch (error) {
-    // 配置文件不存在，返回默认路径
-    const defaultWorkDir = path.join(require('os').homedir(), 'Downloads', '小白AI工作目录');
-    return path.join(defaultWorkDir, '小白AI记忆.md');
+    return { success: false, error: error.message };
+  }
+});
+
+// 检查是否首次使用
+ipcMain.handle('is-first-time-user', async () => {
+  const userInfoPath = path.join(app.getPath('userData'), 'user-info.md');
+  try {
+    await fs.access(userInfoPath);
+    return { isFirstTime: false };
+  } catch {
+    return { isFirstTime: true };
+  }
+});
+
+// 保存用户信息
+ipcMain.handle('save-user-info', async (event, userInfo) => {
+  const userInfoPath = path.join(app.getPath('userData'), 'user-info.md');
+  try {
+    const now = new Date().toLocaleString('zh-CN');
+    const content = `# User Information
+
+> Last Updated: ${now}
+
+## Basic Info
+- Name: ${userInfo.name || ''}
+- Occupation: ${userInfo.occupation || ''}
+- Location: ${userInfo.location || ''}
+- Bio: ${userInfo.bio || ''}
+
+## Preferences
+${userInfo.preferences ? `- ${userInfo.preferences}` : ''}
+`;
+
+    await fs.writeFile(userInfoPath, content, 'utf-8');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });
 
@@ -196,12 +288,11 @@ ipcMain.handle('read-config', async () => {
     const content = await fs.readFile(configPath, 'utf-8');
     return JSON.parse(content);
   } catch (error) {
-    // 返回默认配置
+    // 返回默认配置（移除 workDirectory）
     return {
       modelProvider: 'anthropic',
       apiKey: '',
       model: 'claude-3-5-sonnet-20241022',
-      workDirectory: '',
     };
   }
 });
@@ -216,129 +307,6 @@ ipcMain.handle('save-config', async (event, config) => {
     return { success: false, error: error.message };
   }
 });
-
-// 迁移工作目录
-ipcMain.handle('migrate-work-directory', async (event, newWorkDir) => {
-  try {
-    const defaultWorkDir = path.join(os.homedir(), 'Downloads', '小白AI工作目录');
-
-    // 读取当前配置
-    const configPath = path.join(app.getPath('userData'), 'config.json');
-    let oldWorkDir = defaultWorkDir;
-
-    try {
-      const configContent = await fs.readFile(configPath, 'utf-8');
-      const config = JSON.parse(configContent);
-      // 如果配置中有工作目录，使用配置的；否则使用默认的
-      oldWorkDir = config.workDirectory || defaultWorkDir;
-    } catch (error) {
-      // 配置文件不存在，使用默认目录
-    }
-
-    // 如果新旧目录相同，不需要迁移
-    if (oldWorkDir === newWorkDir) {
-      return { success: true, migrated: false, message: '工作目录未改变' };
-    }
-
-    // 检查旧目录是否存在
-    const oldDirExists = await fs.access(oldWorkDir).then(() => true).catch(() => false);
-
-    if (!oldDirExists) {
-      // 旧目录不存在，只需创建新目录
-      await fs.mkdir(newWorkDir, { recursive: true });
-      return { success: true, migrated: false, message: '旧工作目录不存在，已创建新目录' };
-    }
-
-    // 创建新目录
-    await fs.mkdir(newWorkDir, { recursive: true });
-
-    // 读取旧目录的所有文件和文件夹
-    const entries = await fs.readdir(oldWorkDir, { withFileTypes: true });
-
-    let movedCount = 0;
-    const errors = [];
-
-    // 移动每个文件/文件夹
-    for (const entry of entries) {
-      const oldPath = path.join(oldWorkDir, entry.name);
-      const newPath = path.join(newWorkDir, entry.name);
-
-      try {
-        // 检查目标是否已存在
-        const targetExists = await fs.access(newPath).then(() => true).catch(() => false);
-
-        if (!targetExists) {
-          if (entry.isDirectory()) {
-            // 递归移动目录
-            await moveDirectory(oldPath, newPath);
-          } else {
-            // 移动文件
-            await fs.rename(oldPath, newPath);
-          }
-          movedCount++;
-        } else {
-          errors.push(`${entry.name} (目标已存在，跳过)`);
-        }
-      } catch (error) {
-        errors.push(`${entry.name} (${error.message})`);
-      }
-    }
-
-    // 更新 agent 的工作目录
-    const agentUpdateResult = await updateAgentWorkDirectory(newWorkDir);
-
-    // 返回结果
-    let message = `已移动 ${movedCount} 个文件/文件夹到新目录`;
-    if (errors.length > 0) {
-      message += `，${errors.length} 个项目跳过`;
-    }
-
-    return {
-      success: true,
-      migrated: true,
-      message,
-      movedCount,
-      errors: errors.length > 0 ? errors : undefined,
-      oldWorkDir,
-      newWorkDir
-    };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// 递归移动目录的辅助函数
-async function moveDirectory(src, dest) {
-  await fs.mkdir(dest, { recursive: true });
-  const entries = await fs.readdir(src, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-
-    if (entry.isDirectory()) {
-      await moveDirectory(srcPath, destPath);
-    } else {
-      await fs.rename(srcPath, destPath);
-    }
-  }
-
-  // 删除旧目录（此时应该是空的）
-  await fs.rmdir(src);
-}
-
-// 更新 agent 的工作目录
-async function updateAgentWorkDirectory(newDir) {
-  try {
-    // 立即更新 agent 的工作目录
-    agent.setWorkDirectory(newDir);
-    console.log('Agent 工作目录已更新为:', newDir);
-    return { success: true };
-  } catch (error) {
-    console.error('更新 Agent 工作目录失败:', error);
-    return { success: false, error: error.message };
-  }
-}
 
 // 保存对话历史
 ipcMain.handle('save-conversations', async (event, conversations) => {
@@ -411,16 +379,14 @@ ipcMain.handle('init-agent', async (event, config) => {
       hasApiKey: !!config.apiKey,
       apiKeyLength: config.apiKey?.length,
       model: config.model,
-      workDirectory: config.workDirectory,
     });
 
     if (!config.apiKey || config.apiKey.trim() === '') {
       throw new Error('API Key 为空');
     }
 
-    // 设置工作目录
-    const workDir = config.workDirectory || path.join(os.homedir(), 'Downloads', '小白AI工作目录');
-    agent.setWorkDirectory(workDir);
+    // 设置工作目录为固定的 userData 目录
+    agent.setWorkDirectory(app.getPath('userData'));
 
     agentInstance = await agent.createAgent(
       config.modelProvider,

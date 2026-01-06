@@ -39,18 +39,26 @@ const SETTINGS_CATEGORIES = [
 
 function SettingsModal({ config, onSave, onClose }) {
   const [localConfig, setLocalConfig] = useState({ ...config });
-  const [workDirDisplay, setWorkDirDisplay] = useState(config.workDirectory || '');
+  const [userInfoPathDisplay, setUserInfoPathDisplay] = useState('');
   const [memoryPathDisplay, setMemoryPathDisplay] = useState('');
+  const [userDataPathDisplay, setUserDataPathDisplay] = useState('');
   const [tokenUsage, setTokenUsage] = useState(null);
   const [activeCategory, setActiveCategory] = useState('basic');
 
   useEffect(() => {
     setLocalConfig({ ...config });
-    setWorkDirDisplay(config.workDirectory || '');
-    // 获取记忆文件路径
-    window.electronAPI.getMemoryFilePath().then(path => {
-      setMemoryPathDisplay(path);
+
+    // 获取各种文件路径
+    Promise.all([
+      window.electronAPI.getUserInfoFilePath(),
+      window.electronAPI.getMemoryFilePath(),
+      window.electronAPI.getUserDataPath(),
+    ]).then(([userInfoPath, memoryPath, userDataPath]) => {
+      setUserInfoPathDisplay(userInfoPath);
+      setMemoryPathDisplay(memoryPath);
+      setUserDataPathDisplay(userDataPath);
     });
+
     // 获取token使用记录
     window.electronAPI.getTokenUsage().then(result => {
       if (result.success) {
@@ -59,45 +67,10 @@ function SettingsModal({ config, onSave, onClose }) {
     });
   }, [config]);
 
-  const handleSelectDirectory = async () => {
-    const selected = await window.electronAPI.selectDirectory();
-    if (selected) {
-      setWorkDirDisplay(selected);
-      setLocalConfig({ ...localConfig, workDirectory: selected });
-    }
-  };
-
   const handleSave = async () => {
     if (!localConfig.apiKey) {
       alert('请输入 API Key');
       return;
-    }
-
-    // 检查工作目录是否改变
-    const newWorkDir = localConfig.workDirectory;
-    const oldWorkDir = config.workDirectory;
-
-    // 如果工作目录有变化，进行迁移
-    if (newWorkDir && newWorkDir !== oldWorkDir) {
-      try {
-        const result = await window.electronAPI.migrateWorkDirectory(newWorkDir);
-
-        if (result.success && result.migrated) {
-          // 迁移成功，显示提示信息
-          const message = result.message || '工作目录已更新';
-          const details = result.errors
-            ? `\n\n跳过的项目：\n${result.errors.join('\n')}`
-            : '';
-
-          alert(`✅ ${message}${details}\n\n旧目录：${result.oldWorkDir}\n新目录：${result.newWorkDir}`);
-        } else if (result.success && !result.migrated) {
-          // 不需要迁移
-          console.log(result.message);
-        }
-      } catch (error) {
-        alert('迁移工作目录失败: ' + error.message);
-        return;
-      }
     }
 
     onSave(localConfig);
@@ -155,28 +128,6 @@ function SettingsModal({ config, onSave, onClose }) {
           ))}
         </select>
       </div>
-
-      <div className="form-group">
-        <label className="form-label">工作目录</label>
-        <div className="directory-selector">
-          <input
-            type="text"
-            className="form-input"
-            placeholder="选择工作目录"
-            value={workDirDisplay}
-            readOnly
-          />
-          <button className="btn-select" onClick={handleSelectDirectory}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M22 19a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            选择目录
-          </button>
-        </div>
-        <div className="form-help">
-          💡 小白AI创建的文件都会保存在这个目录中。默认：~/Downloads/小白AI工作目录
-        </div>
-      </div>
     </div>
   );
 
@@ -192,16 +143,19 @@ function SettingsModal({ config, onSave, onClose }) {
           <input
             type="text"
             className="form-input"
-            value="用户信息.md"
+            value={userInfoPathDisplay || '未创建'}
             readOnly
             style={{ background: 'var(--bg-secondary)' }}
           />
           <button
             className="btn-select"
             onClick={async () => {
-              const userInfoPath = `${localConfig.workDirectory || '~/Downloads/小白AI工作目录'}/用户信息.md`;
+              if (!userInfoPathDisplay) {
+                alert('用户信息文件尚未创建');
+                return;
+              }
               try {
-                const result = await window.electronAPI.openInExplorer(userInfoPath);
+                const result = await window.electronAPI.openPath(userInfoPathDisplay);
                 if (!result.success) {
                   alert('打开失败: ' + result.error);
                 }
@@ -242,7 +196,7 @@ function SettingsModal({ config, onSave, onClose }) {
                 return;
               }
               try {
-                const result = await window.electronAPI.openInExplorer(memoryPathDisplay);
+                const result = await window.electronAPI.openPath(memoryPathDisplay);
                 if (!result.success) {
                   alert('打开失败: ' + result.error);
                 }
@@ -258,7 +212,48 @@ function SettingsModal({ config, onSave, onClose }) {
           </button>
         </div>
         <div className="form-help">
-          💡 记忆文件保存在工作目录中（小白AI记忆.md），AI 可以根据历史信息提供更个性化的回复
+          💡 AI 可以根据历史记忆信息提供更个性化的回复
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          应用数据目录
+          <span className="form-hint">所有数据存储位置</span>
+        </label>
+        <div className="directory-selector">
+          <input
+            type="text"
+            className="form-input"
+            value={userDataPathDisplay || ''}
+            readOnly
+            style={{ background: 'var(--bg-secondary)' }}
+          />
+          <button
+            className="btn-select"
+            onClick={async () => {
+              if (!userDataPathDisplay) {
+                alert('数据目录路径未知');
+                return;
+              }
+              try {
+                const result = await window.electronAPI.openPath(userDataPathDisplay);
+                if (!result.success) {
+                  alert('打开失败: ' + result.error);
+                }
+              } catch (error) {
+                alert('打开失败: ' + error.message);
+              }
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+            打开
+          </button>
+        </div>
+        <div className="form-help">
+          💡 小白AI的所有数据（配置、对话历史、用户信息等）都保存在这个目录中
         </div>
       </div>
 
@@ -308,7 +303,7 @@ function SettingsModal({ config, onSave, onClose }) {
           </svg>
         </div>
         <h2 className="about-title">小白AI</h2>
-        <div className="about-version">v1.8.2</div>
+        <div className="about-version">v2.0.0</div>
         <p className="about-description">
           基于 Claude Agent SDK 的 AI 助手客户端，简单、强大、易用。
         </p>

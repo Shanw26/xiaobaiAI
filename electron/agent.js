@@ -5,6 +5,32 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+/**
+ * 安全的日志记录函数（避免 EPIPE 错误）
+ * 在 Electron 主进程中使用，避免向已关闭的流写入数据
+ */
+function safeLog(...args) {
+  try {
+    // 检查 process.stdout 是否可写
+    if (process.stdout && process.stdout.writable) {
+      console.log(...args);
+    }
+  } catch (error) {
+    // 忽略输出错误，避免崩溃
+  }
+}
+
+function safeError(...args) {
+  try {
+    // 检查 process.stderr 是否可写
+    if (process.stderr && process.stderr.writable) {
+      console.error(...args);
+    }
+  } catch (error) {
+    // 忽略输出错误，避免崩溃
+  }
+}
+
 // 模型提供商配置
 const MODEL_PROVIDERS = {
   anthropic: {
@@ -179,7 +205,7 @@ const FILE_TOOLS = [
  * 工具处理器
  */
 async function handleToolUse(toolName, input) {
-  console.log(`Agent: 调用工具 ${toolName}`, input);
+  safeLog(`Agent: 调用工具 ${toolName}`, input);
 
   try {
     switch (toolName) {
@@ -196,7 +222,7 @@ async function handleToolUse(toolName, input) {
 
         // 写入文件
         await fs.writeFile(filePath, input.content, 'utf-8');
-        console.log(`✓ 文件已创建: ${filePath}`);
+        safeLog(`✓ 文件已创建: ${filePath}`);
         return `文件已创建: ${filePath}`;
       }
 
@@ -207,7 +233,7 @@ async function handleToolUse(toolName, input) {
         }
 
         const content = await fs.readFile(filePath, 'utf-8');
-        console.log(`✓ 文件已读取: ${filePath}`);
+        safeLog(`✓ 文件已读取: ${filePath}`);
         return content;
       }
 
@@ -230,7 +256,7 @@ async function handleToolUse(toolName, input) {
           })
         );
 
-        console.log(`✓ 目录已列出: ${dirPath}`);
+        safeLog(`✓ 目录已列出: ${dirPath}`);
         return JSON.stringify(items, null, 2);
       }
 
@@ -241,7 +267,7 @@ async function handleToolUse(toolName, input) {
         }
 
         await fs.mkdir(dirPath, { recursive: true });
-        console.log(`✓ 目录已创建: ${dirPath}`);
+        safeLog(`✓ 目录已创建: ${dirPath}`);
         return `目录已创建: ${dirPath}`;
       }
 
@@ -257,11 +283,11 @@ async function handleToolUse(toolName, input) {
         // 删除文件或文件夹
         if (stats.isDirectory()) {
           await fs.rm(filePath, { recursive: true, force: true });
-          console.log(`✓ 文件夹已删除: ${filePath}`);
+          safeLog(`✓ 文件夹已删除: ${filePath}`);
           return `文件夹已删除: ${filePath}`;
         } else {
           await fs.unlink(filePath);
-          console.log(`✓ 文件已删除: ${filePath}`);
+          safeLog(`✓ 文件已删除: ${filePath}`);
           return `文件已删除: ${filePath}`;
         }
       }
@@ -271,7 +297,7 @@ async function handleToolUse(toolName, input) {
         const options = input.options || {};
         const { timeout = 30000, cwd = null } = options;
 
-        console.log(`执行命令: ${command}`);
+        safeLog(`执行命令: ${command}`);
 
         try {
           const execOptions = {
@@ -285,7 +311,7 @@ async function handleToolUse(toolName, input) {
 
           const { stdout, stderr } = await execPromise(command, execOptions);
 
-          console.log(`✓ 命令执行成功`);
+          safeLog(`✓ 命令执行成功`);
 
           let result = `命令执行成功\n`;
           if (stdout) {
@@ -297,7 +323,7 @@ async function handleToolUse(toolName, input) {
 
           return result;
         } catch (error) {
-          console.error(`命令执行失败:`, error);
+          safeError(`命令执行失败:`, error);
 
           let errorMsg = `命令执行失败: ${error.message}`;
           if (error.stdout) {
@@ -335,10 +361,10 @@ async function handleToolUse(toolName, input) {
 
           // 写入文件
           await fs.writeFile(userInfoPath, content, 'utf-8');
-          console.log(`✓ 用户信息已保存: ${info}`);
+          safeLog(`✓ 用户信息已保存: ${info}`);
           return `用户信息已保存：${info}`;
         } catch (error) {
-          console.error('保存用户信息失败:', error);
+          safeError('保存用户信息失败:', error);
           return `错误: ${error.message}`;
         }
       }
@@ -348,7 +374,7 @@ async function handleToolUse(toolName, input) {
 
         try {
           const content = await fs.readFile(userInfoPath, 'utf-8');
-          console.log('✓ 用户信息已读取');
+          safeLog('✓ 用户信息已读取');
           return content;
         } catch (error) {
           // 文件不存在，返回默认信息
@@ -361,7 +387,7 @@ async function handleToolUse(toolName, input) {
         return `错误: 未知的工具 - ${toolName}`;
     }
   } catch (error) {
-    console.error(`工具调用失败: ${toolName}`, error);
+    safeError(`工具调用失败: ${toolName}`, error);
     return `错误: ${error.message}`;
   }
 }
@@ -374,7 +400,7 @@ async function handleToolUse(toolName, input) {
  * @param {object} options - 额外选项
  */
 async function createAgent(provider, apiKey, model, options = {}) {
-  console.log('Agent: 开始创建客户端', { provider, model, hasTools: true });
+  safeLog('Agent: 开始创建客户端', { provider, model, hasTools: true });
 
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
@@ -389,7 +415,7 @@ async function createAgent(provider, apiKey, model, options = {}) {
     baseURL: providerConfig.baseUrl,
   });
 
-  console.log('Agent: 客户端创建成功（已配置文件操作工具）');
+  safeLog('Agent: 客户端创建成功（已配置文件操作工具）');
 
   return {
     client,
@@ -408,7 +434,7 @@ async function createAgent(provider, apiKey, model, options = {}) {
  */
 async function sendMessage(agentInstance, message, files = [], onDelta) {
   try {
-    console.log('Agent: 准备发送消息', { messageLength: message.length, fileCount: files.length });
+    safeLog('Agent: 准备发送消息', { messageLength: message.length, fileCount: files.length });
 
     // 构建消息内容
     let content = [{ type: 'text', text: message }];
@@ -439,7 +465,7 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
       }
     }
 
-    console.log('Agent: 开始调用 API（带工具支持）');
+    safeLog('Agent: 开始调用 API（带工具支持）');
 
     // 系统提示词
     const systemPrompt = `你是小白AI，一个基于 Claude Agent SDK 的 AI 助手。
@@ -550,8 +576,8 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
 
       if (toolUseBlocksInResponse.length === 0) {
         // 没有工具调用，结束循环
-        console.log('Agent: 消息发送完成（无工具调用）');
-        console.log('Agent: Token 使用量', {
+        safeLog('Agent: 消息发送完成（无工具调用）');
+        safeLog('Agent: Token 使用量', {
           inputTokens: totalInputTokens,
           outputTokens: totalOutputTokens,
           totalTokens: totalInputTokens + totalOutputTokens
@@ -564,7 +590,7 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
       }
 
       // 处理工具调用
-      console.log(`Agent: 检测到 ${toolUseBlocksInResponse.length} 个工具调用`);
+      safeLog(`Agent: 检测到 ${toolUseBlocksInResponse.length} 个工具调用`);
 
       // 添加助手消息到历史
       messages.push({
@@ -590,11 +616,11 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
       }
 
       // 继续循环，让模型处理工具结果
-      console.log('Agent: 工具调用完成，继续对话...');
+      safeLog('Agent: 工具调用完成，继续对话...');
     }
 
-    console.log('Agent: 消息发送完成');
-    console.log('Agent: Token 使用量', {
+    safeLog('Agent: 消息发送完成');
+    safeLog('Agent: Token 使用量', {
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
       totalTokens: totalInputTokens + totalOutputTokens
@@ -605,7 +631,7 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
       outputTokens: totalOutputTokens
     };
   } catch (error) {
-    console.error('Agent: 发送消息失败:', error);
+    safeError('Agent: 发送消息失败:', error);
     throw error;
   }
 }

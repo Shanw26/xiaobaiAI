@@ -17,10 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 配置管理
   readConfig: () => ipcRenderer.invoke('read-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
-  migrateWorkDirectory: (newDir) => ipcRenderer.invoke('migrate-work-directory', newDir),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   getConfigPath: () => ipcRenderer.invoke('get-config-path'),
+  getUserInfoFilePath: () => ipcRenderer.invoke('get-user-info-file-path'),
   getMemoryFilePath: () => ipcRenderer.invoke('get-memory-file-path'),
+  openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
+  isFirstTimeUser: () => ipcRenderer.invoke('is-first-time-user'),
+  saveUserInfo: (userInfo) => ipcRenderer.invoke('save-user-info', userInfo),
 
   // 对话历史管理
   saveConversations: (conversations) => ipcRenderer.invoke('save-conversations', conversations),
