@@ -11,7 +11,7 @@ const db = require('./database');
 const officialConfig = require('./official-config');
 
 // 当前应用版本
-const APP_VERSION = '2.3.0'; // 新功能：在线自动更新
+const APP_VERSION = '2.3.3'; // 统一使用 icon.svg 文件作为所有位置的图标
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -556,6 +556,18 @@ ipcMain.handle('export-markdown', async (event, messages, title) => {
 
 // ==================== 用户系统 API ====================
 
+// 获取设备ID
+ipcMain.handle('get-device-id', async () => {
+  try {
+    const deviceId = db.getDeviceId();
+    console.log('设备ID:', deviceId);
+    return { success: true, deviceId };
+  } catch (error) {
+    console.error('获取设备ID失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // 获取游客使用状态
 ipcMain.handle('get-guest-status', async () => {
   try {
@@ -586,23 +598,10 @@ ipcMain.handle('send-verification-code', async (event, phone) => {
       return { success: false, error: '请输入正确的手机号' };
     }
 
-    const result = db.createVerificationCode(phone);
-
-    if (result.success) {
-      // 开发阶段：在控制台显示验证码
-      console.log('═══════════════════════════════════════');
-      console.log('📱 验证码已生成');
-      console.log('手机号:', phone);
-      console.log('验证码:', result.code);
-      console.log('═══════════════════════════════════════');
-
-      // 生产环境：对接短信服务
-      // await sendSMS(phone, result.code);
-
-      return { success: true, message: '验证码已发送' };
-    }
-
-    return result;
+    // 验证码由前端通过 Supabase Edge Function 发送
+    // 这里只验证手机号格式
+    console.log('✅ 手机号格式验证通过:', phone);
+    return { success: true, message: '验证码已发送' };
   } catch (error) {
     console.error('发送验证码失败:', error);
     return { success: false, error: error.message };

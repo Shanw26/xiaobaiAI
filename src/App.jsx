@@ -12,9 +12,19 @@ import ToastModal from './components/ToastModal';
 import AdminPanel from './components/AdminPanel';
 import UpdateAvailableModal from './components/UpdateAvailableModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import {
+  loadConversations as loadConversationsCloud,
+  createConversation,
+  createMessage,
+  updateMessage as updateMessageCloud,
+  deleteConversation as deleteConversationCloud,
+  mergeGuestConversations
+} from './lib/cloudService';
 import './App.css';
 
-function App() {
+function AppContent() {
+  const auth = useAuth();
   const [config, setConfig] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -26,8 +36,8 @@ function App() {
   const [memoryContent, setMemoryContent] = useState('');
   const streamingMessageRef = useRef(null);
 
-  // 用户系统状态
-  const [currentUser, setCurrentUser] = useState(null);
+  // 使用 AuthContext 的用户状态
+  const currentUser = auth.currentUser;
   const [guestStatus, setGuestStatus] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
@@ -35,6 +45,20 @@ function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showForceUpdate, setShowForceUpdate] = useState(false);
+
+  // 调试：监听 currentUser 变化
+  useEffect(() => {
+    console.log('🔍 [App] currentUser 状态变化:', currentUser?.phone || 'null');
+  }, [currentUser]);
+
+  // 登录用户的使用次数（本地存储，10次免费额度）
+  const [userUsageCount, setUserUsageCount] = useState(() => {
+    if (currentUser) {
+      const saved = localStorage.getItem(`user_usage_${currentUser.id}`);
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
 
   // 加载配置
   useEffect(() => {
@@ -167,28 +191,64 @@ function App() {
 
   // 处理登录成功
   const handleLoginSuccess = async (user) => {
-    setCurrentUser(user);
+    console.log('🎉 [App] 登录成功，开始初始化...');
+
+    // 先登录，这会触发 currentUser 更新
+    auth.login(user);
     setShowLoginModal(false);
 
-    // 提示用户配置API Key
-    if (!user.hasApiKey) {
-      alert('登录成功！请先配置您的API Key');
-      setShowSettings(true);
-    } else {
-      // 重新初始化Agent
-      const savedConfig = await window.electronAPI.readConfig();
-      const result = await window.electronAPI.initAgent(savedConfig);
-      if (result.success) {
-        setIsAgentReady(true);
+    // 加载用户使用次数（从 localStorage）
+    const savedUsage = localStorage.getItem(`user_usage_${user.id}`);
+    setUserUsageCount(savedUsage ? parseInt(savedUsage, 10) : 0);
+
+    // 重新初始化Agent
+    const savedConfig = await window.electronAPI.readConfig();
+    const result = await window.electronAPI.initAgent(savedConfig);
+    if (result.success) {
+      setIsAgentReady(true);
+    }
+
+    // 🔥 关键：合并游客对话到登录用户
+    try {
+      console.log('🔄 [App] 合并游客对话...');
+      const mergeResult = await mergeGuestConversations(user.id);
+      if (mergeResult.success) {
+        console.log(`✅ [App] 成功合并 ${mergeResult.count} 个游客对话`);
       }
+    } catch (error) {
+      console.error('⚠️  [App] 合并游客对话失败（非致命）:', error);
+      // 不阻塞登录流程，继续加载对话历史
+    }
+
+    // 直接调用云端加载，传递 user 对象（不依赖 currentUser 状态）
+    try {
+      console.log('📥 [App] 从云端加载对话历史...');
+      const result = await loadConversationsCloud();
+      if (result.success) {
+        setConversations(result.data);
+        console.log(`✅ [App] 成功加载 ${result.data.length} 个对话`);
+      } else {
+        console.error('❌ [App] 加载云端对话失败:', result.error);
+        setConversations([]);
+      }
+    } catch (error) {
+      console.error('❌ [App] 加载对话历史失败:', error);
+      setConversations([]);
     }
   };
 
   // 处理退出登录
   const handleLogout = async () => {
+    await auth.logout();
     await window.electronAPI.logout();
-    setCurrentUser(null);
     setIsAgentReady(false);
+
+    // 关闭设置弹窗
+    setShowSettings(false);
+
+    // 清空对话历史（退出登录后不保留）
+    setConversations([]);
+    setCurrentChatId(null);
 
     // 切换到游客模式
     await window.electronAPI.useGuestMode();
@@ -208,15 +268,24 @@ function App() {
 
   const loadConversations = async () => {
     try {
-      const result = await window.electronAPI.loadConversations();
-      if (result.success) {
-        setConversations(result.data);
+      // 如果用户已登录，从云端加载对话历史
+      if (currentUser) {
+        console.log('📥 [App] 从云端加载对话历史...');
+        const result = await loadConversationsCloud();
+        if (result.success) {
+          setConversations(result.data);
+          console.log(`✅ [App] 成功加载 ${result.data.length} 个对话`);
+        } else {
+          console.error('❌ [App] 加载云端对话失败:', result.error);
+          setConversations([]);
+        }
       } else {
-        // 文件不存在或读取失败，使用空数组
+        // 游客模式，不加载对话历史（或从本地加载）
+        console.log('📥 [App] 游客模式，跳过对话历史加载');
         setConversations([]);
       }
     } catch (error) {
-      console.error('加载对话历史失败:', error);
+      console.error('❌ [App] 加载对话历史失败:', error);
       setConversations([]);
     }
   };
@@ -248,16 +317,9 @@ function App() {
   };
 
   const saveConversations = useCallback(async (updated) => {
-    try {
-      const result = await window.electronAPI.saveConversations(updated);
-      if (result.success) {
-        setConversations(updated);
-      } else {
-        console.error('保存对话历史失败:', result.error);
-      }
-    } catch (error) {
-      console.error('保存对话历史失败:', error);
-    }
+    // 云端模式下，不再需要保存整个对话列表
+    // 每个操作（创建/更新/删除）都会直接同步到云端
+    setConversations(updated);
   }, []);
 
   const handleNewChat = () => {
@@ -298,11 +360,29 @@ function App() {
   };
 
   const handleDeleteChat = async (chatId) => {
-    const updated = conversations.filter((c) => c.id !== chatId);
-    await saveConversations(updated);
+    try {
+      // 从云端删除对话
+      if (currentUser) {
+        console.log('🗑️  [App] 删除对话:', chatId);
+        const result = await deleteConversationCloud(chatId);
+        if (!result.success) {
+          console.error('❌ [App] 删除对话失败:', result.error);
+          alert('删除对话失败: ' + result.error);
+          return;
+        }
+        console.log('✅ [App] 对话删除成功');
+      }
 
-    if (currentChatId === chatId) {
-      setCurrentChatId(null);
+      // 更新本地状态
+      const updated = conversations.filter((c) => c.id !== chatId);
+      setConversations(updated);
+
+      if (currentChatId === chatId) {
+        setCurrentChatId(null);
+      }
+    } catch (error) {
+      console.error('❌ [App] 删除对话异常:', error);
+      alert('删除对话失败: ' + error.message);
     }
   };
 
@@ -344,11 +424,22 @@ function App() {
       }
     }
 
-    // 登录用户需要配置API Key
-    if (currentUser && !config?.apiKey) {
-      alert('请先在设置中配置 API Key');
-      setShowSettings(true);
-      return;
+    // 检查登录用户的使用次数（10次免费额度）
+    if (currentUser) {
+      const FREE_QUOTA = 10;
+      const remaining = FREE_QUOTA - userUsageCount;
+
+      if (!config?.apiKey) {
+        // 未配置 API Key
+        if (remaining <= 0) {
+          // 10次免费额度已用完
+          alert(`您的10次免费体验已用完。\n\n请配置自己的 API Key 继续使用。`);
+          setShowSettings(true);
+          return;
+        }
+        // 还有免费额度，允许使用（隐形规则，不提示）
+      }
+      // 已配置 API Key，无限制使用
     }
 
     if (!isAgentReady) {
@@ -359,24 +450,36 @@ function App() {
     // 创建新对话或追加到现有对话
     let chat;
     let updated = [...conversations];
+    let isNewConversation = false;
 
     if (!currentChatId) {
       // 创建新对话
+      isNewConversation = true;
       chat = {
         id: Date.now().toString(),
         title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
         createdAt: new Date().toISOString(),
+        model: config?.model || 'claude-3-5-sonnet-20241022',
         messages: [],
       };
       updated.unshift(chat);
       setCurrentChatId(chat.id);
+
+      // 同步到云端（游客和登录用户都保存）
+      console.log('📝 [App] 创建新对话到云端:', chat.title);
+      await createConversation(chat);
     } else {
       chat = updated.find((c) => c.id === currentChatId);
     }
 
     // 添加用户消息
-    const userMessage = { role: 'user', content, files };
+    const userMessageId = Date.now().toString();
+    const userMessage = { id: userMessageId, role: 'user', content, files };
     chat.messages.push(userMessage);
+
+    // 同步用户消息到云端（游客和登录用户都保存）
+    console.log('💬 [App] 保存用户消息到云端');
+    await createMessage(chat.id, userMessage);
 
     // 创建 AI 消息占位符（带思考过程）
     const timestamp = new Date().toLocaleTimeString('zh-CN');
@@ -396,10 +499,15 @@ function App() {
 • 确保回复准确完整
 
 ⏰ **完成时间：${timestamp}**`;
-    const aiMessage = { role: 'assistant', content: '', thinking };
+    const aiMessageId = Date.now().toString() + '_ai';
+    const aiMessage = { id: aiMessageId, role: 'assistant', content: '', thinking };
     chat.messages.push(aiMessage);
 
-    await saveConversations(updated);
+    // 先创建空的 AI 消息到云端（游客和登录用户都保存）
+    console.log('💬 [App] 创建 AI 消息占位符到云端');
+    await createMessage(chat.id, aiMessage);
+
+    setConversations(updated);
 
     // 构建完整的消息内容（包含全局提示和记忆）
     let fullContent = content;
@@ -415,6 +523,7 @@ function App() {
     }
 
     // 设置流式响应回调
+    let lastUpdateTime = Date.now();
     streamingMessageRef.current = (fullText) => {
       setConversations((prev) => {
         const newConversations = [...prev];
@@ -423,6 +532,14 @@ function App() {
           const lastMessage = currentChat.messages[currentChat.messages.length - 1];
           if (lastMessage && lastMessage.role === 'assistant') {
             lastMessage.content = fullText;
+
+            // 每2秒更新一次云端（避免频繁请求）
+            if (currentUser && Date.now() - lastUpdateTime > 2000) {
+              lastUpdateTime = Date.now();
+              updateMessageCloud(chat.id, aiMessageId, fullText).catch(err => {
+                console.error('流式更新云端消息失败:', err);
+              });
+            }
           }
         }
         return newConversations;
@@ -434,22 +551,23 @@ function App() {
       const result = await window.electronAPI.sendMessage(fullContent, files);
 
       if (result.success) {
-        // 最终更新
+        // 最终更新本地状态
         streamingMessageRef.current(result.content);
+
+        // 最终更新云端消息（游客和登录用户都更新）
+        console.log('💾 [App] 更新 AI 消息到云端');
+        await updateMessageCloud(chat.id, aiMessageId, result.content);
+
+        // 增加使用次数（仅登录用户且未配置 API Key 时）
+        if (currentUser && !config?.apiKey) {
+          const newCount = userUsageCount + 1;
+          setUserUsageCount(newCount);
+          localStorage.setItem(`user_usage_${currentUser.id}`, newCount.toString());
+          console.log(`📊 [App] 用户使用次数: ${newCount}/10`);
+        }
 
         // 自动更新记忆文件
         await updateMemoryFile(content, result.content);
-
-        // 保存完整的对话（包含AI的最终回复）
-        setConversations((prev) => {
-          const newConversations = [...prev];
-          const currentChat = newConversations.find((c) => c.id === chat.id);
-          if (currentChat) {
-            // 保存到文件
-            saveConversations(newConversations);
-          }
-          return newConversations;
-        });
       }
     } catch (error) {
       console.error('发送消息失败:', error);
@@ -512,7 +630,7 @@ function App() {
 
         <div className="content">
           {currentChat ? (
-            <ChatArea messages={currentChat.messages} />
+            <ChatArea messages={currentChat.messages} currentUser={currentUser} />
           ) : (
             <Welcome
               currentUser={currentUser}
@@ -527,6 +645,8 @@ function App() {
           hasApiKey={!!config?.apiKey}
           currentUser={currentUser}
           guestStatus={guestStatus}
+          userUsageCount={userUsageCount}
+          onLoginClick={() => setShowLoginModal(true)}
           onOpenSettings={() => {
             console.log('打开设置窗口');
             setShowSettings(true);
@@ -538,6 +658,7 @@ function App() {
         <SettingsModal
           config={config}
           currentUser={currentUser}
+          onLogout={handleLogout}
           onSave={handleSaveConfig}
           onClose={() => setShowSettings(false)}
         />
@@ -593,6 +714,15 @@ function App() {
         />
       )}
     </div>
+  );
+}
+
+// 用 AuthProvider 包裹整个应用
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

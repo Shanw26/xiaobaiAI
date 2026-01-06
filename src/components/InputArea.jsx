@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ScreenshotPreview from './ScreenshotPreview';
 import './InputArea.css';
 
-function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, onOpenSettings }) {
+function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsageCount = 0, onLoginClick, onOpenSettings }) {
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
@@ -25,12 +25,20 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, onOpenS
   }, [message]);
 
   const handleFocus = () => {
-    console.log('输入框获得焦点', { hasApiKey, hasPrompted, isGuest: !currentUser && guestStatus });
+    console.log('输入框获得焦点', { hasApiKey, hasPrompted, isGuest: !currentUser && guestStatus, userUsageCount });
 
     // 游客模式下不需要提示输入API Key（使用官方Key）
-    // 只有登录用户没有配置API Key时，才提示输入
+    // 登录用户只有在用完10次免费额度后才提示配置API Key
     const isGuest = !currentUser && guestStatus;
-    if (!hasApiKey && !hasPrompted && !isGuest) {
+    const FREE_QUOTA = 10;
+    const hasUsedFreeQuota = currentUser && userUsageCount >= FREE_QUOTA;
+
+    // 只有满足以下条件才弹出设置窗口：
+    // 1. 没有 API Key
+    // 2. 不是游客模式
+    // 3. 已经用完 10 次免费额度
+    // 4. 还没有提示过
+    if (!hasApiKey && !hasPrompted && !isGuest && hasUsedFreeQuota) {
       console.log('自动打开设置窗口');
       setHasPrompted(true);
       onOpenSettings();
@@ -190,7 +198,7 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, onOpenS
         {!currentUser && guestStatus && (
           <div className="guest-status-bar">
             <span className="guest-status-text">
-              游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次（登录可获得更多次数）
+              游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次（<a className="login-link" onClick={onLoginClick}>登录</a>可同步对话历史）
             </span>
           </div>
         )}

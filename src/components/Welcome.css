@@ -8,22 +8,55 @@
 }
 
 .welcome-icon {
-  width: 72px;
-  height: 72px;
-  background: linear-gradient(135deg, var(--primary) 0%, #00e670 100%);
-  border-radius: var(--radius-lg);
+  width: 120px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 24px;
-  box-shadow: var(--shadow-md);
 }
 
 .welcome-icon svg {
-  width: 38px;
-  height: 38px;
-  stroke: white;
-  stroke-width: 1.8;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 12px rgba(34, 197, 94, 0.3));
+}
+
+/* 眨眼动画 */
+@keyframes blink {
+  0%, 45%, 55%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.1);
+  }
+}
+
+.welcome-icon .eye {
+  transform-origin: center;
+  animation: blink 4s ease-in-out infinite;
+}
+
+.welcome-icon .right-eye {
+  animation-delay: 0s;
+}
+
+.welcome-icon .left-eye {
+  animation-delay: 0s;
+}
+
+/* 眼睛高光也跟着眨眼 */
+.welcome-icon .eye-highlight {
+  transform-origin: center;
+  animation: blink 4s ease-in-out infinite;
+}
+
+.welcome-icon .left-highlight {
+  animation-delay: 0s;
+}
+
+.welcome-icon .right-highlight {
+  animation-delay: 0s;
 }
 
 .welcome h1 {
@@ -60,7 +93,7 @@
 
 .btn-login {
   padding: 10px 24px;
-  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -72,7 +105,7 @@
 
 .btn-login:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 204, 102, 0.3);
 }
 
 .user-welcome {

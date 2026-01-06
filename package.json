@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.3.0",
+  "version": "2.5.0",
   "description": "小白AI - 基于 Claude Agent SDK 的 AI 助手客户端",
   "main": "electron/main.js",
   "scripts": {
@@ -24,8 +24,10 @@
   "author": "晓力",
   "license": "MIT",
   "dependencies": {
+    "@alicloud/dysmsapi20170525": "^2.0.1",
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.89.0",
     "better-sqlite3": "^12.5.0",
     "electron-updater": "^6.6.2",
     "react": "^18.3.1",

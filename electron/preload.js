@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 用户系统
   getGuestStatus: () => ipcRenderer.invoke('get-guest-status'),
+  getDeviceId: () => ipcRenderer.invoke('get-device-id'),
   sendVerificationCode: (phone) => ipcRenderer.invoke('send-verification-code', phone),
   loginWithCode: (phone, code) => ipcRenderer.invoke('login-with-code', phone, code),
   logout: () => ipcRenderer.invoke('logout'),

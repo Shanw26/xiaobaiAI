@@ -121,12 +121,12 @@
 }
 
 .screenshot-tag {
-  border-color: #a855f7;
-  background: #f3e8ff;
+  border-color: var(--primary-hover);
+  background: var(--primary-light);
 }
 
 .screenshot-tag svg {
-  stroke: #a855f7;
+  stroke: var(--primary-hover);
 }
 
 textarea {
@@ -221,4 +221,17 @@ textarea::placeholder {
   color: #0284c7;
   font-size: 15px;
   font-weight: 600;
+}
+
+.guest-status-text .login-link {
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.guest-status-text .login-link:hover {
+  color: #16a34a;
+  text-decoration: none;
 }
