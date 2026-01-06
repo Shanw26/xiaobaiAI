@@ -2,11 +2,11 @@
 
 <div align="center">
 
-**基于 Claude Agent SDK 的智能 AI 助手**
+**基于 Claude Agent SDK 的 AI 助手客户端，简单、强大、易用**
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/your-username/lusun-ai)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/Shanw26/xiaobaiAI)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/your-username/lusun-ai)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/Shanw26/xiaobaiAI)
 
 </div>
 
@@ -20,6 +20,7 @@
 
 ### 🛠️ 高级功能
 - **文件操作** - AI 可以创建、读取、列出文件
+- **记忆系统** - 自动学习用户偏好，提供个性化服务
 - **多模型支持** - 灵活切换不同的 AI 模型
 - **图片上传** - 支持上传图片进行对话
 - **对话导出** - 将对话导出为 Markdown 文件
@@ -33,23 +34,20 @@
 
 ### 下载安装
 
-访问 [Releases](https://github.com/your-username/lusun-ai/releases) 页面下载适合你系统的安装包：
+访问 [Releases](https://github.com/Shanw26/xiaobaiAI/releases) 页面下载适合你系统的安装包：
 
-- **Windows**: `小白AI Setup x.x.x.exe`
-- **macOS**: `小白AI-x.x.x.dmg`
-- **Linux**: `小白AI-x.x.x.AppImage`
-
-详细安装说明请查看 [BUILD.md](BUILD.md)
+- **Windows**: `小白AI Setup 2.0.0.exe`
+- **macOS**: `小白AI-2.0.0.dmg`
+- **Linux**: `小白AI-2.0.0.AppImage`
 
 ### 首次配置
 
-1. 启动应用后，点击设置按钮
-2. 选择模型提供商：
+1. 启动应用后，点击右下角悬浮球（👋）完善个人信息
+2. 在设置中配置 API Key：
    - **Claude (Anthropic)**: 需要 [API Key](https://console.anthropic.com)
    - **智谱 GLM**: 需要 [API Key](https://open.bigmodel.cn)
-3. 输入 API Key 并保存
-4. 选择模型（推荐 Claude 3.5 Sonnet 或 GLM-4.7）
-5. 开始对话！
+3. 选择模型（推荐 Claude 3.5 Sonnet 或 GLM-4.7）
+4. 开始对话！
 
 ## 💡 使用技巧
 
@@ -101,6 +99,14 @@
 - ✅ 引用块
 - ✅ 分隔线
 
+### 记忆系统
+
+小白AI 会自动记录：
+- ✅ 对话历史（用于上下文理解）
+- ✅ 用户偏好和习惯
+- ✅ 常用操作模式
+- ✅ 个人信息设置
+
 ### 文件操作能力
 
 AI 可以执行以下文件操作：
@@ -112,30 +118,29 @@ AI 可以执行以下文件操作：
 | list_directory | 列出目录 | "列出当前目录文件" |
 | create_directory | 创建目录 | "创建 my-project 文件夹" |
 
-**默认工作目录**: `~/Downloads`
+**数据存储位置**: `~/Library/Application Support/xiaobai-ai/` (macOS)
 
 ## ⚙️ 配置说明
 
 ### 配置文件位置
 
-- **Windows**: `%APPDATA%\lusun-ai\config.json`
-- **macOS**: `~/Library/Application Support/lusun-ai/config.json`
-- **Linux**: `~/.config/lusun-ai/config.json`
+- **Windows**: `%APPDATA%\xiaobai-ai\config.json`
+- **macOS**: `~/Library/Application Support/xiaobai-ai/config.json`
+- **Linux**: `~/.config/xiaobai-ai/config.json`
 
 ### 配置项
 
 ```json
 {
-  "modelProvider": "anthropic",  // 模型提供商: anthropic 或 zhipu
-  "apiKey": "sk-ant-xxxxx",      // API Key
-  "model": "claude-3-5-sonnet-20241022",  // 模型 ID
-  "workDirectory": "/Users/xxx/Downloads"  // 工作目录
+  "provider": "zhipu",           // 模型提供商: anthropic 或 zhipu
+  "apiKey": "your-api-key",      // API Key
+  "model": "glm-4.7",           // 模型 ID
+  "globalPromptPath": "",       // 全局提示文件路径（可选）
+  "memoryPath": ""              // 记忆文件路径（自动管理）
 }
 ```
 
 ## 🛠️ 开发说明
-
-如果你想自己编译开发，请查看 [BUILD.md](BUILD.md) 获取详细的打包说明。
 
 ### 环境要求
 
@@ -146,8 +151,8 @@ AI 可以执行以下文件操作：
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/lusun-ai.git
-cd lusun-ai
+git clone https://github.com/Shanw26/xiaobaiAI.git
+cd xiaobaiAI
 
 # 安装依赖
 npm install
@@ -171,20 +176,19 @@ npm run dist:linux  # Linux
 
 ## 📝 更新日志
 
-### v1.3.0 (2025-01-05)
-- ✨ 新增文件操作工具（write_file, read_file, list_directory, create_directory）
-- ✨ 支持 Markdown 渲染和代码语法高亮
-- 🐛 修复对话历史保存问题
-- 🐛 修复 Agent 初始化逻辑
+### v2.0.0 (2026-01-06) - 重大版本更新
+- ✨ 版本检查机制，大版本自动清空数据
+- ✨ 新用户悬浮球引导
+- ✨ 文件名英文化（user-info.md, memory.md）
+- 🎨 优化用户体验，使用标准数据目录
+- 🐛 修复 EPIPE 错误
+- 🐛 修复 Token 统计功能
 
-### v1.2.0
-- ✨ 新增 Markdown 渲染支持
-- ✨ 新增代码语法高亮
-- 🎨 优化 UI 样式
-
-### v1.1.4
-- 🐛 修复文件系统访问问题
-- 🐛 修复渲染进程中的 require 错误
+### v1.8.2
+- 🐛 修复输入框高度闪烁问题
+- 🐛 修复 Token 统计显示为 0 的问题
+- ✨ 新增工作目录迁移功能
+- 🎨 设置页面全面优化
 
 ### v1.0.0
 - 🎉 首次发布
@@ -200,15 +204,16 @@ npm run dist:linux  # Linux
 ## 🙏 致谢
 
 - [Anthropic](https://www.anthropic.com) - Claude API
+- [智谱AI](https://open.bigmodel.cn) - GLM API
 - [Electron](https://www.electronjs.org) - 跨平台桌面应用框架
 - [React](https://react.dev) - UI 框架
 - [Vite](https://vitejs.dev) - 构建工具
 
 ## 📮 联系方式
 
-- 作者：芦笋
-- 邮箱：your-email@example.com
-- GitHub：[@your-username](https://github.com/your-username)
+- 作者：晓力
+- GitHub：[@Shanw26](https://github.com/Shanw26)
+- 项目：https://github.com/Shanw26/xiaobaiAI
 
 ---
 
@@ -216,6 +221,6 @@ npm run dist:linux  # Linux
 
 **如果这个项目对你有帮助，请给个 ⭐️ Star！**
 
-Made with ❤️ by 芦笋
+Made with ❤️ by 晓力
 
 </div>
