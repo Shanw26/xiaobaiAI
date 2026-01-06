@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './UpdateAvailableModal.css';
 
 function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onClose }) {
@@ -67,7 +69,40 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
             <div className="update-notes">
               <h4>更新内容:</h4>
               <div className="notes-content">
-                {releaseNotes || '查看 GitHub Releases 了解详情'}
+                {releaseNotes ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      // 自定义标签样式
+                      h1: ({node, ...props}) => <h1 className="md-h1" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="md-h2" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="md-h3" {...props} />,
+                      h4: ({node, ...props}) => <h4 className="md-h4" {...props} />,
+                      p: ({node, ...props}) => <p className="md-p" {...props} />,
+                      ul: ({node, ...props}) => <ul className="md-ul" {...props} />,
+                      ol: ({node, ...props}) => <ol className="md-ol" {...props} />,
+                      li: ({node, ...props}) => <li className="md-li" {...props} />,
+                      code: ({node, inline, ...props}) =>
+                        inline ? (
+                          <code className="md-inline-code" {...props} />
+                        ) : (
+                          <code className="md-code-block" {...props} />
+                        ),
+                      pre: ({node, ...props}) => <pre className="md-pre" {...props} />,
+                      a: ({node, ...props}) => (
+                        <a className="md-link" target="_blank" rel="noopener noreferrer" {...props} />
+                      ),
+                      strong: ({node, ...props}) => <strong className="md-strong" {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote className="md-blockquote" {...props} />,
+                    }}
+                  >
+                    {releaseNotes}
+                  </ReactMarkdown>
+                ) : (
+                  <div className="no-notes">
+                    查看 <a href="https://github.com/Shanw26/xiaobaiAI/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 了解详情
+                  </div>
+                )}
               </div>
             </div>
           )}
