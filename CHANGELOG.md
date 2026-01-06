@@ -1,5 +1,29 @@
 # 小白AI 更新日志
 
+## v1.5.3 (2026-01-06)
+
+### ✨ 项目初始化
+- ✅ **品牌更名**：芦笋AI → 小白AI
+- ✅ **项目移动**：`/Users/xiaolin/Downloads/芦笋AI/` → `/Users/xiaolin/Downloads/小白AI/`
+- ✅ **Git 仓库初始化**：首次提交到 GitHub
+- ✅ **所有配置和代码已同步更新**
+
+### 🔄 更新内容
+- package.json：name 改为 `xiaobai-ai`，productName 改为 `小白AI`，appId 改为 `com.xiaobai.ai`
+- 代码文件：所有品牌文案从"芦笋AI"更新为"小白AI"
+- 文档：CHANGELOG.md、README.md、BUILD.md、使用指南.md 全部更新
+- Git：初始化仓库，添加 .gitignore，创建首次提交
+
+### 🔗 GitHub 仓库
+- 仓库地址：https://github.com/Shanw26/xiaobaiAI
+- 分支：main
+- 提交：feat: 小白AI v1.5.3 初始版本
+
+### 📝 说明
+- 保留 v1.5.3 版本号不变（功能未变，仅更名和初始化 Git）
+
+---
+
 ## v1.5.3 (2026-01-05)
 
 ### 🐛 Bug 修复
