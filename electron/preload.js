@@ -9,10 +9,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 文件操作
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+  deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
+
+  // 终端命令
+  executeCommand: (command, options) => ipcRenderer.invoke('execute-command', command, options),
 
   // 配置管理
   readConfig: () => ipcRenderer.invoke('read-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
+  migrateWorkDirectory: (newDir) => ipcRenderer.invoke('migrate-work-directory', newDir),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   getConfigPath: () => ipcRenderer.invoke('get-config-path'),
   getMemoryFilePath: () => ipcRenderer.invoke('get-memory-file-path'),
@@ -32,6 +37,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 系统操作
   openInExplorer: (filePath) => ipcRenderer.invoke('open-in-explorer', filePath),
+
+  // Token 使用统计
+  getTokenUsage: () => ipcRenderer.invoke('get-token-usage'),
+
+  // 截图功能
+  captureScreen: () => ipcRenderer.invoke('capture-screen'),
+  saveScreenshot: (imageDataUrl) => ipcRenderer.invoke('save-screenshot', imageDataUrl),
 
   // 监听流式响应
   onMessageDelta: (callback) => ipcRenderer.on('message-delta', (event, data) => callback(data)),

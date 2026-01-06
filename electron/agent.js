@@ -1,6 +1,9 @@
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 // 模型提供商配置
 const MODEL_PROVIDERS = {
@@ -24,8 +27,8 @@ const MODEL_PROVIDERS = {
   },
 };
 
-// 默认工作目录（用户下载目录）
-let workDirectory = path.join(os.homedir(), 'Downloads');
+// 默认工作目录（小白AI专用工作目录）
+let workDirectory = path.join(os.homedir(), 'Downloads', '小白AI工作目录');
 
 /**
  * 设置工作目录
@@ -47,13 +50,13 @@ function getWorkDirectory() {
 const FILE_TOOLS = [
   {
     name: 'write_file',
-    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。',
+    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。\n\n重要说明：\n- 如果用户未指定文件路径，默认使用小白AI工作目录\n- 相对路径会自动添加到工作目录下\n- 绝对路径会直接使用\n- 工作目录：~/Downloads/小白AI工作目录',
     input_schema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: '文件的相对路径或绝对路径',
+          description: '文件的相对路径或绝对路径。如果未指定，默认使用工作目录',
         },
         content: {
           type: 'string',
@@ -103,6 +106,71 @@ const FILE_TOOLS = [
         },
       },
       required: ['dirPath'],
+    },
+  },
+  {
+    name: 'delete_file',
+    description: '删除文件或文件夹。⚠️ 注意：此操作不可逆，请谨慎使用！可以删除任意位置的文件或文件夹。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        filePath: {
+          type: 'string',
+          description: '文件或文件夹的相对路径或绝对路径',
+        },
+      },
+      required: ['filePath'],
+    },
+  },
+  {
+    name: 'execute_command',
+    description: '执行终端命令（shell命令）。⚠️ 注意：此功能非常强大，可以执行任意系统命令，请谨慎使用！\n\n使用场景：\n- 系统管理操作（如：删除、移动、查找文件）\n- 执行脚本或程序\n- 查看系统信息\n- 网络操作\n\n示例命令：\n- macOS: ls -la, find . -name "*.txt", ps aux\n- Windows: dir, tasklist\n- Linux: ls, pwd, top',
+    input_schema: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description: '要执行的终端命令',
+        },
+        options: {
+          type: 'object',
+          description: '执行选项（可选）',
+          properties: {
+            timeout: {
+              type: 'number',
+              description: '超时时间（毫秒），默认 30000（30秒）',
+            },
+            cwd: {
+              type: 'string',
+              description: '工作目录（可选）',
+            },
+          },
+        },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'save_user_info',
+    description: '保存用户信息到全局配置文件。当用户主动提供个人信息（如姓名、职业、偏好等）时使用此工具保存。\n\n使用场景：\n- 用户说："我叫晓力"\n- 用户说："我是产品经理"\n- 用户说："我喜欢简洁的设计"\n\n重要：必须先征得用户同意才能保存！',
+    input_schema: {
+      type: 'object',
+      properties: {
+        info: {
+          type: 'string',
+          description: '用户信息内容（格式：键: 值，例如 "姓名: 晓力" 或 "职业: 产品经理"）',
+        },
+      },
+      required: ['info'],
+    },
+  },
+  {
+    name: 'get_user_info',
+    description: '获取已保存的用户信息。在需要了解用户背景时使用此工具。',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -175,6 +243,118 @@ async function handleToolUse(toolName, input) {
         await fs.mkdir(dirPath, { recursive: true });
         console.log(`✓ 目录已创建: ${dirPath}`);
         return `目录已创建: ${dirPath}`;
+      }
+
+      case 'delete_file': {
+        let filePath = input.filePath;
+        if (!path.isAbsolute(filePath)) {
+          filePath = path.join(workDirectory, filePath);
+        }
+
+        // 检查文件/文件夹是否存在
+        const stats = await fs.stat(filePath);
+
+        // 删除文件或文件夹
+        if (stats.isDirectory()) {
+          await fs.rm(filePath, { recursive: true, force: true });
+          console.log(`✓ 文件夹已删除: ${filePath}`);
+          return `文件夹已删除: ${filePath}`;
+        } else {
+          await fs.unlink(filePath);
+          console.log(`✓ 文件已删除: ${filePath}`);
+          return `文件已删除: ${filePath}`;
+        }
+      }
+
+      case 'execute_command': {
+        const command = input.command;
+        const options = input.options || {};
+        const { timeout = 30000, cwd = null } = options;
+
+        console.log(`执行命令: ${command}`);
+
+        try {
+          const execOptions = {
+            timeout,
+            maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+          };
+
+          if (cwd) {
+            execOptions.cwd = cwd;
+          }
+
+          const { stdout, stderr } = await execPromise(command, execOptions);
+
+          console.log(`✓ 命令执行成功`);
+
+          let result = `命令执行成功\n`;
+          if (stdout) {
+            result += `\n输出:\n${stdout}`;
+          }
+          if (stderr) {
+            result += `\n错误输出:\n${stderr}`;
+          }
+
+          return result;
+        } catch (error) {
+          console.error(`命令执行失败:`, error);
+
+          let errorMsg = `命令执行失败: ${error.message}`;
+          if (error.stdout) {
+            errorMsg += `\n\n输出:\n${error.stdout}`;
+          }
+          if (error.stderr) {
+            errorMsg += `\n\n错误:\n${error.stderr}`;
+          }
+
+          return errorMsg;
+        }
+      }
+
+      case 'save_user_info': {
+        // 用户信息保存到工作目录的用户信息文件
+        const userInfoPath = path.join(workDirectory, '用户信息.md');
+
+        // 解析用户信息
+        const info = input.info;
+        let content = '';
+
+        try {
+          // 如果文件存在，读取现有内容
+          try {
+            const existingContent = await fs.readFile(userInfoPath, 'utf-8');
+            content = existingContent;
+          } catch (err) {
+            // 文件不存在，创建新的
+            content = '# 用户信息\n\n';
+            content += `> 最后更新：${new Date().toLocaleString()}\n\n`;
+          }
+
+          // 添加新信息
+          content += `- ${info}\n`;
+
+          // 写入文件
+          await fs.writeFile(userInfoPath, content, 'utf-8');
+          console.log(`✓ 用户信息已保存: ${info}`);
+          return `用户信息已保存：${info}`;
+        } catch (error) {
+          console.error('保存用户信息失败:', error);
+          return `错误: ${error.message}`;
+        }
+      }
+
+      case 'get_user_info': {
+        const userInfoPath = path.join(workDirectory, '用户信息.md');
+
+        try {
+          const content = await fs.readFile(userInfoPath, 'utf-8');
+          console.log('✓ 用户信息已读取');
+          return content;
+        } catch (error) {
+          // 文件不存在，返回默认信息
+          const defaultInfo = '# 用户信息\n\n> 暂无用户信息\n\n可以通过对话告诉我你的信息，我会帮你记录下来。';
+          return defaultInfo;
+        }
       }
 
       default:
@@ -261,19 +441,68 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 
     console.log('Agent: 开始调用 API（带工具支持）');
 
+    // 系统提示词
+    const systemPrompt = `你是小白AI，一个基于 Claude Agent SDK 的 AI 助手。
+
+## 核心能力
+1. **文件操作**：可以创建、读取、编辑、删除文件
+2. **用户信息管理**：可以记住用户的个人信息，提供个性化服务
+3. **对话记忆**：通过全局设置和记忆文件，记住用户偏好
+
+## 文件操作规则
+- **默认路径**：如果用户未指定文件位置，默认使用 ~/Downloads/小白AI工作目录
+- **相对路径**：自动添加到工作目录下
+- **绝对路径**：直接使用用户指定的路径
+- **安全限制**：只能操作工作目录内的文件
+
+## 用户信息管理
+当用户提到以下信息时，**必须先征得用户同意**，然后使用 save_user_info 工具保存：
+- 个人信息：姓名、职业、年龄、所在地等
+- 偏好信息：喜欢的风格、习惯、需求等
+- 背景信息：工作、学习、项目等
+
+**重要**：
+1. 先友好地询问："我发现这是一个关于你的信息，要不要我帮你记下来？"
+2. 用户同意后，再调用 save_user_info 工具
+3. 使用格式：键: 值（例如 "姓名: 晓力"）
+
+示例对话：
+用户：我叫晓力，是个产品经理
+AI：很高兴认识你，晓力！我发现这些是关于你的个人信息，要不要我帮你记下来，方便以后更好地为你服务？
+用户：好的
+AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品经理"]
+
+## 工作方式
+- 简洁友好，直击要点
+- 主动询问，确认需求
+- 记住信息，提供个性化服务
+- 诚实面对不知道的事情
+
+## 产品哲学（记住这些）
+- **简单**：专注一个功能并做到极致
+- **单点击穿**：找到一个核心价值点
+- **All-in**：投入所有资源
+
+你是由晓力开发的 AI 助手，帮助他更高效地工作。`;
+
     // 构建消息数组
-    let messages = [{ role: 'user', content }];
+    let messages = [
+      { role: 'user', content }
+    ];
     let fullText = '';
     let maxIterations = 10; // 防止无限循环
     let iteration = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     while (iteration < maxIterations) {
       iteration++;
 
-      // 发送消息
+      // 发送消息（带系统提示词）
       const stream = await agentInstance.client.messages.stream({
         model: agentInstance.model,
         max_tokens: 4096,
+        system: systemPrompt,
         tools: FILE_TOOLS,
         messages: messages,
       });
@@ -308,6 +537,12 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
       // 获取完整的响应
       const responseMessage = await stream.finalMessage();
 
+      // 累计 token 使用量
+      if (responseMessage.usage) {
+        totalInputTokens += responseMessage.usage.input_tokens || 0;
+        totalOutputTokens += responseMessage.usage.output_tokens || 0;
+      }
+
       // 检查是否有工具调用
       const toolUseBlocksInResponse = responseMessage.content.filter(
         (block) => block.type === 'tool_use'
@@ -316,7 +551,16 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
       if (toolUseBlocksInResponse.length === 0) {
         // 没有工具调用，结束循环
         console.log('Agent: 消息发送完成（无工具调用）');
-        return fullText;
+        console.log('Agent: Token 使用量', {
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          totalTokens: totalInputTokens + totalOutputTokens
+        });
+        return {
+          text: fullText,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens
+        };
       }
 
       // 处理工具调用
@@ -350,7 +594,16 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
     }
 
     console.log('Agent: 消息发送完成');
-    return fullText;
+    console.log('Agent: Token 使用量', {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens
+    });
+    return {
+      text: fullText,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens
+    };
   } catch (error) {
     console.error('Agent: 发送消息失败:', error);
     throw error;

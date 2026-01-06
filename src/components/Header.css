@@ -7,12 +7,17 @@
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  /* 允许拖动窗口 */
+  -webkit-app-region: drag;
+  user-select: none;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 拖动区域内也要禁用拖动（为了可以选中文本） */
+  -webkit-app-region: no-drag;
 }
 
 .header-title {
@@ -25,6 +30,8 @@
 .header-actions {
   display: flex;
   gap: 6px;
+  /* 按钮区域禁用拖动 */
+  -webkit-app-region: no-drag;
 }
 
 .btn-icon {

@@ -125,3 +125,69 @@
 .message.user .file svg {
   stroke: white;
 }
+
+/* 思考过程展示 */
+.thinking-section {
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.thinking-header:hover {
+  background: var(--bg-hover);
+}
+
+.thinking-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.thinking-title svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.thinking-title span {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.thinking-header .collapse-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+}
+
+.thinking-header .collapse-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.thinking-content {
+  padding: 12px;
+  background: #fafafa;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

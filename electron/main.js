@@ -1,4 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 const path = require('path');
 const fs = require('fs').promises;
 const os = require('os');
@@ -18,6 +21,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      enableRemoteModule: false,
     },
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#ffffff',
@@ -101,6 +105,65 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
   }
 });
 
+// 删除文件
+ipcMain.handle('delete-file', async (event, filePath) => {
+  try {
+    // 检查文件/文件夹是否存在
+    const stats = await fs.stat(filePath);
+
+    // 删除文件或文件夹
+    if (stats.isDirectory()) {
+      await fs.rm(filePath, { recursive: true, force: true });
+      console.log('文件夹已删除:', filePath);
+    } else {
+      await fs.unlink(filePath);
+      console.log('文件已删除:', filePath);
+    }
+
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('删除失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 执行终端命令
+ipcMain.handle('execute-command', async (event, command, options = {}) => {
+  try {
+    const { timeout = 30000, cwd = null } = options;
+
+    console.log('执行命令:', command);
+
+    const execOptions = {
+      timeout,
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+    };
+
+    if (cwd) {
+      execOptions.cwd = cwd;
+    }
+
+    const { stdout, stderr } = await execPromise(command, execOptions);
+
+    console.log('命令执行成功');
+
+    return {
+      success: true,
+      stdout: stdout.trim(),
+      stderr: stderr.trim(),
+    };
+  } catch (error) {
+    console.error('命令执行失败:', error);
+
+    return {
+      success: false,
+      error: error.message,
+      stdout: error.stdout ? error.stdout.trim() : '',
+      stderr: error.stderr ? error.stderr.trim() : '',
+    };
+  }
+});
+
 // 获取用户数据目录
 ipcMain.handle('get-user-data-path', () => {
   return app.getPath('userData');
@@ -112,8 +175,18 @@ ipcMain.handle('get-config-path', () => {
 });
 
 // 获取记忆文件路径
-ipcMain.handle('get-memory-file-path', () => {
-  return path.join(app.getPath('userData'), 'lusun-memory.md');
+ipcMain.handle('get-memory-file-path', async () => {
+  const configPath = path.join(app.getPath('userData'), 'config.json');
+  try {
+    const configContent = await fs.readFile(configPath, 'utf-8');
+    const config = JSON.parse(configContent);
+    const workDir = config.workDir || path.join(require('os').homedir(), 'Downloads', '小白AI工作目录');
+    return path.join(workDir, '小白AI记忆.md');
+  } catch (error) {
+    // 配置文件不存在，返回默认路径
+    const defaultWorkDir = path.join(require('os').homedir(), 'Downloads', '小白AI工作目录');
+    return path.join(defaultWorkDir, '小白AI记忆.md');
+  }
 });
 
 // 读取配置
@@ -143,6 +216,129 @@ ipcMain.handle('save-config', async (event, config) => {
     return { success: false, error: error.message };
   }
 });
+
+// 迁移工作目录
+ipcMain.handle('migrate-work-directory', async (event, newWorkDir) => {
+  try {
+    const defaultWorkDir = path.join(os.homedir(), 'Downloads', '小白AI工作目录');
+
+    // 读取当前配置
+    const configPath = path.join(app.getPath('userData'), 'config.json');
+    let oldWorkDir = defaultWorkDir;
+
+    try {
+      const configContent = await fs.readFile(configPath, 'utf-8');
+      const config = JSON.parse(configContent);
+      // 如果配置中有工作目录，使用配置的；否则使用默认的
+      oldWorkDir = config.workDirectory || defaultWorkDir;
+    } catch (error) {
+      // 配置文件不存在，使用默认目录
+    }
+
+    // 如果新旧目录相同，不需要迁移
+    if (oldWorkDir === newWorkDir) {
+      return { success: true, migrated: false, message: '工作目录未改变' };
+    }
+
+    // 检查旧目录是否存在
+    const oldDirExists = await fs.access(oldWorkDir).then(() => true).catch(() => false);
+
+    if (!oldDirExists) {
+      // 旧目录不存在，只需创建新目录
+      await fs.mkdir(newWorkDir, { recursive: true });
+      return { success: true, migrated: false, message: '旧工作目录不存在，已创建新目录' };
+    }
+
+    // 创建新目录
+    await fs.mkdir(newWorkDir, { recursive: true });
+
+    // 读取旧目录的所有文件和文件夹
+    const entries = await fs.readdir(oldWorkDir, { withFileTypes: true });
+
+    let movedCount = 0;
+    const errors = [];
+
+    // 移动每个文件/文件夹
+    for (const entry of entries) {
+      const oldPath = path.join(oldWorkDir, entry.name);
+      const newPath = path.join(newWorkDir, entry.name);
+
+      try {
+        // 检查目标是否已存在
+        const targetExists = await fs.access(newPath).then(() => true).catch(() => false);
+
+        if (!targetExists) {
+          if (entry.isDirectory()) {
+            // 递归移动目录
+            await moveDirectory(oldPath, newPath);
+          } else {
+            // 移动文件
+            await fs.rename(oldPath, newPath);
+          }
+          movedCount++;
+        } else {
+          errors.push(`${entry.name} (目标已存在，跳过)`);
+        }
+      } catch (error) {
+        errors.push(`${entry.name} (${error.message})`);
+      }
+    }
+
+    // 更新 agent 的工作目录
+    const agentUpdateResult = await updateAgentWorkDirectory(newWorkDir);
+
+    // 返回结果
+    let message = `已移动 ${movedCount} 个文件/文件夹到新目录`;
+    if (errors.length > 0) {
+      message += `，${errors.length} 个项目跳过`;
+    }
+
+    return {
+      success: true,
+      migrated: true,
+      message,
+      movedCount,
+      errors: errors.length > 0 ? errors : undefined,
+      oldWorkDir,
+      newWorkDir
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// 递归移动目录的辅助函数
+async function moveDirectory(src, dest) {
+  await fs.mkdir(dest, { recursive: true });
+  const entries = await fs.readdir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await moveDirectory(srcPath, destPath);
+    } else {
+      await fs.rename(srcPath, destPath);
+    }
+  }
+
+  // 删除旧目录（此时应该是空的）
+  await fs.rmdir(src);
+}
+
+// 更新 agent 的工作目录
+async function updateAgentWorkDirectory(newDir) {
+  try {
+    // 立即更新 agent 的工作目录
+    agent.setWorkDirectory(newDir);
+    console.log('Agent 工作目录已更新为:', newDir);
+    return { success: true };
+  } catch (error) {
+    console.error('更新 Agent 工作目录失败:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 // 保存对话历史
 ipcMain.handle('save-conversations', async (event, conversations) => {
@@ -215,11 +411,16 @@ ipcMain.handle('init-agent', async (event, config) => {
       hasApiKey: !!config.apiKey,
       apiKeyLength: config.apiKey?.length,
       model: config.model,
+      workDirectory: config.workDirectory,
     });
 
     if (!config.apiKey || config.apiKey.trim() === '') {
       throw new Error('API Key 为空');
     }
+
+    // 设置工作目录
+    const workDir = config.workDirectory || path.join(os.homedir(), 'Downloads', '小白AI工作目录');
+    agent.setWorkDirectory(workDir);
 
     agentInstance = await agent.createAgent(
       config.modelProvider,
@@ -266,7 +467,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
   try {
     console.log('开始发送消息到 Agent...');
     // 发送消息并获取流式响应
-    await agent.sendMessage(
+    const result = await agent.sendMessage(
       agentInstance,
       message,
       fileInfos,
@@ -278,7 +479,18 @@ ipcMain.handle('send-message', async (event, message, files) => {
     );
 
     console.log('消息发送成功，响应长度:', fullResponse.length);
-    return { success: true, content: fullResponse };
+
+    // 保存 token 使用记录
+    if (result.inputTokens !== undefined && result.outputTokens !== undefined) {
+      await saveTokenUsage(result.inputTokens, result.outputTokens);
+      console.log('Token 使用记录已保存:', {
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        totalTokens: result.inputTokens + result.outputTokens
+      });
+    }
+
+    return { success: true, content: result.text || fullResponse };
   } catch (error) {
     console.error('发送消息失败:', error);
     throw error;
@@ -308,11 +520,155 @@ ipcMain.handle('get-models', (event, providerId) => {
 
 // 在系统文件管理器中打开文件
 ipcMain.handle('open-in-explorer', async (event, filePath) => {
-  const { shell } = require('electron');
   try {
     await shell.showItemInFolder(filePath);
     return { success: true };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// 获取token使用记录
+ipcMain.handle('get-token-usage', async () => {
+  const tokenPath = path.join(app.getPath('userData'), 'token-usage.json');
+  try {
+    const content = await fs.readFile(tokenPath, 'utf-8');
+    return { success: true, data: JSON.parse(content) };
+  } catch (error) {
+    // 文件不存在，返回默认数据
+    const defaultData = {
+      totalTokens: 0,
+      totalRequests: 0,
+      dailyUsage: [],
+    };
+    return { success: true, data: defaultData };
+  }
+});
+
+// 保存token使用记录
+async function saveTokenUsage(inputTokens, outputTokens) {
+  const tokenPath = path.join(app.getPath('userData'), 'token-usage.json');
+  try {
+    let data = {
+      totalTokens: 0,
+      totalRequests: 0,
+      dailyUsage: [],
+    };
+
+    // 读取现有数据
+    try {
+      const content = await fs.readFile(tokenPath, 'utf-8');
+      data = JSON.parse(content);
+    } catch (err) {
+      // 文件不存在，使用默认值
+    }
+
+    // 更新总计
+    const totalTokens = inputTokens + outputTokens;
+    data.totalTokens += totalTokens;
+    data.totalRequests += 1;
+
+    // 更新每日使用记录
+    const today = new Date().toLocaleDateString('zh-CN');
+    const todayEntry = data.dailyUsage.find(d => d.date === today);
+
+    if (todayEntry) {
+      todayEntry.inputTokens += inputTokens;
+      todayEntry.outputTokens += outputTokens;
+      todayEntry.totalTokens += totalTokens;
+      todayEntry.requests += 1;
+    } else {
+      data.dailyUsage.push({
+        date: today,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        requests: 1,
+      });
+    }
+
+    // 只保留最近30天的记录
+    data.dailyUsage = data.dailyUsage.slice(-30);
+
+    // 保存文件
+    await fs.writeFile(tokenPath, JSON.stringify(data, null, 2), 'utf-8');
+    console.log('Token使用记录已保存');
+  } catch (error) {
+    console.error('保存token使用记录失败:', error);
+  }
+}
+
+// 截图功能
+ipcMain.handle('capture-screen', async () => {
+  try {
+    // 隐藏主窗口，避免截到小白AI自己
+    if (mainWindow) {
+      mainWindow.minimize();
+    }
+
+    // 等待窗口最小化完成
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // 生成临时文件路径
+    const tmpDir = app.getPath('temp');
+    const timestamp = Date.now();
+    const filePath = path.join(tmpDir, `screenshot-${timestamp}.png`);
+
+    // 使用系统截图命令（交互式）
+    if (process.platform === 'darwin') {
+      // macOS: 使用 -i 参数让用户选择区域
+      // -i: 交互式模式（用户选择截图区域）
+      // -r: 不显示声音
+      await execPromise(`screencapture -i -r "${filePath}"`);
+    } else if (process.platform === 'win32') {
+      // Windows: 使用 PowerShell 截图工具
+      throw new Error('Windows 暂不支持截图功能，建议使用 macOS');
+    } else {
+      // Linux: 需要安装 ImageMagick 或其他工具
+      throw new Error('Linux 暂不支持截图功能，建议使用 macOS');
+    }
+
+    // 恢复窗口
+    if (mainWindow) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
+
+    // 读取截图文件并转换为 base64
+    const screenshotData = await fs.readFile(filePath);
+    const base64 = `data:image/png;base64,${screenshotData.toString('base64')}`;
+
+    console.log('截图成功:', filePath);
+    return { success: true, filePath, preview: base64 };
+  } catch (error) {
+    console.error('截图失败:', error);
+    // 确保窗口恢复
+    if (mainWindow) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
+    return { success: false, error: error.message, canceled: error.message.includes('cancelled') };
+  }
+});
+
+// 保存截图到临时文件
+ipcMain.handle('save-screenshot', async (event, imageDataUrl) => {
+  try {
+    const Buffer = require('buffer').Buffer;
+    // 移除 data:image/png;base64, 前缀
+    const base64Data = imageDataUrl.replace(/^data:image\/png;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // 保存到临时目录
+    const tmpDir = app.getPath('temp');
+    const timestamp = Date.now();
+    const filePath = path.join(tmpDir, `screenshot-${timestamp}.png`);
+
+    await fs.writeFile(filePath, buffer);
+    console.log('截图已保存:', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('保存截图失败:', error);
     return { success: false, error: error.message };
   }
 });

@@ -228,8 +228,25 @@ function App() {
     const userMessage = { role: 'user', content, files };
     chat.messages.push(userMessage);
 
-    // 创建 AI 消息占位符
-    const aiMessage = { role: 'assistant', content: '' };
+    // 创建 AI 消息占位符（带思考过程）
+    const timestamp = new Date().toLocaleTimeString('zh-CN');
+    const thinking = `🔍 **正在分析你的需求...**
+• 理解问题类型和意图
+• 识别关键信息点
+• 确定需要的工具和资源
+
+📚 **正在检索相关知识和上下文...**
+• 查阅记忆文件中的历史对话
+• 检索相关技能和经验
+• 准备合适的解决方案
+
+💡 **正在生成回复...**
+• 构建清晰的结构化回答
+• 添加实用的示例和代码
+• 确保回复准确完整
+
+⏰ **完成时间：${timestamp}**`;
+    const aiMessage = { role: 'assistant', content: '', thinking };
     chat.messages.push(aiMessage);
 
     await saveConversations(updated);
@@ -272,6 +289,17 @@ function App() {
 
         // 自动更新记忆文件
         await updateMemoryFile(content, result.content);
+
+        // 保存完整的对话（包含AI的最终回复）
+        setConversations((prev) => {
+          const newConversations = [...prev];
+          const currentChat = newConversations.find((c) => c.id === chat.id);
+          if (currentChat) {
+            // 保存到文件
+            saveConversations(newConversations);
+          }
+          return newConversations;
+        });
       }
     } catch (error) {
       console.error('发送消息失败:', error);
