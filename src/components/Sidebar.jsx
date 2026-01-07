@@ -1,4 +1,5 @@
 import './Sidebar.css';
+import logoSvg from '/logo.svg';
 
 // 简单的日期分组函数
 function getDateGroup(createdAt) {
@@ -40,7 +41,7 @@ function Sidebar({
       <div className="sidebar-header">
         <div className="logo">
           <div className="logo-icon">
-            <img src="/logo.svg" alt="小白AI Logo" />
+            <img src={logoSvg} alt="小白AI Logo" />
           </div>
           <div className="logo-info">
             <span className="logo-text">小白AI</span>
