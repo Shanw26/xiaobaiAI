@@ -190,27 +190,6 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
 
       <div className="form-group">
         <label className="form-label">
-          选择模型
-          <span className="form-hint">{currentProvider?.name || 'Claude'} 模型版本</span>
-        </label>
-        <select
-          className="form-input"
-          value={localConfig.model || currentModels[0]?.id}
-          onChange={(e) => setLocalConfig({ ...localConfig, model: e.target.value })}
-        >
-          {currentModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name}
-            </option>
-          ))}
-        </select>
-        <div className="form-help">
-          💡 不同模型的响应速度和智能程度不同
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">
           应用数据目录
           <span className="form-hint">所有数据存储位置</span>
         </label>
