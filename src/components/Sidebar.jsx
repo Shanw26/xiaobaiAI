@@ -45,7 +45,7 @@ function Sidebar({
           </div>
           <div className="logo-info">
             <span className="logo-text">小白AI</span>
-            <span className="logo-version">v2.5.6</span>
+            <span className="logo-version">v2.6.9</span>
           </div>
         </div>
         <button className="btn-new-chat" onClick={onNewChat}>

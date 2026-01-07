@@ -32,6 +32,12 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Sensitive information
+key.md
+*.key
+token.json
+secrets/
+
 # Electron
 out/
 app/

@@ -87,6 +87,15 @@
   color: #e83e8c;
 }
 
+/* 包含文件路径的行内代码样式 */
+.inline-code-with-path {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  color: #16a34a;
+  background: transparent;
+  padding: 0;
+}
+
 /* 表格样式 */
 .markdown-table-wrapper {
   overflow-x: auto;
@@ -129,4 +138,31 @@
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-sm);
+}
+
+/* 文件路径链接样式 */
+.file-path-link {
+  color: #16a34a;
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #16a34a;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.95em;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.file-path-link:hover {
+  color: #15803d;
+  text-decoration-color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.file-path-link:active {
+  color: #166534;
+  background: rgba(22, 163, 74, 0.2);
 }

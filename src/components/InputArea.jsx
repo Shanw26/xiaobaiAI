@@ -46,7 +46,8 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // 如果输入法正在 composition（选词），不发送消息
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
