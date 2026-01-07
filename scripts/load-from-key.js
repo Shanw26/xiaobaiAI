@@ -35,30 +35,51 @@ function loadFromKeyMd() {
   // 2. 读取 key.md
   const keyMdContent = fs.readFileSync(keyMdPath, 'utf8');
 
-  // 3. 解析阿里云 OSS AccessKey（从已有部分）
+  // 3. 解析阿里云 OSS AccessKey
   console.log('🔍 解析配置...\n');
 
   let accessKeyId = null;
   let accessKeySecret = null;
 
-  // 查找阿里云短信服务的 AccessKey
-  const smsMatch = keyMdContent.match(/AccessKey ID: (LTAI[\w]+)/);
-  const secretMatch = keyMdContent.match(/AccessKey Secret: ([\w]+)/);
+  // 精确查找 OSS 部分的 AccessKey（使用字符串操作而非正则，避免截断）
+  const ossSectionStart = keyMdContent.indexOf('### 阿里云 OSS（安装包上传）');
 
-  if (smsMatch && secretMatch) {
-    accessKeyId = smsMatch[1];
-    accessKeySecret = secretMatch[1];
-    console.log('✅ 找到阿里云短信服务 AccessKey');
+  if (ossSectionStart > -1) {
+    // 从 OSS 部分开始，找到下一个 "### " 或文件结尾
+    let ossSectionEnd = keyMdContent.indexOf('\n### ', ossSectionStart + 1);
+    if (ossSectionEnd === -1) {
+      ossSectionEnd = keyMdContent.length;
+    }
+
+    const ossSection = keyMdContent.substring(ossSectionStart, ossSectionEnd);
+
+    // 在 OSS 部分内查找 AccessKey
+    const idMatch = ossSection.match(/AccessKey ID:\s*(LTAI[\w\-]+)/);
+    const secretMatch = ossSection.match(/AccessKey Secret:\s*([\w\-]+)/);
+
+    if (idMatch && secretMatch) {
+      accessKeyId = idMatch[1];
+      accessKeySecret = secretMatch[1];
+      console.log('✅ 找到阿里云 OSS 专用 AccessKey');
+    } else {
+      console.log('⚠️  OSS 部分未找到完整的 AccessKey');
+      console.log('💡 请在 key.md 的"阿里云 OSS（安装包上传）"部分添加 AccessKey');
+    }
   } else {
-    console.log('⚠️  未找到阿里云短信服务 AccessKey');
-    console.log('💡 请在 key.md 的"阿里云短信服务"部分添加 OSS AccessKey');
+    console.log('⚠️  未找到"阿里云 OSS（安装包上传）"部分');
+    console.log('💡 请在 key.md 中添加 OSS 配置部分');
   }
 
-  // 4. 如果找到，添加 OSS 配置到 key.md（如果还没有）
-  if (accessKeyId && !keyMdContent.includes('### 阿里云 OSS（安装包上传）')) {
-    console.log('\n💡 检测到你已有阿里云短信服务 AccessKey');
-    console.log('   是否也用于 OSS 上传？');
-    console.log('   (推荐：创建单独的 OSS 子账号，更安全)\n');
+  // 4. 提示信息
+  if (!accessKeyId) {
+    console.log('\n💡 请确保 key.md 中包含以下内容：\n');
+    console.log('### 阿里云 OSS（安装包上传）\n');
+    console.log('**配置信息**:');
+    console.log('```');
+    console.log('Bucket: xiaobai-ai-releases');
+    console.log('AccessKey ID: LTAI5tXXXXXXXXXXXXXX');
+    console.log('AccessKey Secret: XXXXXXXXXXXXXXXXXXXXXXXX');
+    console.log('```\n');
   }
 
   // 5. 读取现有 .env
@@ -91,7 +112,7 @@ function loadFromKeyMd() {
     const lines = envContent.trimEnd().split('\n');
 
     // 找到最后一个配置项后添加
-    const ossConfig = `\n\n# 阿里云 OSS 配置（从 key.md 加载）\n`;
+    let ossConfig = `\n\n# 阿里云 OSS 配置（从 key.md 加载）\n`;
     ossConfig += `ALI_OSS_ACCESS_KEY_ID=${accessKeyId}\n`;
     ossConfig += `ALI_OSS_ACCESS_KEY_SECRET=${accessKeySecret}\n`;
 
