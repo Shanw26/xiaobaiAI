@@ -1,6 +1,33 @@
 /* 更新可用弹窗样式 */
 @import './ModalBase.css';
 
+/* 遮罩层 - 确保有居中和背景 */
+.update-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+  padding: 24px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* 使用 priority-high z-index (2000) */
 
 .update-modal {
