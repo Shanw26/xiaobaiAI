@@ -281,11 +281,24 @@ app.whenReady().then(async () => {
   createWindow();
 
   // 配置自动更新
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'Shanw26',
-    repo: 'xiaobaiAI'
-  });
+  // 生产环境：使用阿里云 OSS（国内速度快）
+  // 开发环境：使用 GitHub（方便测试）
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (isDev) {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'Shanw26',
+      repo: 'xiaobaiAI'
+    });
+    safeLog('[更新] 使用 GitHub 更新源（开发模式）');
+  } else {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: 'https://xiaobai-ai-releases.oss-cn-hangzhou.aliyuncs.com/mac/'
+    });
+    safeLog('[更新] 使用阿里云 OSS 更新源（生产模式）');
+  }
 
   // 启动时检查更新
   await checkForUpdates();
