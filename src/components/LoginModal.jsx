@@ -81,23 +81,30 @@ function LoginModal({ onClose, onLoginSuccess }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content login-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>
-          ×
+      <div className="modal small" onClick={(e) => e.stopPropagation()}>
+        {/* 关闭按钮 */}
+        <button className="btn-close" onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
 
-        <div className="login-header">
-          <h2>📱 手机号登录</h2>
-          <p>登录后可配置自己的API Key</p>
+        {/* 标题 */}
+        <div className="modal-header" style={{ border: 'none', paddingBottom: '12px', textAlign: 'center' }}>
+          <h2 className="modal-title" style={{ fontSize: '24px', margin: '0 0 8px 0' }}>📱 手机号登录</h2>
+          <p className="modal-description" style={{ margin: 0 }}>登录后可配置自己的API Key</p>
         </div>
 
-        <div className="login-form">
+        {/* 表单内容 */}
+        <div className="modal-body" style={{ paddingTop: '0' }}>
           {step === 'phone' && (
             <>
               <div className="form-group">
-                <label>手机号</label>
+                <label className="form-label">手机号</label>
                 <input
                   type="tel"
+                  className="form-input"
                   placeholder="请输入手机号"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -106,65 +113,67 @@ function LoginModal({ onClose, onLoginSuccess }) {
                 />
               </div>
 
-              <button
-                className="btn-primary"
-                onClick={handleSendCode}
-                disabled={loading || !phone}
-              >
-                {loading ? '发送中...' : '获取验证码'}
-              </button>
+              <div className="modal-actions" style={{ border: 'none', padding: '0' }}>
+                <button className="btn-modal primary" onClick={handleSendCode} disabled={loading || !phone}>
+                  {loading ? '发送中...' : '获取验证码'}
+                </button>
+              </div>
             </>
           )}
 
           {step === 'code' && (
             <>
               <div className="form-group">
-                <label>验证码</label>
-                <div className="code-input-group">
+                <label className="form-label">验证码</label>
+                <div className="code-input-group" style={{ display: 'flex', gap: '12px' }}>
                   <input
                     type="text"
+                    className="form-input"
                     placeholder="请输入6位验证码"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     maxLength={6}
                     disabled={loading}
+                    style={{ flex: 1 }}
                   />
                   <button
-                    className="btn-resend"
+                    className="btn-modal secondary"
                     onClick={handleSendCode}
                     disabled={countdown > 0 || loading}
+                    style={{ flex: 'none', width: 'auto' }}
                   >
                     {countdown > 0 ? `${countdown}秒后重试` : '重新发送'}
                   </button>
                 </div>
               </div>
 
-              <button
-                className="btn-primary"
-                onClick={handleLogin}
-                disabled={loading || code.length !== 6}
-              >
-                {loading ? '登录中...' : '登录'}
-              </button>
+              <div className="modal-actions" style={{ border: 'none', padding: '0', flexDirection: 'column' }}>
+                <button className="btn-modal primary" onClick={handleLogin} disabled={loading || code.length !== 6}>
+                  {loading ? '登录中...' : '登录'}
+                </button>
 
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  setStep('phone');
-                  setCode('');
-                  setError('');
-                }}
-              >
-                返回修改手机号
-              </button>
+                <button
+                  className="btn-modal secondary"
+                  onClick={() => {
+                    setStep('phone');
+                    setCode('');
+                    setError('');
+                  }}
+                >
+                  返回修改手机号
+                </button>
+              </div>
             </>
           )}
 
-          {error && <p className="error-message">{error}</p>}
-        </div>
+          {error && (
+            <p className="modal-error" style={{ marginTop: '16px', marginBottom: '0' }}>{error}</p>
+          )}
 
-        <div className="login-footer">
-          <p>登录即表示同意《用户协议》和《隐私政策》</p>
+          {/* 底部说明 */}
+          <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-light)', marginTop: '16px', marginBottom: '0' }}>
+            登录即表示同意《用户协议》和《隐私政策》
+          </p>
         </div>
       </div>
     </div>

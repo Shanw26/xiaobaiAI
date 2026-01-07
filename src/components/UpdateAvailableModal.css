@@ -1,46 +1,17 @@
-/* 普通更新弹窗样式 */
-.update-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  animation: fadeIn 0.2s ease-out;
-}
+/* 更新可用弹窗样式 */
+@import './ModalBase.css';
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* 使用 priority-high z-index (2000) */
 
 .update-modal {
+  /* 继承基础样式，自定义大小和 overflow */
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 500px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.3s ease-out;
   overflow: hidden;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .update-header {
@@ -48,7 +19,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
 }
 
@@ -69,7 +40,7 @@
   color: white;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 24px;
   cursor: pointer;
   transition: all 0.2s;
@@ -91,7 +62,7 @@
 .update-version {
   font-size: 28px;
   font-weight: 700;
-  color: #16a34a;
+  color: var(--primary);
   text-align: center;
   margin-bottom: 20px;
   user-select: none;
@@ -105,7 +76,6 @@
 
 .update-version.clickable:hover {
   transform: scale(1.05);
-  color: #15803d;
 }
 
 .update-version.clickable:active {
@@ -116,7 +86,7 @@
   display: block;
   font-size: 12px;
   font-weight: 400;
-  color: #9ca3af;
+  color: var(--text-light);
   margin-top: 8px;
   opacity: 0.9;
 }
@@ -131,8 +101,8 @@
 .preparing-spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e5e7eb;
-  border-top-color: #16a34a;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -146,14 +116,14 @@
 .preparing-text {
   margin-top: 16px;
   font-size: 15px;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .preparing-hint {
   margin-top: 8px;
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--text-light);
 }
 
 .update-notes {
@@ -164,24 +134,23 @@
   margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .notes-content {
-  background: #f9fafb;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
   padding: 16px;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-secondary);
   line-height: 1.6;
   max-height: 300px;
   overflow-y: auto;
 }
 
-/* HTML 内容样式 */
 .notes-html-content {
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-secondary);
   line-height: 1.7;
 }
 
@@ -190,14 +159,14 @@
 .notes-html-content h3,
 .notes-html-content h4 {
   font-weight: 600;
-  color: #16a34a;
+  color: var(--primary);
   margin: 16px 0 8px 0;
 }
 
 .notes-html-content h1 {
   font-size: 18px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border);
 }
 
 .notes-html-content h2 {
@@ -206,7 +175,7 @@
 
 .notes-html-content h3 {
   font-size: 15px;
-  color: #15803d;
+  color: var(--primary-hover);
 }
 
 .notes-html-content p {
@@ -234,8 +203,8 @@
 }
 
 .notes-html-content pre {
-  background: #1f2937;
-  color: #f9fafb;
+  background: var(--text);
+  color: var(--bg);
   padding: 12px;
   border-radius: 6px;
   font-size: 13px;
@@ -247,56 +216,56 @@
 
 .notes-html-content pre code {
   background: transparent;
-  color: #f9fafb;
+  color: var(--bg);
   padding: 0;
 }
 
 .notes-html-content a {
-  color: #16a34a;
+  color: var(--primary);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .notes-html-content a:hover {
-  color: #15803d;
+  color: var(--primary-hover);
   text-decoration: underline;
 }
 
 .notes-html-content strong,
 .notes-html-content b {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .notes-html-content em,
 .notes-html-content i {
   font-style: italic;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .notes-html-content blockquote {
   margin: 8px 0;
   padding: 8px 12px;
-  border-left: 4px solid #16a34a;
-  background: #f9fafb;
-  color: #6b7280;
+  border-left: 4px solid var(--primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
 .notes-html-content hr {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
   margin: 16px 0;
 }
 
 .no-notes {
-  color: #6b7280;
+  color: var(--text-secondary);
   text-align: center;
   padding: 12px;
 }
 
 .no-notes a {
-  color: #16a34a;
+  color: var(--primary);
   text-decoration: none;
   font-weight: 500;
 }
@@ -312,7 +281,7 @@
 .progress-bar {
   width: 100%;
   height: 24px;
-  background: #e5e7eb;
+  background: var(--border);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 12px;
@@ -320,7 +289,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-hover) 100%);
   transition: width 0.3s ease-out;
   border-radius: 12px;
 }
@@ -328,11 +297,11 @@
 .progress-info {
   text-align: center;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .progress-speed {
-  color: #9ca3af;
+  color: var(--text-light);
   font-size: 13px;
 }
 
@@ -340,14 +309,14 @@
   display: flex;
   gap: 12px;
   padding: 20px 24px;
-  background: #f9fafb;
+  background: var(--bg-secondary);
   justify-content: flex-end;
 }
 
 .btn-update {
   padding: 10px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -355,23 +324,23 @@
 }
 
 .btn-update.primary {
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 204, 102, 0.25);
 }
 
 .btn-update.primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 204, 102, 0.35);
 }
 
 .btn-update.secondary {
   background: white;
-  color: #6b7280;
-  border: 1px solid #e5e7eb;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .btn-update.secondary:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
+  background: var(--bg-secondary);
+  border-color: var(--text-light);
 }

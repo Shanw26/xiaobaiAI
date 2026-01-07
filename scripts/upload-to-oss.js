@@ -62,6 +62,7 @@ async function uploadFile(localPath, remotePath, contentType = 'application/octe
  * 生成 YAML 格式的 latest-mac.yml
  */
 function generateYaml(version, files, baseUrl) {
+  const releaseDate = new Date().toISOString();
   const yaml = `version: ${version}
 files:
 ${files.map(f => `  - url: ${baseUrl}/${f.filename}
@@ -70,6 +71,7 @@ ${files.map(f => `  - url: ${baseUrl}/${f.filename}
 path: ${baseUrl}/${files[0].filename}
 sha512: ${files[0].sha512}
 size: ${files[0].size}
+releaseDate: '${releaseDate}'
 `;
   return yaml;
 }

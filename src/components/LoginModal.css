@@ -1,54 +1,11 @@
 /* 登录弹窗样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+@import './ModalBase.css';
 
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 32px;
-  max-width: 420px;
-  width: 90%;
-  position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
+/* 使用基础样式的 .modal-overlay 和 .modal-content */
 
-.modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: none;
-  border: none;
-  font-size: 28px;
-  color: #999;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  background: #f5f5f5;
-  color: #333;
-}
-
-/* 登录弹窗特有样式 */
 .login-modal {
-  max-width: 400px;
+  /* 继承 .modal.small 样式 */
+  position: relative;
 }
 
 .login-header {
@@ -60,13 +17,13 @@
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .login-header p {
   margin: 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .login-form {
@@ -84,13 +41,13 @@
 .form-group label {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 
 .form-group input {
   padding: 12px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font-size: 15px;
   transition: all 0.2s;
 }
@@ -98,11 +55,11 @@
 .form-group input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.1);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .form-group input:disabled {
-  background: #f5f5f5;
+  background: var(--bg-secondary);
   cursor: not-allowed;
 }
 
@@ -117,11 +74,11 @@
 
 .btn-resend {
   padding: 12px 16px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   background: white;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
@@ -142,7 +99,7 @@
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
@@ -166,35 +123,17 @@
 .btn-secondary {
   padding: 12px 24px;
   background: white;
-  color: #666;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-secondary:hover {
-  border-color: #999;
-  color: #333;
-}
-
-.hint {
-  margin: 4px 0 0 0;
-  font-size: 12px;
-  color: #f59e0b;
-  line-height: 1.4;
-}
-
-.error-message {
-  margin: 0;
-  padding: 12px 16px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 14px;
-  line-height: 1.4;
+  border-color: var(--text);
+  color: var(--text);
 }
 
 .login-footer {
@@ -205,5 +144,5 @@
 .login-footer p {
   margin: 0;
   font-size: 12px;
-  color: #999;
+  color: var(--text-light);
 }

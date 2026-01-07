@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ScreenshotPreview from './ScreenshotPreview';
 import './InputArea.css';
+import { showAlert } from '../lib/alertService';
 
 function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsageCount = 0, onLoginClick, onOpenSettings }) {
   const [message, setMessage] = useState('');
@@ -95,11 +96,11 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
         setPendingScreenshot(screenshotData);
         setShowPreview(true);
       } else if (result.error) {
-        alert('截图失败: ' + result.error);
+        showAlert('截图失败: ' + result.error, 'error');
       }
     } catch (error) {
       console.error('截图失败:', error);
-      alert('截图失败: ' + error.message);
+      showAlert('截图失败: ' + error.message, 'error');
     }
   };
 

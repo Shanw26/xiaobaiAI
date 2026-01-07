@@ -14,6 +14,7 @@ import UpdateAvailableModal from './components/UpdateAvailableModal';
 import UpdateDownloadedModal from './components/UpdateDownloadedModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { showAlert } from './lib/alertService';
 import {
   loadConversations as loadConversationsCloud,
   createConversation,
@@ -22,7 +23,9 @@ import {
   deleteConversation as deleteConversationCloud,
   mergeGuestConversations,
   getUserUsageCount,
-  incrementUserUsage
+  incrementUserUsage,
+  saveUserInfo,
+  saveAiMemory
 } from './lib/cloudService';
 import './App.css';
 
@@ -410,7 +413,7 @@ function AppContent() {
           setIsAgentReady(true);
           setShowSettings(false);
         } else {
-          alert('AI 初始化失败: ' + result.error);
+          showAlert('AI 初始化失败: ' + result.error, 'error');
         }
       } else {
         // 如果清空了 API Key，重置状态
@@ -419,7 +422,7 @@ function AppContent() {
       }
     } catch (error) {
       console.error('保存配置失败:', error);
-      alert('保存配置失败: ' + error.message);
+      showAlert('保存配置失败: ' + error.message, 'error');
     }
   };
 
@@ -435,7 +438,7 @@ function AppContent() {
         const result = await deleteConversationCloud(chatId);
         if (!result.success) {
           console.error('❌ [App] 删除对话失败:', result.error);
-          alert('删除对话失败: ' + result.error);
+          showAlert('删除对话失败: ' + result.error, 'error');
           return;
         }
         console.log('✅ [App] 对话删除成功');
@@ -450,7 +453,7 @@ function AppContent() {
       }
     } catch (error) {
       console.error('❌ [App] 删除对话异常:', error);
-      alert('删除对话失败: ' + error.message);
+      showAlert('删除对话失败: ' + error.message, 'error');
     }
   };
 
@@ -483,6 +486,69 @@ function AppContent() {
     }
   };
 
+  /**
+   * 自动提取用户个人信息并保存到云端
+   * 检测用户消息中是否包含：姓名、职业、所在地、个人简介、其他偏好等信息
+   */
+  const extractAndSaveUserInfo = async (userMessage) => {
+    // 定义个人信息关键词模式
+    const patterns = {
+      name: /我叫|名字是|我是|我叫作|姓名是|我的名字|我的姓名/g,
+      occupation: /我是|工作|职业|从事|职位|公司/g,
+      location: /我在|住在|位于|所在地|城市/g,
+      bio: /介绍|简介|关于我|我是/g,
+      preferences: /喜欢|爱好|偏好|喜好|擅长/g
+    };
+
+    // 检查是否包含个人信息
+    const hasPersonalInfo = Object.values(patterns).some(pattern =>
+      pattern.test(userMessage)
+    );
+
+    if (!hasPersonalInfo) {
+      return; // 没有个人信息，直接返回
+    }
+
+    console.log('🔍 [App] 检测到用户消息包含个人信息，准备保存...');
+
+    try {
+      // 获取当前云端用户信息
+      const { getUserInfo } = await import('./lib/cloudService');
+      const userInfoResult = await getUserInfo();
+      let currentInfo = userInfoResult.success ? userInfoResult.content : '';
+
+      // 构建新的用户信息条目
+      const timestamp = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const newEntry = `\n## 更新时间 - ${timestamp}\n${userMessage}\n`;
+
+      // 检查是否已包含相同内容（避免重复）
+      if (currentInfo.includes(userMessage)) {
+        console.log('ℹ️ [App] 该信息已存在，跳过保存');
+        return;
+      }
+
+      // 更新并保存到云端
+      const updatedInfo = currentInfo + newEntry;
+      const saveResult = await saveUserInfo(updatedInfo);
+
+      if (saveResult.success) {
+        console.log('✅ [App] 用户信息已保存到云端');
+      } else {
+        console.error('❌ [App] 保存用户信息失败:', saveResult.error);
+      }
+    } catch (error) {
+      console.error('❌ [App] 提取用户信息异常:', error);
+      throw error;
+    }
+  };
+
   const handleSendMessage = async (content, files) => {
     // 检查游客使用次数
     if (!currentUser && guestStatus) {
@@ -492,29 +558,13 @@ function AppContent() {
       }
     }
 
-    // 检查登录用户的使用次数（10次免费额度）
-    if (currentUser) {
-      const FREE_QUOTA = 10;
-      const remaining = FREE_QUOTA - userUsageCount;
-
-      if (!config?.apiKey) {
-        // 未配置 API Key
-        if (remaining <= 0) {
-          // 10次免费额度已用完
-          alert(`您的10次免费体验已用完。\n\n请配置自己的 API Key 继续使用。`);
-          setShowSettings(true);
-          return;
-        }
-        // 还有免费额度，允许使用（隐形规则，不提示）
-      }
-      // 已配置 API Key，无限制使用
-    }
+    // ✅ 登录用户无限制使用，不检查使用次数
 
     if (!isAgentReady) {
       console.log('⚠️ [App] Agent 未就绪，isAgentReady =', isAgentReady);
       console.log('   currentUser:', currentUser);
       console.log('   config:', config);
-      alert('AI 正在初始化中，请稍候...');
+      showAlert('AI 正在初始化中，请稍候...', 'info');
       return;
     }
 
@@ -629,22 +679,51 @@ function AppContent() {
         console.log('💾 [App] 更新 AI 消息到云端');
         await updateMessageCloud(chat.id, aiMessageId, result.content);
 
-        // 增加使用次数（仅登录用户且未配置 API Key 时）
-        if (currentUser && !config?.apiKey) {
+        // 增加游客使用次数（登录用户无限制，不计数）
+        if (!currentUser) {
           const result = await incrementUserUsage();
           if (result.success) {
-            setUserUsageCount(result.usedCount);
-            console.log(`📊 [App] 云端用户使用次数: ${result.usedCount}/10, 剩余: ${result.remaining}`);
+            console.log(`📊 [App] 游客使用次数更新: ${result.usedCount}/10, 剩余: ${result.remaining}`);
           } else {
-            console.error('❌ [App] 更新云端使用次数失败:', result.error);
-            // 降级：即使云端失败，也更新本地计数
-            const newCount = userUsageCount + 1;
-            setUserUsageCount(newCount);
+            console.error('❌ [App] 更新游客使用次数失败:', result.error);
           }
         }
 
         // 自动更新记忆文件
         await updateMemoryFile(content, result.content);
+
+        // 🔄 自动同步 AI 记忆到云端（换电脑后可恢复）
+        try {
+          const timestamp = new Date().toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const newEntry = `\n## 对话记录 - ${timestamp}\n\n**用户**: ${content}\n\n**AI**: ${result.content.slice(0, 200)}${result.content.length > 200 ? '...' : ''}\n`;
+
+          // 获取当前云端记忆
+          const { getAiMemory } = await import('./lib/cloudService');
+          const memoryResult = await getAiMemory();
+          let currentMemory = memoryResult.success ? memoryResult.content : '';
+
+          // 更新并保存到云端
+          const updatedMemory = currentMemory + newEntry;
+          await saveAiMemory(updatedMemory);
+          console.log('✅ [App] AI 记忆已同步到云端');
+        } catch (error) {
+          console.error('❌ [App] 同步 AI 记忆到云端失败（非致命）:', error);
+          // 不阻塞聊天流程
+        }
+
+        // 🔄 自动检测并保存用户个人信息到云端
+        try {
+          await extractAndSaveUserInfo(content);
+        } catch (error) {
+          console.error('❌ [App] 保存用户信息失败（非致命）:', error);
+          // 不阻塞聊天流程
+        }
       }
     } catch (error) {
       console.error('发送消息失败:', error);
@@ -658,7 +737,7 @@ function AppContent() {
         });
       } else {
         // 其他错误显示alert
-        alert('发送消息失败: ' + error.message);
+        showAlert('发送消息失败: ' + error.message, 'error');
       }
 
       // 移除 AI 消息占位符

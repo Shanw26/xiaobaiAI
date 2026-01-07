@@ -1,47 +1,11 @@
 /* 强制更新弹窗样式 */
-.force-update-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  animation: fadeIn 0.3s ease-out;
-}
+@import './ModalBase.css';
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* 使用 .force-update 变体，z-index 9999 */
 
 .force-update-modal {
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
-  max-width: 480px;
-  width: 90%;
+  /* 继承 .modal.small 样式，添加文本居中 */
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: scaleIn 0.3s ease-out;
-}
-
-@keyframes scaleIn {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
 
 .force-update-icon {

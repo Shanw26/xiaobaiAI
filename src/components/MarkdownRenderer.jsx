@@ -6,9 +6,11 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { visit } from 'unist-util-visit';
 import './MarkdownRenderer.css';
 
-// 检测文件路径的正则表达式 - 支持绝对路径、相对路径、中文文件名、空格
-// 匹配：以 / 或 ~/ 开头，后面跟非空白字符
-const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]+/g;
+// 检测文件路径的正则表达式 - 只匹配真实的文件路径
+// 必须满足以下条件之一：
+// 1. 以 / 或 ~/ 开头，且以 / 结尾（目录）
+// 2. 以 / 或 ~/ 开头，且包含文件扩展名（如 .txt, .md, .js 等）
+const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]*?(?:\.[a-zA-Z0-9]{1,10}|\/)(?=[\s<>"'`\n,。！？；：.,!?;:]|$)/g;
 
 // 清理路径末尾的标点符号
 function cleanPath(path) {

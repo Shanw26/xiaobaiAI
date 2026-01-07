@@ -1,23 +1,14 @@
 /* 更新已下载弹窗样式 */
+@import './ModalBase.css';
+
 .update-downloaded-modal {
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 420px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.3s ease-out;
   overflow: hidden;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .update-downloaded-header {
@@ -25,7 +16,7 @@
   align-items: center;
   gap: 16px;
   padding: 24px 24px 20px;
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
 }
 
@@ -61,14 +52,14 @@
 .update-downloaded-version {
   font-size: 32px;
   font-weight: 700;
-  color: #16a34a;
+  color: var(--primary);
   margin-bottom: 12px;
 }
 
 .update-downloaded-message {
   margin: 0;
   font-size: 15px;
-  color: #4b5563;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -76,14 +67,14 @@
   display: flex;
   gap: 12px;
   padding: 20px 24px;
-  background: #f9fafb;
+  background: var(--bg-secondary);
   justify-content: center;
 }
 
 .btn-update {
   padding: 10px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -91,23 +82,23 @@
 }
 
 .btn-update.primary {
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 204, 102, 0.25);
 }
 
 .btn-update.primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 204, 102, 0.35);
 }
 
 .btn-update.secondary {
   background: white;
-  color: #6b7280;
-  border: 1px solid #e5e7eb;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .btn-update.secondary:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
+  background: var(--bg-secondary);
+  border-color: var(--text-light);
 }

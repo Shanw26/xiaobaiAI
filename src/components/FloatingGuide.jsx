@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import './FloatingGuide.css';
 import WelcomeModal from './WelcomeModal';
+import ConfirmModal from './ConfirmModal';
 
 function FloatingGuide() {
   const [showModal, setShowModal] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // 如果用户关闭了悬浮球，就不显示
   if (dismissed) {
@@ -21,9 +23,16 @@ function FloatingGuide() {
   };
 
   const handleDismiss = () => {
-    if (confirm('暂时跳过引导？你可以随时在设置中补充个人信息。')) {
-      setDismissed(true);
-    }
+    setShowConfirm(true);
+  };
+
+  const handleConfirmDismiss = () => {
+    setShowConfirm(false);
+    setDismissed(true);
+  };
+
+  const handleCancelDismiss = () => {
+    setShowConfirm(false);
   };
 
   return (
@@ -49,6 +58,15 @@ function FloatingGuide() {
         <WelcomeModal
           onComplete={handleModalComplete}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* 确认弹窗 */}
+      {showConfirm && (
+        <ConfirmModal
+          message="暂时跳过引导？你可以随时在设置中补充个人信息。"
+          onConfirm={handleConfirmDismiss}
+          onCancel={handleCancelDismiss}
         />
       )}
     </>
