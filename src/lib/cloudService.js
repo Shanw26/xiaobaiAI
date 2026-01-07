@@ -1,5 +1,4 @@
-import { supabase } from './supabaseClient';
-import supabaseServiceKey from './supabaseClient';
+import { supabase, supabaseAdmin } from './supabaseClient';
 
 // Edge Function URL
 const EDGE_FUNCTION_URL = 'https://cnszooaxwxatezodbbxq.supabase.co/functions/v1/send-sms';
@@ -102,9 +101,9 @@ export async function signInWithPhone(phone, code) {
     console.log('  - 手机号:', phone);
     console.log('  - 验证码:', code);
 
-    // 1. 验证验证码
+    // 1. 验证验证码（使用 admin 客户端绕过 RLS）
     console.log('\n📋 [云端服务] 步骤1: 验证验证码...');
-    const { data: codeRecord, error: codeError } = await supabase
+    const { data: codeRecord, error: codeError } = await supabaseAdmin
       .from('verification_codes')
       .select('*')
       .eq('phone', phone)
@@ -123,111 +122,66 @@ export async function signInWithPhone(phone, code) {
 
     console.log('✅ [云端服务] 验证码验证通过');
 
-    // 2. 使用固定密码方案（避免验证码作为密码导致的问题）
-    console.log('\n🔑 [云端服务] 步骤2: 使用固定密码登录 Supabase Auth...');
-    const fixedPassword = `xiaobai_${phone}_auth_password`;
-    const email = `${phone}@xiaobai.ai`;
+    // 2. 查询或创建用户（使用 admin 客户端绕过 RLS）
+    console.log('\n👤 [云端服务] 步骤2: 查询或创建用户...');
 
-    console.log('  - Email:', email);
-    console.log('  - 密码策略: 固定密码（基于手机号）');
+    // 先查询用户资料
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .eq('phone', phone)
+      .single();
 
-    // 先尝试登录
-    let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password: fixedPassword
-    });
+    let user;
 
-    if (signInError) {
-      console.log('⚠️  [云端服务] 用户不存在，尝试注册...');
+    if (profileError || !profile) {
+      console.log('⚠️  [云端服务] 用户不存在，创建新用户...');
 
-      // 用户不存在，先注册
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: fixedPassword,
-        options: {
-          data: {
-            phone: phone
-          }
-        }
-      });
+      // 创建新用户（使用 admin 客户端）
+      const { data: newProfile, error: createError } = await supabaseAdmin
+        .from('user_profiles')
+        .insert([{
+          phone: phone,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
 
-      if (signUpError) {
-        console.error('❌ [云端服务] 注册失败');
-        console.error('  - 错误:', signUpError.message);
-        return { success: false, error: '注册失败: ' + signUpError.message };
+      if (createError) {
+        console.error('❌ [云端服务] 创建用户失败:', createError.message);
+        return { success: false, error: '创建用户失败: ' + createError.message };
       }
 
-      console.log('✅ [云端服务] 注册成功');
-
-      // 🔥 关键：注册成功后，重新登录以获取 session
-      console.log('🔄 [云端服务] 重新登录以获取 session...');
-      const { data: reSignInData, error: reSignInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: fixedPassword
-      });
-
-      if (reSignInError) {
-        console.error('❌ [云端服务] 重新登录失败:', reSignInError.message);
-        return { success: false, error: '登录失败: ' + reSignInError.message };
-      }
-
-      console.log('✅ [云端服务] 重新登录成功');
-      signInData = reSignInData;
+      user = newProfile;
+      console.log('✅ [云端服务] 用户创建成功:', user.id);
     } else {
-      console.log('✅ [云端服务] 登录成功');
+      user = profile;
+      console.log('✅ [云端服务] 用户已存在:', user.id);
     }
 
-    // 3. 标记验证码已使用
+    // 3. 标记验证码已使用（使用 admin 客户端）
     console.log('\n✅ [云端服务] 步骤3: 标记验证码已使用...');
-    await supabase
+    await supabaseAdmin
       .from('verification_codes')
       .update({ used: true })
       .eq('id', codeRecord.id);
 
-    // 4. 检查用户资料是否存在
-    console.log('\n👤 [云端服务] 步骤4: 检查用户资料...');
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', signInData.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      console.log('⚠️  [云端服务] 用户资料不存在，创建中...');
-
-      // 创建用户资料
-      const { error: createProfileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          user_id: signInData.user.id,
-          phone: phone,
-          created_at: new Date().toISOString()
-        });
-
-      if (createProfileError) {
-        console.error('❌ [云端服务] 创建用户资料失败:', createProfileError);
-      } else {
-        console.log('✅ [云端服务] 用户资料创建成功');
-      }
-    } else {
-      console.log('✅ [云端服务] 用户资料已存在');
-    }
-
-    console.log('\n🎉 [云端服务] 登录流程完成！');
-    console.log('  - User ID:', signInData.user.id);
-    console.log('  - Phone:', phone);
+    // 4. 返回用户信息
+    console.log('\n🎉 [云端服务] 登录成功！');
+    console.log('  - User ID:', user.id);
+    console.log('  - Phone:', user.phone);
 
     return {
       success: true,
       user: {
-        id: signInData.user.id,
-        phone: phone,
-        email: email
+        id: user.id,
+        phone: user.phone,
+        hasApiKey: user.has_api_key || false
       }
     };
   } catch (error) {
     console.error('❌ [云端服务] 登录异常:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: '登录失败: ' + error.message };
   }
 }
 
@@ -237,21 +191,9 @@ export async function signInWithPhone(phone, code) {
  */
 export async function getCurrentUser() {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    // 获取用户资料
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    return {
-      id: user.id,
-      phone: profile?.phone || user.user_metadata.phone,
-      email: user.email
-    };
+    // 不再使用 Supabase Auth，直接返回 null
+    // 实际的用户信息由 localStorage 管理
+    return null;
   } catch (error) {
     console.error('获取当前用户失败:', error);
     return null;
@@ -264,7 +206,7 @@ export async function getCurrentUser() {
  */
 export async function signOut() {
   try {
-    await supabase.auth.signOut();
+    // 不再使用 Supabase Auth，直接返回 true
     return true;
   } catch (error) {
     console.error('退出登录失败:', error);
@@ -574,4 +516,277 @@ export async function mergeGuestConversations(userId) {
     console.error('❌ [云端服务] 合并游客对话异常:', error);
     return { success: false, error: error.message };
   }
+}
+
+// ==================== 用户信息和AI记忆 ====================
+
+/**
+ * 获取用户信息
+ * @returns {Promise<{success: boolean, content?: string, error?: string}>}
+ */
+export async function getUserInfo() {
+  try {
+    console.log('📖 [云端服务] 获取用户信息');
+
+    const deviceId = await getDeviceId();
+    console.log('📱 [云端服务] 设备ID:', deviceId);
+
+    // 优先尝试登录用户的数据
+    const { data: { user } } = await supabase.auth.getUser();
+    let userId = user?.id;
+
+    // 从 Supabase 查询
+    let query = supabaseAdmin.from('user_info').select('content');
+
+    if (userId) {
+      // 登录用户：查询用户的数据
+      query = query.eq('user_id', userId);
+    } else {
+      // 游客：查询设备的数据
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.error('❌ [云端服务] 获取用户信息失败:', error);
+      // 如果是记录不存在，返回默认模板
+      if (error.code === 'PGRST116') {
+        console.log('ℹ️ [云端服务] 用户信息不存在，返回默认模板');
+        return { success: true, content: getDefaultUserInfoTemplate() };
+      }
+      return { success: false, error: error.message };
+    }
+
+    if (data && data.content) {
+      console.log('✅ [云端服务] 获取用户信息成功');
+      return { success: true, content: data.content };
+    }
+
+    console.log('ℹ️ [云端服务] 用户信息为空，返回默认模板');
+    return { success: true, content: getDefaultUserInfoTemplate() };
+  } catch (error) {
+    console.error('❌ [云端服务] 获取用户信息异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 保存用户信息
+ * @param {string} content - 用户信息内容
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function saveUserInfo(content) {
+  try {
+    console.log('💾 [云端服务] 保存用户信息');
+
+    const deviceId = await getDeviceId();
+
+    // 获取当前用户
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    // 检查是否已存在记录
+    let query = supabaseAdmin.from('user_info').select('id');
+
+    if (userId) {
+      query = query.eq('user_id', userId).is('device_id', null);
+    } else {
+      query = query.eq('device_id', deviceId).is('user_id', null);
+    }
+
+    const { data: existing } = await query.maybeSingle();
+
+    let error;
+    if (existing) {
+      // 更新现有记录
+      console.log('🔄 [云端服务] 更新现有用户信息');
+      const result = await supabaseAdmin
+        .from('user_info')
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+      error = result.error;
+    } else {
+      // 创建新记录
+      console.log('➕ [云端服务] 创建新用户信息');
+      const result = await supabaseAdmin
+        .from('user_info')
+        .insert({
+          user_id: userId || null,
+          device_id: userId ? null : deviceId,
+          content
+        });
+      error = result.error;
+    }
+
+    if (error) {
+      console.error('❌ [云端服务] 保存用户信息失败:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ [云端服务] 保存用户信息成功');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [云端服务] 保存用户信息异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 获取AI记忆
+ * @returns {Promise<{success: boolean, content?: string, error?: string}>}
+ */
+export async function getAiMemory() {
+  try {
+    console.log('📖 [云端服务] 获取AI记忆');
+
+    const deviceId = await getDeviceId();
+
+    // 获取当前用户
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    // 从 Supabase 查询
+    let query = supabaseAdmin.from('ai_memory').select('content');
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.error('❌ [云端服务] 获取AI记忆失败:', error);
+      // 如果是记录不存在，返回默认模板
+      if (error.code === 'PGRST116') {
+        console.log('ℹ️ [云端服务] AI记忆不存在，返回默认模板');
+        return { success: true, content: getDefaultAiMemoryTemplate() };
+      }
+      return { success: false, error: error.message };
+    }
+
+    if (data && data.content) {
+      console.log('✅ [云端服务] 获取AI记忆成功');
+      return { success: true, content: data.content };
+    }
+
+    console.log('ℹ️ [云端服务] AI记忆为空，返回默认模板');
+    return { success: true, content: getDefaultAiMemoryTemplate() };
+  } catch (error) {
+    console.error('❌ [云端服务] 获取AI记忆异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 保存AI记忆
+ * @param {string} content - AI记忆内容
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function saveAiMemory(content) {
+  try {
+    console.log('💾 [云端服务] 保存AI记忆');
+
+    const deviceId = await getDeviceId();
+
+    // 获取当前用户
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    // 检查是否已存在记录
+    let query = supabaseAdmin.from('ai_memory').select('id');
+
+    if (userId) {
+      query = query.eq('user_id', userId).is('device_id', null);
+    } else {
+      query = query.eq('device_id', deviceId).is('user_id', null);
+    }
+
+    const { data: existing } = await query.maybeSingle();
+
+    let error;
+    if (existing) {
+      // 更新现有记录
+      console.log('🔄 [云端服务] 更新现有AI记忆');
+      const result = await supabaseAdmin
+        .from('ai_memory')
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+      error = result.error;
+    } else {
+      // 创建新记录
+      console.log('➕ [云端服务] 创建新AI记忆');
+      const result = await supabaseAdmin
+        .from('ai_memory')
+        .insert({
+          user_id: userId || null,
+          device_id: userId ? null : deviceId,
+          content
+        });
+      error = result.error;
+    }
+
+    if (error) {
+      console.error('❌ [云端服务] 保存AI记忆失败:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ [云端服务] 保存AI记忆成功');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [云端服务] 保存AI记忆异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 获取默认用户信息模板
+ */
+function getDefaultUserInfoTemplate() {
+  return `# 用户信息
+
+## 基本信息
+- 姓名：
+- 职业：
+- 兴趣爱好：
+
+## 偏好设置
+- 工作时间：
+- 学习风格：
+- 沟通方式：
+
+## 其他信息
+- 特殊需求：
+- 常用工具：
+- 备注信息：
+`;
+}
+
+/**
+ * 获取默认AI记忆模板
+ */
+function getDefaultAiMemoryTemplate() {
+  return `# AI 记忆
+
+## 对话历史记录
+- 重要对话内容
+- 用户偏好
+- 常见问题
+
+## 用户习惯
+- 工作流程
+- 常用命令
+- 操作习惯
+
+## 重要事项
+- 特殊要求
+- 注意事项
+- 待办事项
+
+## 其他信息
+- 补充记录
+- 备注信息：
+`;
 }

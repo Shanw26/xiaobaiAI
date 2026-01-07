@@ -33,8 +33,12 @@ const MODEL_PROVIDERS = {
 
 function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   const [localConfig, setLocalConfig] = useState({ ...config });
-  const [userInfoPathDisplay, setUserInfoPathDisplay] = useState('');
-  const [memoryPathDisplay, setMemoryPathDisplay] = useState('');
+  const [userInfo, setUserInfo] = useState('');
+  const [aiMemory, setAiMemory] = useState('');
+  const [isEditingUserInfo, setIsEditingUserInfo] = useState(false);
+  const [isEditingAiMemory, setIsEditingAiMemory] = useState(false);
+  const [isLoadingUserInfo, setIsLoadingUserInfo] = useState(false);
+  const [isLoadingAiMemory, setIsLoadingAiMemory] = useState(false);
   const [userDataPathDisplay, setUserDataPathDisplay] = useState('');
   const [tokenUsage, setTokenUsage] = useState(null);
   const [activeCategory, setActiveCategory] = useState('basic');
@@ -51,14 +55,8 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   useEffect(() => {
     setLocalConfig({ ...config });
 
-    // 获取各种文件路径
-    Promise.all([
-      window.electronAPI.getUserInfoFilePath(),
-      window.electronAPI.getMemoryFilePath(),
-      window.electronAPI.getUserDataPath(),
-    ]).then(([userInfoPath, memoryPath, userDataPath]) => {
-      setUserInfoPathDisplay(userInfoPath);
-      setMemoryPathDisplay(memoryPath);
+    // 获取用户数据路径
+    window.electronAPI.getUserDataPath().then(userDataPath => {
       setUserDataPathDisplay(userDataPath);
     });
 
@@ -89,6 +87,44 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
     }
 
     onSave(localConfig);
+  };
+
+  const handleEditUserInfo = async () => {
+    setIsLoadingUserInfo(true);
+    try {
+      const { getUserInfo } = await import('../lib/cloudService');
+      const result = await getUserInfo();
+      if (result.success) {
+        setUserInfo(result.content);
+        setIsEditingUserInfo(true);
+      } else {
+        alert('❌ 获取用户信息失败: ' + result.error);
+      }
+    } catch (error) {
+      console.error('获取用户信息异常:', error);
+      alert('❌ 获取用户信息失败: ' + error.message);
+    } finally {
+      setIsLoadingUserInfo(false);
+    }
+  };
+
+  const handleEditAiMemory = async () => {
+    setIsLoadingAiMemory(true);
+    try {
+      const { getAiMemory } = await import('../lib/cloudService');
+      const result = await getAiMemory();
+      if (result.success) {
+        setAiMemory(result.content);
+        setIsEditingAiMemory(true);
+      } else {
+        alert('❌ 获取AI记忆失败: ' + result.error);
+      }
+    } catch (error) {
+      console.error('获取AI记忆异常:', error);
+      alert('❌ 获取AI记忆失败: ' + error.message);
+    } finally {
+      setIsLoadingAiMemory(false);
+    }
   };
 
   const handleCheckUpdate = async () => {
@@ -165,78 +201,118 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           用户信息
           <span className="form-hint">AI 记住的个人信息</span>
         </label>
-        <div className="directory-selector">
-          <input
-            type="text"
-            className="form-input"
-            value={userInfoPathDisplay || '未创建'}
-            readOnly
-            style={{ background: 'var(--bg-secondary)' }}
-          />
-          <button
-            className="btn-select"
-            onClick={async () => {
-              if (!userInfoPathDisplay) {
-                alert('用户信息文件尚未创建');
-                return;
-              }
-              try {
-                const result = await window.electronAPI.openPath(userInfoPathDisplay);
-                if (!result.success) {
-                  alert('打开失败: ' + result.error);
-                }
-              } catch (error) {
-                alert('打开失败: ' + error.message);
-              }
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-            </svg>
-            打开
-          </button>
-        </div>
+        {!isEditingUserInfo ? (
+          <>
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={handleEditUserInfo}
+                disabled={isLoadingUserInfo}
+              >
+                {isLoadingUserInfo ? '加载中...' : '编辑'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <textarea
+              className="form-textarea"
+              value={userInfo}
+              onChange={(e) => setUserInfo(e.target.value)}
+              rows={12}
+              placeholder="在此输入用户信息..."
+            />
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={() => setIsEditingUserInfo(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-modal primary"
+                onClick={async () => {
+                  try {
+                    const { saveUserInfo } = await import('../lib/cloudService');
+                    const result = await saveUserInfo(userInfo);
+                    if (result.success) {
+                      setIsEditingUserInfo(false);
+                      alert('✅ 用户信息已保存到云端');
+                    } else {
+                      alert('❌ 保存失败: ' + result.error);
+                    }
+                  } catch (error) {
+                    console.error('保存用户信息异常:', error);
+                    alert('❌ 保存失败: ' + error.message);
+                  }
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </>
+        )}
         <div className="form-help">
-          💡 当你告诉 AI 你的个人信息时，它会记录在这个文件中，方便更好地了解你
+          💡 当你告诉 AI 你的个人信息时，它会记录在这里，方便更好地了解你
         </div>
       </div>
 
       <div className="form-group">
         <label className="form-label">
-          记忆文件
+          AI记忆
           <span className="form-hint">自动记录对话历史</span>
         </label>
-        <div className="directory-selector">
-          <input
-            type="text"
-            className="form-input"
-            value={memoryPathDisplay || '未创建'}
-            readOnly
-            style={{ background: 'var(--bg-secondary)' }}
-          />
-          <button
-            className="btn-select"
-            onClick={async () => {
-              if (!memoryPathDisplay) {
-                alert('记忆文件尚未创建');
-                return;
-              }
-              try {
-                const result = await window.electronAPI.openPath(memoryPathDisplay);
-                if (!result.success) {
-                  alert('打开失败: ' + result.error);
-                }
-              } catch (error) {
-                alert('打开失败: ' + error.message);
-              }
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-            </svg>
-            打开
-          </button>
-        </div>
+        {!isEditingAiMemory ? (
+          <>
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={handleEditAiMemory}
+                disabled={isLoadingAiMemory}
+              >
+                {isLoadingAiMemory ? '加载中...' : '编辑'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <textarea
+              className="form-textarea"
+              value={aiMemory}
+              onChange={(e) => setAiMemory(e.target.value)}
+              rows={12}
+              placeholder="在此输入AI记忆..."
+            />
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={() => setIsEditingAiMemory(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-modal primary"
+                onClick={async () => {
+                  try {
+                    const { saveAiMemory } = await import('../lib/cloudService');
+                    const result = await saveAiMemory(aiMemory);
+                    if (result.success) {
+                      setIsEditingAiMemory(false);
+                      alert('✅ AI记忆已保存到云端');
+                    } else {
+                      alert('❌ 保存失败: ' + result.error);
+                    }
+                  } catch (error) {
+                    console.error('保存AI记忆异常:', error);
+                    alert('❌ 保存失败: ' + error.message);
+                  }
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </>
+        )}
         <div className="form-help">
           💡 AI 可以根据历史记忆信息提供更个性化的回复
         </div>
@@ -328,7 +404,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.5.6</span>
+          <span className="about-version">v2.6.9</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>

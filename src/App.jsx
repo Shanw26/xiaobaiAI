@@ -5,11 +5,11 @@ import InputArea from './components/InputArea';
 import Header from './components/Header';
 import Welcome from './components/Welcome';
 import SettingsModal from './components/SettingsModal';
+import StartupScreen from './components/StartupScreen';
 import FloatingGuide from './components/FloatingGuide';
 import LoginModal from './components/LoginModal';
 import GuestLimitModal from './components/GuestLimitModal';
 import ToastModal from './components/ToastModal';
-import AdminPanel from './components/AdminPanel';
 import UpdateAvailableModal from './components/UpdateAvailableModal';
 import UpdateDownloadedModal from './components/UpdateDownloadedModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
@@ -31,7 +31,7 @@ function AppContent() {
   const [currentChatId, setCurrentChatId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showFloatingGuide, setShowFloatingGuide] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [showStartup, setShowStartup] = useState(true);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [memoryContent, setMemoryContent] = useState('');
@@ -43,7 +43,6 @@ function AppContent() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
   const [toast, setToast] = useState(null); // { message, type }
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showForceUpdate, setShowForceUpdate] = useState(false);
   const [updateDownloaded, setUpdateDownloaded] = useState(null); // { version }
@@ -165,13 +164,33 @@ function AppContent() {
           }
         } else {
           // 登录用户
+          console.log('✅ [App] 检测到登录用户:', userStatus.user);
+          console.log('   hasApiKey:', userStatus.user.hasApiKey);
           setCurrentUser(userStatus.user);
 
-          // 如果用户有API Key，初始化Agent
+          // 如果用户有API Key，使用用户配置初始化Agent
           if (userStatus.user.hasApiKey) {
+            console.log('🔑 [App] 用户有API Key，使用用户配置初始化Agent');
             const result = await window.electronAPI.initAgent(savedConfig);
+            console.log('   Agent 初始化结果:', result);
             if (result.success) {
               setIsAgentReady(true);
+              console.log('✅ [App] Agent 初始化成功（用户Key）');
+            }
+          } else {
+            // 用户没有API Key，使用官方Key初始化Agent（游客模式）
+            console.log('🆓 [App] 用户无API Key，使用官方Key初始化Agent');
+            const result = await window.electronAPI.initAgent({
+              modelProvider: 'zhipu',
+              apiKey: '',
+              model: 'glm-4.7'
+            });
+            console.log('   Agent 初始化结果:', result);
+            if (result.success) {
+              setIsAgentReady(true);
+              console.log('✅ [App] Agent 初始化成功（官方Key）');
+            } else {
+              console.error('❌ [App] Agent 初始化失败', result.error);
             }
           }
         }
@@ -179,7 +198,10 @@ function AppContent() {
     } catch (error) {
       console.error('加载配置失败:', error);
     } finally {
-      setIsLoading(false);
+      // 延迟关闭启动动画，让用户看到完整动画
+      setTimeout(() => {
+        setShowStartup(false);
+      }, 2000);
     }
   };
 
@@ -213,9 +235,25 @@ function AppContent() {
 
     // 重新初始化Agent
     const savedConfig = await window.electronAPI.readConfig();
-    const result = await window.electronAPI.initAgent(savedConfig);
-    if (result.success) {
-      setIsAgentReady(true);
+
+    // 如果用户有API Key，使用用户配置初始化Agent
+    if (user.hasApiKey) {
+      const result = await window.electronAPI.initAgent(savedConfig);
+      if (result.success) {
+        setIsAgentReady(true);
+      }
+    } else {
+      // 用户没有API Key，使用官方Key初始化Agent（游客模式）
+      const result = await window.electronAPI.initAgent({
+        modelProvider: 'zhipu',
+        apiKey: '',
+        model: 'glm-4.7'
+      });
+      if (result.success) {
+        setIsAgentReady(true);
+      } else {
+        console.error('Agent 初始化失败', result.error);
+      }
     }
 
     // 🔥 关键：合并游客对话到登录用户
@@ -453,6 +491,9 @@ function AppContent() {
     }
 
     if (!isAgentReady) {
+      console.log('⚠️ [App] Agent 未就绪，isAgentReady =', isAgentReady);
+      console.log('   currentUser:', currentUser);
+      console.log('   config:', config);
       alert('AI 正在初始化中，请稍候...');
       return;
     }
@@ -604,15 +645,16 @@ function AppContent() {
     return chat;
   };
 
-  if (isLoading) {
-    return <div className="loading">加载中...</div>;
+  // 显示启动动画
+  if (showStartup) {
+    return <StartupScreen />;
   }
 
   const currentChat = currentChatId
     ? conversations.find((c) => c.id === currentChatId)
     : null;
 
-  console.log('App 渲染', { config, hasApiKey: !!config?.apiKey, isLoading });
+  console.log('App 渲染', { config, hasApiKey: !!config?.apiKey });
 
   return (
     <div className="app">
@@ -633,9 +675,6 @@ function AppContent() {
         <Header
           title={currentChat?.title || '新对话'}
           messages={currentChat?.messages || []}
-          currentUser={currentUser}
-          guestStatus={guestStatus}
-          onOpenAdmin={() => setShowAdminPanel(true)}
         />
 
         <div className="content">
@@ -700,10 +739,6 @@ function AppContent() {
       )}
 
       {showFloatingGuide && <FloatingGuide />}
-
-      {showAdminPanel && (
-        <AdminPanel onClose={() => setShowAdminPanel(false)} />
-      )}
 
       {updateInfo && !showForceUpdate && (
         <UpdateAvailableModal

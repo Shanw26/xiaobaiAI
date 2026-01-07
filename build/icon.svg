@@ -7,10 +7,10 @@
     </linearGradient>
   </defs>
 
-  <!-- 绿色背景完全填满 1024x1024 -->
+  <!-- 纯色绿色背景，完全填满 -->
   <rect x="0" y="0" width="1024" height="1024" fill="url(#bgGradient)"/>
 
-  <!-- 白色机器人脸（528x528，logo 原始尺寸） -->
+  <!-- 白色机器人脸 -->
   <rect x="248" y="248" width="528" height="528" rx="132" fill="#ffffff"/>
 
   <!-- 绿色眼睛 -->

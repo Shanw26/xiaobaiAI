@@ -10,8 +10,22 @@ const agent = require('./agent');
 const db = require('./database');
 const officialConfig = require('./official-config');
 
+// ==================== 安全的日志输出 ====================
+// 检查流可写性，避免 EPIPE 错误
+function safeLog(...args) {
+  if (process.stdout.writable) {
+    console.log(...args);
+  }
+}
+
+function safeError(...args) {
+  if (process.stderr.writable) {
+    console.error(...args);
+  }
+}
+
 // 当前应用版本
-const APP_VERSION = '2.5.6';
+const APP_VERSION = '2.6.9';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -42,7 +56,7 @@ async function checkAndCleanOldData() {
 
     // 如果版本不匹配，清空所有数据
     if (savedVersion.trim() !== APP_VERSION) {
-      console.log(`版本升级：${savedVersion} -> ${APP_VERSION}，清空旧数据...`);
+      safeLog(`版本升级：${savedVersion} -> ${APP_VERSION}，清空旧数据...`);
 
       // 删除所有文件和文件夹（除了版本文件会稍后重新创建）
       const files = await fs.readdir(userDataPath);
@@ -56,22 +70,22 @@ async function checkAndCleanOldData() {
           } else {
             await fs.unlink(filePath);
           }
-          console.log(`已删除：${file}`);
+          safeLog(`已删除：${file}`);
         } catch (error) {
-          console.error(`删除失败 ${file}:`, error.message);
+          safeError(`删除失败 ${file}:`, error.message);
         }
       }
 
-      console.log('旧数据清空完成');
+      safeLog('旧数据清空完成');
     }
   } catch (error) {
     // 版本文件不存在，说明是首次安装
-    console.log('首次安装，无需清理旧数据');
+    safeLog('首次安装，无需清理旧数据');
   }
 
   // 写入当前版本号
   await fs.writeFile(versionFilePath, APP_VERSION, 'utf-8');
-  console.log(`当前版本：${APP_VERSION}`);
+  safeLog(`当前版本：${APP_VERSION}`);
 }
 
 // ========== 自动更新功能 ==========
@@ -86,13 +100,13 @@ function isForceUpdate(version, releaseNotes) {
 // 检查更新
 async function checkForUpdates(isManual = false) {
   try {
-    console.log('[更新] 开始检查更新...');
+    safeLog('[更新] 开始检查更新...');
     autoUpdater.autoDownload = false; // 手动控制下载
 
     const updateResult = await autoUpdater.checkForUpdates();
 
     if (!updateResult || updateResult.updateInfo.version === APP_VERSION) {
-      console.log('[更新] 当前已是最新版本');
+      safeLog('[更新] 当前已是最新版本');
       if (isManual) {
         mainWindow?.webContents.send('update-not-available', {
           version: APP_VERSION
@@ -116,7 +130,7 @@ async function checkForUpdates(isManual = false) {
       releaseNotes
     };
 
-    console.log(`[更新] 发现新版本: ${newVersion}, 强制更新: ${forceUpdate}`);
+    safeLog(`[更新] 发现新版本: ${newVersion}, 强制更新: ${forceUpdate}`);
 
     // 通知前端
     mainWindow?.webContents.send('update-available', {
@@ -127,13 +141,13 @@ async function checkForUpdates(isManual = false) {
 
     // 如果是强制更新，自动开始下载
     if (forceUpdate) {
-      console.log('[更新] 强制更新，开始自动下载...');
+      safeLog('[更新] 强制更新，开始自动下载...');
       await downloadUpdate();
     }
 
     return updateResult;
   } catch (error) {
-    console.error('[更新] 检查更新失败:', error);
+    safeError('[更新] 检查更新失败:', error);
     updateStatus.error = error.message;
     mainWindow?.webContents.send('update-error', {
       error: error.message
@@ -145,13 +159,13 @@ async function checkForUpdates(isManual = false) {
 // 下载更新
 async function downloadUpdate() {
   try {
-    console.log('[更新] 开始下载更新...');
+    safeLog('[更新] 开始下载更新...');
     updateStatus.downloading = true;
 
     // 防止系统休眠
     if (powerSaveBlockId === null) {
       powerSaveBlockId = powerSaveBlocker.start('prevent-app-suspension');
-      console.log('[更新] 已阻止系统休眠');
+      safeLog('[更新] 已阻止系统休眠');
     }
 
     await autoUpdater.downloadUpdate();
@@ -159,7 +173,7 @@ async function downloadUpdate() {
     updateStatus.downloading = false;
     updateStatus.downloaded = true;
 
-    console.log('[更新] 下载完成');
+    safeLog('[更新] 下载完成');
 
     // 释放电源阻止
     if (powerSaveBlockId !== null) {
@@ -174,7 +188,7 @@ async function downloadUpdate() {
 
     return true;
   } catch (error) {
-    console.error('[更新] 下载失败:', error);
+    safeError('[更新] 下载失败:', error);
     updateStatus.downloading = false;
     updateStatus.error = error.message;
 
@@ -194,7 +208,7 @@ async function downloadUpdate() {
 
 // 安装并重启
 function installUpdate() {
-  console.log('[更新] 安装更新并重启...');
+  safeLog('[更新] 安装更新并重启...');
   autoUpdater.quitAndInstall(false, true);
 }
 
@@ -205,7 +219,7 @@ autoUpdater.on('download-progress', (progress) => {
   const transferred = Math.floor(progress.transferred / 1024 / 1024);
   const total = Math.floor(progress.total / 1024 / 1024);
 
-  console.log(`[更新] 下载进度: ${percent}%, ${speed}KB/s, ${transferred}MB/${total}MB`);
+  safeLog(`[更新] 下载进度: ${percent}%, ${speed}KB/s, ${transferred}MB/${total}MB`);
 
   mainWindow?.webContents.send('update-progress', {
     percent,
@@ -254,7 +268,7 @@ app.whenReady().then(async () => {
 
   // 初始化数据库
   db.initDatabase();
-  console.log('数据库初始化完成');
+  safeLog('数据库初始化完成');
 
   // 初始化官方配置到数据库（首次启动时）
   db.initOfficialConfig();
@@ -351,15 +365,15 @@ ipcMain.handle('delete-file', async (event, filePath) => {
     // 删除文件或文件夹
     if (stats.isDirectory()) {
       await fs.rm(filePath, { recursive: true, force: true });
-      console.log('文件夹已删除:', filePath);
+      safeLog('文件夹已删除:', filePath);
     } else {
       await fs.unlink(filePath);
-      console.log('文件已删除:', filePath);
+      safeLog('文件已删除:', filePath);
     }
 
     return { success: true, filePath };
   } catch (error) {
-    console.error('删除失败:', error);
+    safeError('删除失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -369,7 +383,7 @@ ipcMain.handle('execute-command', async (event, command, options = {}) => {
   try {
     const { timeout = 30000, cwd = null } = options;
 
-    console.log('执行命令:', command);
+    safeLog('执行命令:', command);
 
     const execOptions = {
       timeout,
@@ -382,7 +396,7 @@ ipcMain.handle('execute-command', async (event, command, options = {}) => {
 
     const { stdout, stderr } = await execPromise(command, execOptions);
 
-    console.log('命令执行成功');
+    safeLog('命令执行成功');
 
     return {
       success: true,
@@ -390,7 +404,7 @@ ipcMain.handle('execute-command', async (event, command, options = {}) => {
       stderr: stderr.trim(),
     };
   } catch (error) {
-    console.error('命令执行失败:', error);
+    safeError('命令执行失败:', error);
 
     return {
       success: false,
@@ -411,14 +425,44 @@ ipcMain.handle('get-user-data-path', async () => {
   return app.getPath('userData');
 });
 
-// 获取用户信息文件路径（固定在 userData 目录）
-ipcMain.handle('get-user-info-file-path', async () => {
-  return path.join(app.getPath('userData'), 'user-info.md');
+// 获取用户信息内容（从数据库）
+ipcMain.handle('get-user-info', async () => {
+  try {
+    const content = db.getUserInfo();
+    return { success: true, content };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
-// 获取记忆文件路径（固定在 userData 目录）
-ipcMain.handle('get-memory-file-path', async () => {
-  return path.join(app.getPath('userData'), 'memory.md');
+// 保存用户信息内容（到数据库）
+ipcMain.handle('save-user-info-content', async (event, content) => {
+  try {
+    db.saveUserInfo(content);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// 获取AI记忆内容（从数据库）
+ipcMain.handle('get-ai-memory', async () => {
+  try {
+    const content = db.getAiMemory();
+    return { success: true, content };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// 保存AI记忆内容（到数据库）
+ipcMain.handle('save-ai-memory-content', async (event, content) => {
+  try {
+    db.saveAiMemory(content);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 // 打开文件或目录
@@ -560,10 +604,10 @@ ipcMain.handle('export-markdown', async (event, messages, title) => {
 ipcMain.handle('get-device-id', async () => {
   try {
     const deviceId = db.getDeviceId();
-    console.log('设备ID:', deviceId);
+    safeLog('设备ID:', deviceId);
     return { success: true, deviceId };
   } catch (error) {
-    console.error('获取设备ID失败:', error);
+    safeError('获取设备ID失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -574,7 +618,7 @@ ipcMain.handle('get-guest-status', async () => {
     const deviceId = db.getDeviceId();
     const status = db.canGuestUse(deviceId);
 
-    console.log('游客状态:', status);
+    safeLog('游客状态:', status);
 
     return {
       success: true,
@@ -585,7 +629,7 @@ ipcMain.handle('get-guest-status', async () => {
       limit: officialConfig.freeUsageLimit
     };
   } catch (error) {
-    console.error('获取游客状态失败:', error);
+    safeError('获取游客状态失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -600,10 +644,10 @@ ipcMain.handle('send-verification-code', async (event, phone) => {
 
     // 验证码由前端通过 Supabase Edge Function 发送
     // 这里只验证手机号格式
-    console.log('✅ 手机号格式验证通过:', phone);
+    safeLog('✅ 手机号格式验证通过:', phone);
     return { success: true, message: '验证码已发送' };
   } catch (error) {
-    console.error('发送验证码失败:', error);
+    safeError('发送验证码失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -636,7 +680,7 @@ ipcMain.handle('login-with-code', async (event, phone, code) => {
     currentUser = user;
     isGuestMode = false;
 
-    console.log('用户登录成功:', user);
+    safeLog('用户登录成功:', user);
 
     return {
       success: true,
@@ -648,7 +692,7 @@ ipcMain.handle('login-with-code', async (event, phone, code) => {
       }
     };
   } catch (error) {
-    console.error('登录失败:', error);
+    safeError('登录失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -661,7 +705,7 @@ ipcMain.handle('logout', async () => {
   // 重新初始化Agent
   agentInstance = null;
 
-  console.log('用户已退出登录');
+  safeLog('用户已退出登录');
   return { success: true };
 });
 
@@ -717,97 +761,11 @@ ipcMain.handle('use-guest-mode', async () => {
   isGuestMode = true;
   currentUser = null;
 
-  console.log('切换到游客模式');
+  safeLog('切换到游客模式');
   return { success: true };
 });
 
-console.log('小白AI 后端启动成功！');
-
-// ==================== 后台管理 API ====================
-
-// 获取用户列表
-ipcMain.handle('admin-get-users', async () => {
-  try {
-    const db = require('./database').initDatabase();
-    const stmt = db.prepare('SELECT id, phone, created_at, last_login_at, total_requests FROM users ORDER BY created_at DESC');
-    const users = stmt.all();
-    return { success: true, users };
-  } catch (error) {
-    console.error('获取用户列表失败:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// 获取用户统计信息
-ipcMain.handle('admin-get-stats', async () => {
-  try {
-    const db = require('./database').initDatabase();
-
-    // 用户总数
-    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-
-    // 游客使用统计
-    const guestUsage = db.prepare('SELECT SUM(used_count) as total_usage, COUNT(*) as unique_guests FROM guest_usage').get();
-
-    // 请求总数
-    const totalRequests = db.prepare('SELECT COUNT(*) as count FROM request_logs').get().count;
-
-    // 今日请求数
-    const today = new Date().toLocaleDateString('zh-CN');
-    const todayRequests = db.prepare('SELECT COUNT(*) as count FROM request_logs WHERE DATE(created_at) = ?').get(today)?.count || 0;
-
-    // 最近7天请求趋势
-    const weekTrend = db.prepare(`
-      SELECT DATE(created_at) as date, COUNT(*) as requests
-      FROM request_logs
-      WHERE DATE(created_at) >= DATE('now', '-7 days')
-      GROUP BY DATE(created_at)
-      ORDER BY date DESC
-    `).all();
-
-    return {
-      success: true,
-      stats: {
-        userCount,
-        guestUsage: guestUsage?.total_usage || 0,
-        uniqueGuests: guestUsage?.unique_guests || 0,
-        totalRequests,
-        todayRequests,
-        weekTrend
-      }
-    };
-  } catch (error) {
-    console.error('获取统计信息失败:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// 获取用户详情
-ipcMain.handle('admin-get-user-detail', async (event, userId) => {
-  try {
-    const db = require('./database').initDatabase();
-
-    // 用户基本信息
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-
-    if (!user) {
-      return { success: false, error: '用户不存在' };
-    }
-
-    // 请求记录
-    const requests = db.prepare(`
-      SELECT * FROM request_logs
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT 50
-    `).all(userId);
-
-    return { success: true, user, requests };
-  } catch (error) {
-    console.error('获取用户详情失败:', error);
-    return { success: false, error: error.message };
-  }
-});
+safeLog('小白AI 后端启动成功！');
 
 // ==================== AI Agent 功能 ====================
 
@@ -834,19 +792,19 @@ ipcMain.handle('init-agent', async (event, config) => {
       apiKey = officialConfig.apiKey;
       provider = officialConfig.provider; // 使用官方配置的provider
       model = officialConfig.defaultModel;
-      console.log('游客模式：使用官方API Key', { provider, model });
+      safeLog('游客模式：使用官方API Key', { provider, model });
     }
     // 登录用户：使用用户自己的API Key（如果有）
     else if (currentUser && currentUser.api_key) {
       apiKey = currentUser.api_key;
-      console.log('登录用户：使用用户API Key');
+      safeLog('登录用户：使用用户API Key');
     }
 
     if (!apiKey || apiKey.trim() === '') {
       throw new Error('API Key 为空');
     }
 
-    console.log('开始初始化 Agent，配置:', {
+    safeLog('开始初始化 Agent，配置:', {
       provider,
       hasApiKey: !!apiKey,
       isGuestMode,
@@ -862,20 +820,20 @@ ipcMain.handle('init-agent', async (event, config) => {
       model
     );
 
-    console.log('Agent 初始化成功');
+    safeLog('Agent 初始化成功');
     return { success: true };
   } catch (error) {
-    console.error('初始化 Agent 失败:', error);
+    safeError('初始化 Agent 失败:', error);
     return { success: false, error: error.message };
   }
 });
 
 // 发送消息（流式响应）
 ipcMain.handle('send-message', async (event, message, files) => {
-  console.log('收到发送消息请求:', { message, hasFiles: files?.length > 0 });
+  safeLog('收到发送消息请求:', { message, hasFiles: files?.length > 0 });
 
   if (!agentInstance) {
-    console.error('Agent 未初始化');
+    safeError('Agent 未初始化');
     throw new Error('Agent 未初始化，请先配置 API Key');
   }
 
@@ -883,7 +841,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
   if (isGuestMode) {
     const deviceId = db.getDeviceId();
     db.incrementGuestUsage(deviceId);
-    console.log('游客使用次数已更新');
+    safeLog('游客使用次数已更新');
 
     // 通知前端更新剩余次数
     const status = db.canGuestUse(deviceId);
@@ -895,7 +853,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
   // 登录用户：增加请求次数
   else if (currentUser) {
     db.incrementUserRequests(currentUser.id);
-    console.log('用户请求次数已更新');
+    safeLog('用户请求次数已更新');
   }
 
   // 准备文件信息（如果有的话）
@@ -910,7 +868,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
           type: getFileType(file.name),
         });
       } catch (error) {
-        console.error('读取文件信息失败:', error);
+        safeError('读取文件信息失败:', error);
       }
     }
   }
@@ -918,7 +876,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
   let fullResponse = '';
 
   try {
-    console.log('开始发送消息到 Agent...');
+    safeLog('开始发送消息到 Agent...');
     // 发送消息并获取流式响应
     const result = await agent.sendMessage(
       agentInstance,
@@ -931,7 +889,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
       }
     );
 
-    console.log('消息发送成功，响应长度:', fullResponse.length);
+    safeLog('消息发送成功，响应长度:', fullResponse.length);
 
     // 保存 token 使用记录
     if (result.inputTokens !== undefined && result.outputTokens !== undefined) {
@@ -946,7 +904,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
         outputTokens: result.outputTokens
       });
 
-      console.log('Token 使用记录已保存:', {
+      safeLog('Token 使用记录已保存:', {
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
         totalTokens: result.inputTokens + result.outputTokens
@@ -955,7 +913,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
 
     return { success: true, content: result.text || fullResponse };
   } catch (error) {
-    console.error('发送消息失败:', error);
+    safeError('发送消息失败:', error);
     throw error;
   }
 });
@@ -1055,9 +1013,9 @@ async function saveTokenUsage(inputTokens, outputTokens) {
 
     // 保存文件
     await fs.writeFile(tokenPath, JSON.stringify(data, null, 2), 'utf-8');
-    console.log('Token使用记录已保存');
+    safeLog('Token使用记录已保存');
   } catch (error) {
-    console.error('保存token使用记录失败:', error);
+    safeError('保存token使用记录失败:', error);
   }
 }
 
@@ -1101,10 +1059,10 @@ ipcMain.handle('capture-screen', async () => {
     const screenshotData = await fs.readFile(filePath);
     const base64 = `data:image/png;base64,${screenshotData.toString('base64')}`;
 
-    console.log('截图成功:', filePath);
+    safeLog('截图成功:', filePath);
     return { success: true, filePath, preview: base64 };
   } catch (error) {
-    console.error('截图失败:', error);
+    safeError('截图失败:', error);
     // 确保窗口恢复
     if (mainWindow) {
       mainWindow.restore();
@@ -1128,10 +1086,10 @@ ipcMain.handle('save-screenshot', async (event, imageDataUrl) => {
     const filePath = path.join(tmpDir, `screenshot-${timestamp}.png`);
 
     await fs.writeFile(filePath, buffer);
-    console.log('截图已保存:', filePath);
+    safeLog('截图已保存:', filePath);
     return { success: true, filePath };
   } catch (error) {
-    console.error('保存截图失败:', error);
+    safeError('保存截图失败:', error);
     return { success: false, error: error.message };
   }
 });

@@ -19,11 +19,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   getConfigPath: () => ipcRenderer.invoke('get-config-path'),
-  getUserInfoFilePath: () => ipcRenderer.invoke('get-user-info-file-path'),
-  getMemoryFilePath: () => ipcRenderer.invoke('get-memory-file-path'),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
   isFirstTimeUser: () => ipcRenderer.invoke('is-first-time-user'),
-  saveUserInfo: (userInfo) => ipcRenderer.invoke('save-user-info', userInfo),
+
+  // 用户信息和记忆（从数据库）
+  getUserInfo: () => ipcRenderer.invoke('get-user-info'),
+  saveUserInfo: (content) => ipcRenderer.invoke('save-user-info-content', content),
+  getAiMemory: () => ipcRenderer.invoke('get-ai-memory'),
+  saveAiMemory: (content) => ipcRenderer.invoke('save-ai-memory-content', content),
 
   // 对话历史管理
   saveConversations: (conversations) => ipcRenderer.invoke('save-conversations', conversations),
@@ -57,11 +60,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCurrentUser: () => ipcRenderer.invoke('get-current-user'),
   updateUserApiKey: (apiKey) => ipcRenderer.invoke('update-user-api-key', apiKey),
   useGuestMode: () => ipcRenderer.invoke('use-guest-mode'),
-
-  // 后台管理
-  adminGetUsers: () => ipcRenderer.invoke('admin-get-users'),
-  adminGetStats: () => ipcRenderer.invoke('admin-get-stats'),
-  adminGetUserDetail: (userId) => ipcRenderer.invoke('admin-get-user-detail', userId),
 
   // 自动更新
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),

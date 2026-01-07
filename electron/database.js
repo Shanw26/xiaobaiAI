@@ -3,6 +3,20 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
+// ==================== 安全的日志输出 ====================
+// 检查流可写性，避免 EPIPE 错误
+function safeLog(...args) {
+  if (process.stdout.writable) {
+    console.log(...args);
+  }
+}
+
+function safeError(...args) {
+  if (process.stderr.writable) {
+    console.error(...args);
+  }
+}
+
 // 数据库文件路径
 const getDatabasePath = () => {
   const userDataPath = require('electron').app.getPath('userData');
@@ -16,7 +30,7 @@ function initDatabase() {
   if (db) return db;
 
   const dbPath = getDatabasePath();
-  console.log('初始化数据库:', dbPath);
+  safeLog('初始化数据库:', dbPath);
 
   db = new Database(dbPath);
 
@@ -89,7 +103,27 @@ function createTables() {
     )
   `);
 
-  console.log('数据表创建完成');
+  // 用户信息表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_info (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // AI记忆表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_memory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  safeLog('数据表创建完成');
 }
 
 // 生成设备ID（基于机器特征）
@@ -117,10 +151,10 @@ function createUser(phone) {
 
   try {
     stmt.run(userId, phone);
-    console.log('用户创建成功:', userId);
+    safeLog('用户创建成功:', userId);
     return { success: true, userId };
   } catch (error) {
-    console.error('创建用户失败:', error);
+    safeError('创建用户失败:', error);
     if (error.message.includes('UNIQUE')) {
       return { success: false, error: '该手机号已注册' };
     }
@@ -150,7 +184,7 @@ function updateUserApiKey(userId, apiKey) {
     stmt.run(apiKey, userId);
     return { success: true };
   } catch (error) {
-    console.error('更新API Key失败:', error);
+    safeError('更新API Key失败:', error);
     return { success: false, error: error.message };
   }
 }
@@ -240,10 +274,10 @@ function createVerificationCode(phone) {
 
   try {
     stmt.run(phone, code, expiresAt.toISOString());
-    console.log('验证码已生成:', { phone, code, expiresAt });
+    safeLog('验证码已生成:', { phone, code, expiresAt });
     return { success: true, code };
   } catch (error) {
-    console.error('创建验证码失败:', error);
+    safeError('创建验证码失败:', error);
     return { success: false, error: error.message };
   }
 }
@@ -276,7 +310,7 @@ function cleanExpiredCodes() {
   const db = initDatabase();
   const stmt = db.prepare('DELETE FROM verification_codes WHERE expires_at < CURRENT_TIMESTAMP');
   const result = stmt.run();
-  console.log('清理过期验证码:', result.changes, '条');
+  safeLog('清理过期验证码:', result.changes, '条');
 }
 
 // ==================== 请求日志相关操作 ====================
@@ -345,12 +379,136 @@ function initOfficialConfig() {
   setSystemConfig('free_usage_limit', '10', '游客免费使用次数限制');
   setSystemConfig('official_config_initialized', 'true', '配置已初始化标记');
 
-  console.log('官方配置已初始化到数据库');
+  safeLog('官方配置已初始化到数据库');
 }
 
 // 获取官方API Key
 function getOfficialApiKey() {
   return getSystemConfig('official_api_key');
+}
+
+// ==================== 用户信息和记忆操作 ====================
+
+// 获取用户信息
+function getUserInfo() {
+  const db = initDatabase();
+  const stmt = db.prepare('SELECT content FROM user_info WHERE id = 1');
+  const result = stmt.get();
+
+  if (result) {
+    return result.content;
+  }
+
+  // 返回默认模板
+  return `# 用户信息
+
+## 基本信息
+- 姓名：
+- 职业：
+- 兴趣爱好：
+
+## 偏好设置
+- 工作时间：
+- 学习风格：
+- 沟通方式：
+
+## 其他信息
+- 特殊需求：
+- 常用工具：
+- 备注信息：
+`;
+}
+
+// 保存用户信息
+function saveUserInfo(content) {
+  const db = initDatabase();
+
+  // 检查是否已存在记录
+  const checkStmt = db.prepare('SELECT id FROM user_info WHERE id = 1');
+  const exists = checkStmt.get();
+
+  if (exists) {
+    // 更新现有记录
+    const updateStmt = db.prepare(`
+      UPDATE user_info
+      SET content = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `);
+    updateStmt.run(content);
+  } else {
+    // 插入新记录
+    const insertStmt = db.prepare(`
+      INSERT INTO user_info (content)
+      VALUES (?)
+    `);
+    insertStmt.run(content);
+  }
+
+  safeLog('用户信息已保存');
+  return { success: true };
+}
+
+// 获取AI记忆
+function getAiMemory() {
+  const db = initDatabase();
+  const stmt = db.prepare('SELECT content FROM ai_memory WHERE id = 1');
+  const result = stmt.get();
+
+  if (result) {
+    return result.content;
+  }
+
+  // 返回默认模板
+  return `# AI 记忆
+
+## 对话历史记录
+- 重要对话内容
+- 用户偏好
+- 常见问题
+
+## 用户习惯
+- 工作流程
+- 常用命令
+- 操作习惯
+
+## 重要事项
+- 特殊要求
+- 注意事项
+- 待办事项
+
+## 其他信息
+- 补充记录
+- 备注信息
+`;
+}
+
+// 保存AI记忆
+function saveAiMemory(content) {
+  const db = initDatabase();
+
+  // 检查是否已存在记录
+  const checkStmt = db.prepare('SELECT id FROM ai_memory WHERE id = 1');
+  const exists = checkStmt.get();
+
+  if (exists) {
+    // 更新现有记录
+    const updateStmt = db.prepare(`
+      UPDATE ai_memory
+      SET content = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `);
+    updateStmt.run(content);
+  } else {
+    // 插入新记录
+    const insertStmt = db.prepare(`
+      INSERT INTO ai_memory (content)
+      VALUES (?)
+    `);
+    insertStmt.run(content);
+  }
+
+  safeLog('AI记忆已保存');
+  return { success: true };
 }
 
 // ==================== 导出 ====================
@@ -390,4 +548,10 @@ module.exports = {
 
   // 工具函数
   getDatabasePath,
+
+  // 用户信息和记忆
+  getUserInfo,
+  saveUserInfo,
+  getAiMemory,
+  saveAiMemory,
 };
