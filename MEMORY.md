@@ -1101,9 +1101,431 @@ const waitingStartTimeRef = useRef(null);
 
 ---
 
-**最后更新**: 2026-01-07 23:59
+**最后更新**: 2026-01-07 17:00
 **更新人**: Claude Code + 晓力
-**当前版本**: v2.9.3
+**当前版本**: v2.9.5
+
+---
+
+## 📅 2026-01-07 晚间工作记录（完整版）🌟
+
+### 整体概述
+- ⏰ 工作时间：下午到晚上（约4-5小时）
+- 🎯 主要任务：强制更新功能完善 + 样式优化 + 发布流程
+- 📦 发布版本：v2.9.4, v2.9.5
+- ✅ 完成状态：所有目标达成
+
+---
+
+## 📅 2026-01-07 (v2.9.5)
+
+### 修复更新弹窗样式问题 🎨✅
+
+**用户反馈**：
+- 更新提醒弹窗没有在屏幕中央
+- 缺少遮罩背景
+
+**问题定位**：
+- `UpdateAvailableModal.css` 中缺少 `.update-modal-overlay` 的完整样式定义
+- `UpdateDownloadedModal.css` 中缺少 `.toast-overlay` 的完整样式定义
+- 只继承了 ModalBase.css 的部分样式，没有明确的遮罩和居中定义
+
+**实施方案**：
+
+**1. UpdateAvailableModal.css 修复**：
+```css
+.update-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;        /* 垂直居中 */
+  justify-content: center;    /* 水平居中 */
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+  padding: 24px;
+}
+```
+
+**2. UpdateDownloadedModal.css 修复**：
+```css
+.toast-overlay {
+  /* 相同的遮罩和居中样式 */
+  z-index: 3000;
+}
+```
+
+**修改文件**：
+- `src/components/UpdateAvailableModal.css` - 添加完整的遮罩样式
+- `src/components/UpdateDownloadedModal.css` - 添加完整的遮罩样式
+- `package.json` - 版本号: 2.9.5
+- `electron/main.js` - APP_VERSION: 2.9.5
+- `src/components/Sidebar.jsx` - 版本号: v2.9.5
+- `src/components/SettingsModal.jsx` - 版本号: v2.9.5
+
+**测试结果**: ✅ 已发布到阿里云 OSS
+
+**Git提交**:
+- Commit: f90cfee - "fix: v2.9.5 修复更新弹窗样式问题"
+- 已推送到远程仓库
+
+---
+
+## 📅 2026-01-07 (v2.9.4)
+
+### 优化更新内容展示 + 修复重启问题 🐛✨
+
+**优化1：更新内容展示**
+
+**用户反馈**：
+- "更新内容: 查看 GitHub Releases 了解详情 这个需要优化下"
+- "内容可以写简单点，比如最新版支持了什么能力就可以"
+
+**实施方案**：
+
+**1. 优化默认文案**：
+```javascript
+// 之前
+<div className="no-notes">
+  查看 <a href="https://github.com/Shanw26/xiaobaiAI/releases">GitHub Releases</a> 了解详情
+</div>
+
+// 现在
+<div className="default-notes">
+  <p>✨ 体验优化和性能提升</p>
+  <p style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+    本次更新包含多项改进，让小白AI更加稳定易用
+  </p>
+</div>
+```
+
+**2. 创建 CHANGELOG.md**：
+```markdown
+# 更新日志
+
+## [2.9.4] - 2026-01-07
+
+### 优化
+- ✨ 优化强制更新弹窗样式（居中显示 + 深色遮罩）
+- 🎨 改进更新弹窗的默认文案展示
+- 📝 支持自定义更新说明
+
+### 修复
+- 🐛 修复"立即重启"按钮点击无效的问题
+- 🔧 优化应用退出逻辑，确保更新重启正常
+```
+
+**3. 扩展上传脚本**：
+```javascript
+// scripts/upload-to-oss.js
+// 优先使用环境变量
+if (process.env.RELEASE_NOTES) {
+  releaseNotes = process.env.RELEASE_NOTES;
+}
+// 尝试从 CHANGELOG.md 读取
+else {
+  const match = changelog.match(/##\[version\]...([\s\S]*?)(?=##|$)/);
+  if (match) {
+    const lines = match[1].split('\n')
+      .filter(line => line.startsWith('-'))
+      .slice(0, 3);
+    releaseNotes = lines.join('\n');
+  }
+}
+```
+
+**4. 新增发布命令**：
+```bash
+npm run release:oss      # 普通发布（自动读取CHANGELOG）
+npm run release:force    # 强制更新
+NOTES="自定义内容" npm run release:notes
+```
+
+---
+
+**优化2：修复"立即重启"按钮**
+
+**问题**：
+- 点击"立即重启"后弹窗消失，但应用没有重启
+
+**原因分析**：
+```javascript
+// UpdateDownloadedModal
+onRestart={async () => {
+  await window.electronAPI.installUpdate();
+  setUpdateDownloaded(null);  // ❌ 立即关闭弹窗
+}}
+```
+
+**解决方案**：
+```javascript
+// 之前
+onRestart={async () => {
+  await window.electronAPI.installUpdate();
+  setUpdateDownloaded(null);  // ❌ 立即关闭弹窗
+}}
+
+// 现在
+onRestart={async () => {
+  window.electronAPI.installUpdate();
+  // 不关闭弹窗，让应用自然退出
+}}
+```
+
+**3. 优化主进程重启逻辑**：
+```javascript
+function installUpdate() {
+  safeLog('[更新] 安装更新并重启...');
+
+  // 清理窗口事件监听器
+  if (mainWindow) {
+    mainWindow.removeAllListeners();
+  }
+
+  // 调用退出并安装
+  autoUpdater.quitAndInstall(false, true);
+}
+```
+
+**修改文件**：
+- `src/components/UpdateAvailableModal.jsx` - 优化默认文案
+- `src/App.jsx` - 修复重启逻辑
+- `electron/main.js` - 优化退出逻辑
+- `scripts/upload-to-oss.js` - 支持 CHANGELOG 读取
+- `package.json` - 添加新的发布命令
+- `CHANGELOG.md` - 新建版本日志文件
+- `src/components/ForceUpdateModal.jsx` - 使用标准 modal 布局
+- `src/components/ForceUpdateModal.css` - 完整重写样式
+
+**测试结果**: ✅ 已发布到阿里云 OSS
+
+**Git提交**:
+- Commit: 6e5cd14 - "feat: v2.9.4 优化更新体验和样式"
+- Commit: 8d6262f - "fix: 修复 macOS 签名时间戳问题"
+
+---
+
+### 强制更新样式优化 🎭
+
+**用户反馈**：
+- "这个弹窗位置，建议放到居中的位置，现在在右上角，有点丑"
+- "还有就是点击弹窗上的立即重启，也没反应，就消失了，没真的重启"
+
+**实施方案**：
+
+**1. ForceUpdateModal 居中显示**：
+```jsx
+// 之前
+<div className="force-update-overlay">
+  <div className="force-update-modal">
+
+// 现在
+<div className="modal-overlay force-update">
+  <div className="modal small force-update-modal">
+```
+
+**2. 完整的样式重写**：
+```css
+.modal-overlay.force-update {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(30px);
+}
+
+.force-update-modal {
+  text-align: center;
+  max-width: 420px;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 60px rgba(220, 38, 38, 0.3);
+  animation: slideDown 0.4s;
+}
+```
+
+**3. 修复重启问题**：
+- 移除 `setUpdateDownloaded(null)` 立即关闭弹窗的逻辑
+- 优化主进程的退出逻辑
+
+**修改文件**：
+- `src/components/ForceUpdateModal.jsx` - 使用标准 modal 布局
+- `src/components/ForceUpdateModal.css` - 完整重写，居中显示
+- `src/App.jsx` - 修复重启逻辑
+- `electron/main.js` - 优化退出逻辑
+- `scripts/afterPack.js` - 添加 --timestamp 参数
+
+**视觉效果**：
+- ✅ 屏幕正中央显示
+- ✅ 深色遮罩背景（85%透明度）
+- ✅ 最高优先级（z-index: 99999）
+- ✅ 红色光晕阴影
+- ✅ 从上方滑入动画
+
+---
+
+### 修复强制更新版本号格式问题 🐛
+
+**问题发现**：
+- 用户反馈：v2.7.8 点击"检查更新"提示"当前就是最新版"
+- 实际情况：已有 v2.9.3 强制更新版本
+
+**问题定位**：
+```bash
+# 测试版本比较
+semver.gt('2.9.3[强制]', '2.7.8')
+// ❌ 报错: Invalid Version: 2.9.3[强制]
+
+semver.gt('2.9.3', '2.7.8')
+// ✅ 正常: true
+```
+
+**根本原因**：
+- 之前将 `[强制]` 标记直接放在 `version` 字段中（`2.9.3[强制]`）
+- electron-updater 使用 `semver` 库比较版本号
+- `semver` 只接受标准的语义化版本号
+
+**解决方案**：
+
+**1. 修改上传脚本**：
+```javascript
+// generateYaml 函数添加 releaseNotes 参数
+function generateYaml(version, files, baseUrl, releaseNotes = '') {
+  let yaml = `version: ${version}\n`;
+  if (releaseNotes) {
+    yaml += `releaseNotes: ${JSON.stringify(releaseNotes)}\n`;
+  }
+  return yaml;
+}
+```
+
+**2. 支持强制更新模式**：
+```javascript
+const isForceUpdate = process.env.FORCE_UPDATE === 'true' || process.argv.includes('--force');
+const releaseNotes = isForceUpdate ? '[强制] 此版本包含重要更新，请尽快升级' : '';
+```
+
+**3. 重新生成 latest-mac.yml**：
+```bash
+FORCE_UPDATE=true npm run upload:oss
+```
+
+**修复结果**：
+```yaml
+# 之前（错误）
+version: 2.9.3[强制]
+
+# 现在（正确）
+version: 2.9.3
+releaseNotes: "[强制] 此版本包含重要更新，请尽快升级"
+```
+
+**修改文件**：
+- `scripts/upload-to-oss.js` - 重写 generateYaml、uploadLatestYml、uploadMacVersion、main 函数
+- `release/latest-mac.yml` - 重新生成
+
+**重要经验**：
+1. ⚠️ 版本号必须保持标准格式：只能包含数字和点
+2. ✅ 强制标记放在 releaseNotes 中
+3. ✅ electron-updater 依赖 semver
+
+---
+
+### 发布到阿里云 OSS ☁️✅
+
+**核心变更**: 建立完整的发布流程，每次发布都上传到阿里云
+
+**重要规则** ⭐：
+- ✅ **每次发布新版本后，都必须上传到阿里云 OSS**
+- ✅ 发布流程: 打包 → GitHub Release → 阿里云 OSS
+- ✅ 自动更新系统优先使用阿里云 OSS（生产环境）
+
+**发布命令**：
+```bash
+npm run dist:mac          # 1. 打包
+npm run upload:oss        # 2. 上传到阿里云 OSS
+
+# 或者一步到位
+npm run release:oss       # 打包 + 上传
+```
+
+**强制更新发布**：
+```bash
+FORCE_UPDATE=true npm run upload:oss
+```
+
+**历史版本**：
+- v2.7.8: ✅ 已发布到阿里云 OSS
+- v2.9.3: ✅ 已发布到阿里云 OSS（强制更新）
+- v2.9.4: ✅ 已发布到阿里云 OSS
+- v2.9.5: ✅ 已发布到阿里云 OSS
+
+**下载地址**:
+- macOS: https://xiaobai-ai-releases.oss-cn-hangzhou.aliyuncs.com/mac/
+
+---
+
+## 🎯 今天工作总结
+
+### 完成的主要任务
+
+1. **✅ 强制更新功能完善**
+   - 修复版本号格式问题（releaseNotes vs version）
+   - 优化强制更新弹窗样式（居中 + 遮罩）
+   - 修复"立即重启"按钮失效问题
+
+2. **✅ 更新内容展示优化**
+   - 创建 CHANGELOG.md
+   - 支持自动读取更新内容
+   - 优化默认文案
+
+3. **✅ 发布流程优化**
+   - 每次发布自动上传到阿里云 OSS
+   - 支持多种更新说明方式
+   - 添加新的发布命令
+
+4. **✅ Bug修复**
+   - macOS 签名时间戳问题（添加 --timestamp）
+   - 更新弹窗缺少遮罩背景
+
+### 发布的版本
+
+- v2.9.3: 修复强制更新版本号格式问题
+- v2.9.4: 优化更新体验和样式
+- v2.9.5: 修复更新弹窗样式问题
+
+### Git提交记录
+
+- 6e5cd14 - feat: v2.9.4 优化更新体验和样式
+- 8d6262f - fix: 修复 macOS 签名时间戳问题
+- 7495564 - fix: 修复更新弹窗缺少遮罩背景和居中样式
+- f90cfee - fix: v2.9.5 修复更新弹窗样式问题
+
+### 修改的主要文件
+
+**前端组件**：
+- `src/components/ForceUpdateModal.jsx` - 使用标准 modal 布局
+- `src/components/ForceUpdateModal.css` - 完整重写样式
+- `src/components/UpdateAvailableModal.jsx` - 优化默认文案
+- `src/components/UpdateAvailableModal.css` - 添加遮罩样式
+- `src/components/UpdateDownloadedModal.css` - 添加遮罩样式
+- `src/App.jsx` - 修复重启逻辑
+
+**后端脚本**：
+- `scripts/upload-to-oss.js` - 支持 CHANGELOG 读取，强制更新模式
+- `scripts/afterPack.js` - 添加 --timestamp 参数
+- `electron/main.js` - 优化退出逻辑
+
+**文档**：
+- `CHANGELOG.md` - 新建版本日志
+- `MEMORY.md` - 更新工作记录
+
+**配置**：
+- `package.json` - 版本号更新，新增发布命令
 
 ---
 
