@@ -31,6 +31,8 @@ export function AuthProvider({ children }) {
 
   const login = (user) => {
     console.log('📝 [AuthContext] 用户登录:', user.phone);
+    // 保存到 localStorage，刷新页面后可以恢复
+    localStorage.setItem('xiaobai_user', JSON.stringify(user));
     setCurrentUser(user);
   };
 

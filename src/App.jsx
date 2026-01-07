@@ -20,7 +20,9 @@ import {
   createMessage,
   updateMessage as updateMessageCloud,
   deleteConversation as deleteConversationCloud,
-  mergeGuestConversations
+  mergeGuestConversations,
+  getUserUsageCount,
+  incrementUserUsage
 } from './lib/cloudService';
 import './App.css';
 
@@ -52,14 +54,32 @@ function AppContent() {
     console.log('🔍 [App] currentUser 状态变化:', currentUser?.phone || 'null');
   }, [currentUser]);
 
-  // 登录用户的使用次数（本地存储，10次免费额度）
-  const [userUsageCount, setUserUsageCount] = useState(() => {
+  // 登录用户的使用次数（从云端读取，10次免费额度）
+  const [userUsageCount, setUserUsageCount] = useState(0);
+
+  // 当用户登录时，从云端加载使用次数
+  useEffect(() => {
     if (currentUser) {
-      const saved = localStorage.getItem(`user_usage_${currentUser.id}`);
-      return saved ? parseInt(saved, 10) : 0;
+      loadUserUsageCount();
+    } else {
+      setUserUsageCount(0);
     }
-    return 0;
-  });
+  }, [currentUser]);
+
+  // 从云端加载用户使用次数
+  const loadUserUsageCount = async () => {
+    try {
+      const result = await getUserUsageCount();
+      if (result.success) {
+        setUserUsageCount(result.usedCount);
+        console.log(`✅ [App] 云端使用次数: ${result.usedCount}`);
+      } else {
+        console.error('❌ [App] 获取使用次数失败:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ [App] 加载使用次数异常:', error);
+    }
+  };
 
   // 加载配置
   useEffect(() => {
@@ -611,10 +631,16 @@ function AppContent() {
 
         // 增加使用次数（仅登录用户且未配置 API Key 时）
         if (currentUser && !config?.apiKey) {
-          const newCount = userUsageCount + 1;
-          setUserUsageCount(newCount);
-          localStorage.setItem(`user_usage_${currentUser.id}`, newCount.toString());
-          console.log(`📊 [App] 用户使用次数: ${newCount}/10`);
+          const result = await incrementUserUsage();
+          if (result.success) {
+            setUserUsageCount(result.usedCount);
+            console.log(`📊 [App] 云端用户使用次数: ${result.usedCount}/10, 剩余: ${result.remaining}`);
+          } else {
+            console.error('❌ [App] 更新云端使用次数失败:', result.error);
+            // 降级：即使云端失败，也更新本地计数
+            const newCount = userUsageCount + 1;
+            setUserUsageCount(newCount);
+          }
         }
 
         // 自动更新记忆文件
