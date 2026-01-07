@@ -13,11 +13,12 @@
    - 数据库相关 → `./03-database-design.md`
    - 设备ID/游客 → `./04-deviceid-guest-mode.md`
    - 文件路径功能 → `./05-file-path-click.md`
-   - 架构相关 → `./06-system-architecture.md`
-   - 部署相关 → `./07-deployment-config.md`
+   - 思考过程展示 → `./06-thinking-process.md`
+   - 架构相关 → `./07-system-architecture.md`
+   - 部署相关 → `./08-deployment-config.md`
 
 3. **读取开发规范**（开发任务）：
-   - 路径：`./08-development-guidelines.md`
+   - 路径：`./09-development-guidelines.md`
    - 触发条件：当需要修改代码或添加新功能时
 
 **执行顺序**：读快速入门 → 读相关技术文档 → 开始工作
@@ -40,14 +41,15 @@
 - **[Database Design](./03-database-design.md)** - 表结构、RLS策略、数据迁移
 - **[Device ID & Guest Mode](./04-deviceid-guest-mode.md)** - 设备识别、游客数据、自动合并
 - **[File Path Click](./05-file-path-click.md)** - 路径识别、Markdown渲染、Electron集成
+- **[Thinking Process](./06-thinking-process.md)** - AI思考过程展示、用户信任度提升
 
 ### 架构与部署
-- **[System Architecture](./06-system-architecture.md)** - 整体架构、技术选型、模块关系
-- **[Deployment & Config](./07-deployment-config.md)** - 环境配置、密钥管理、常见问题
+- **[System Architecture](./07-system-architecture.md)** - 整体架构、技术选型、模块关系
+- **[Deployment & Config](./08-deployment-config.md)** - 环境配置、密钥管理、常见问题
 
 ### 开发指南
-- **[Development Guidelines](./08-development-guidelines.md)** - 代码风格、Git流程、测试规范
-- **[Changelog](./09-changelog.md)** - 版本历史、重要变更
+- **[Development Guidelines](./09-development-guidelines.md)** - 代码风格、Git流程、测试规范
+- **[Changelog](./10-changelog.md)** - 版本历史、重要变更
 
 ---
 
@@ -75,6 +77,9 @@
 
 **实现路径点击**
 → 看 [File Path Click](./05-file-path-click.md)，有完整代码示例
+
+**了解AI思考过程**
+→ 看 [Thinking Process](./06-thinking-process.md)，了解AI如何展示分析逻辑
 
 ---
 
@@ -128,6 +133,7 @@
 | Database Design | ✅ 完成 | 2026-01-07 |
 | Device ID & Guest Mode | ✅ 完成 | 2026-01-07 |
 | File Path Click | ✅ 完成 | 2026-01-07 |
+| Thinking Process | ✅ 完成 | 2026-01-07 |
 | System Architecture | ✅ 完成 | 2026-01-07 |
 | Deployment & Config | ✅ 完成 | 2026-01-07 |
 | Development Guidelines | ✅ 完成 | 2026-01-07 |
