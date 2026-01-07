@@ -146,15 +146,42 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
     <div className="settings-content animate-in">
       <div className="form-group">
         <label className="form-label">
-          API 配置
-          <span className="form-hint">配置你的 Claude API Key</span>
+          模型厂商
+          <span className="form-hint">选择 AI 提供商</span>
+        </label>
+        <select
+          className="form-input"
+          value={localConfig.modelProvider || 'anthropic'}
+          onChange={(e) =>
+            setLocalConfig({
+              ...localConfig,
+              modelProvider: e.target.value,
+              model: MODEL_PROVIDERS[e.target.value].models[0].id,
+            })
+          }
+        >
+          {Object.entries(MODEL_PROVIDERS).map(([key, provider]) => (
+            <option key={key} value={key}>
+              {provider.name}
+            </option>
+          ))}
+        </select>
+        <div className="form-help">
+          💡 {currentProvider?.name || 'Anthropic'} 提供的 AI 服务
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          API Key
+          <span className="form-hint">配置你的 API Key</span>
         </label>
         <input
           type="password"
           className="form-input"
           value={localConfig.apiKey || ''}
           onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
-          placeholder="sk-ant-..."
+          placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key' : 'sk-ant-...'}
         />
         <div className="form-help">
           💡 你的 API Key 将安全保存在本地，不会上传到我们的服务器
@@ -164,19 +191,21 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
       <div className="form-group">
         <label className="form-label">
           选择模型
-          <span className="form-hint">Claude 模型版本</span>
+          <span className="form-hint">{currentProvider?.name || 'Claude'} 模型版本</span>
         </label>
         <select
           className="form-input"
-          value={localConfig.model || 'claude-3-5-sonnet-20241022'}
+          value={localConfig.model || currentModels[0]?.id}
           onChange={(e) => setLocalConfig({ ...localConfig, model: e.target.value })}
         >
-          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (推荐)</option>
-          <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (快速)</option>
-          <option value="claude-3-opus-20240229">Claude 3 Opus (最强)</option>
+          {currentModels.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
         </select>
         <div className="form-help">
-          💡 不同模型的响应速度和智能程度不同，Sonnet 是平衡之选
+          💡 不同模型的响应速度和智能程度不同
         </div>
       </div>
 
