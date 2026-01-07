@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "小白AI - 基于 Claude Agent SDK 的 AI 助手客户端",
   "main": "electron/main.js",
   "scripts": {
