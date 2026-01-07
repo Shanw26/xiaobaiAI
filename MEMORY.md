@@ -1101,9 +1101,95 @@ const waitingStartTimeRef = useRef(null);
 
 ---
 
-**最后更新**: 2026-01-07
+**最后更新**: 2026-01-07 23:40
 **更新人**: Claude Code + 晓力
 **当前版本**: v2.9.3
+
+---
+
+## 📅 2026-01-07 晚上工作记录
+
+### Memory 系统重构 + v2.9.3 发布 📝⭐
+
+**背景**:
+- 全局memory文件过大（3400行），包含大量小白AI项目详细记录
+- 项目特定的记忆应该放在项目目录下，而不是全局memory
+- 需要建立清晰的双层memory体系
+
+**实施内容**:
+
+**1. 项目MEMORY.md更新**
+- ✅ 添加 v2.9.3 版本记录（云端存储完整性修复）
+- ✅ 项目内已有完整的开发历史（1800+行）
+- ✅ 包含所有技术决策、Bug修复、版本历史
+
+**2. 全局memory精简**
+- **之前**: 3400行（包含大量小白AI详细记录）
+- **现在**: 179行（只保留通用信息）
+- **删除内容**:
+  - ❌ 小白AI详细的版本历史
+  - ❌ Bug修复细节
+  - ❌ 技术实现细节
+- **保留内容**:
+  - ✅ 用户信息（晓力）
+  - ✅ 产品方法论
+  - ✅ 项目列表（链接到各项目）
+  - ✅ 技术调研
+  - ✅ Git使用指南
+  - ✅ 通用开发经验
+- **新增规则**:
+  - ⚠️ 项目特定的记忆必须放在项目目录下的 `MEMORY.md` 中
+  - ⚠️ 全局memory只记录跨项目的通用信息
+
+**3. 全局规则更新（CLAUDE.md）**
+- ✅ 更新"记忆管理"章节
+- ✅ 添加双层memory体系说明：
+  - **全局memory**: 通用信息（用户信息、方法论、项目列表）
+  - **项目memory**: 项目特定信息（开发历史、技术决策、版本记录）
+
+**4. 代码提交和打包**
+- ✅ Git提交：5f51455 - feat: v2.9.3 云端存储完整性修复
+- ✅ 推送到远程：https://github.com/Shanw26/xiaobaiAI
+- ✅ 打包成功：生成4个安装包（DMG + ZIP，Intel + ARM64）
+- ✅ GitHub Release发布：https://github.com/Shanw26/xiaobaiAI/releases/tag/v2.9.3
+- ✅ Apple签名：Developer ID Application (666P8DEX39)
+
+**新的Memory体系**:
+```
+全局memory (/Downloads/同步空间/Claude code/memory.md)
+├─ 用户信息（晓力）
+├─ 产品方法论
+├─ 项目列表（链接到各项目）
+├─ 技术调研
+└─ 通用开发经验
+
+项目memory (/Users/shawn/Downloads/小白AI/MEMORY.md)
+├─ 项目开发规范
+├─ 完整版本历史（v1.0.0 → v2.9.3）
+├─ Bug修复记录
+├─ 技术决策
+└─ 待解决问题
+```
+
+**优势**:
+1. **避免全局memory过大**: 从3400行缩减到179行
+2. **项目独立性**: 每个项目的记忆独立管理，便于维护
+3. **清晰的职责划分**: 全局vs项目，层次分明
+4. **易于扩展**: 新项目直接在项目目录创建MEMORY.md即可
+
+**重要规则**:
+- ✅ 处理小白AI项目时，AI会同时读取两个memory文件
+- ✅ 项目特定的修改记录到项目MEMORY.md
+- ✅ 跨项目的信息记录到全局memory
+- ✅ 保持全局memory简洁清晰
+
+**修改文件**:
+- `/Users/shawn/Downloads/小白AI/MEMORY.md` - 添加本条记录
+- `/Users/shawn/Downloads/同步空间/Claude code/memory.md` - 精简到179行
+- `/Users/shawn/Downloads/同步空间/Claude code/CLAUDE.md` - 更新记忆管理规则
+- Git: 提交并推送到远程仓库
+- 打包: v2.9.3 版本打包完成
+- Release: GitHub Release 已发布
 
 ---
 
