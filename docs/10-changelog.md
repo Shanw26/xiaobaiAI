@@ -2,7 +2,130 @@
 
 > **说明**: 本文档记录小白AI的所有版本更新和重要变更
 > **更新频率**: 每次发布新版本后立即更新
-> **当前版本**: v2.6.8
+> **当前版本**: v2.7.8
+
+---
+
+## 📅 2026-01-07 - v2.7.8
+
+### ✨ 云端数据自动同步系统 ⭐
+
+**核心功能**: AI 记忆和用户信息自动保存到云端，换电脑后自动恢复
+
+#### 新增功能
+
+**1. AI 记忆自动同步**
+- ✅ 每次聊天后自动保存对话记录到云端
+- ✅ 使用 Markdown 格式记录（时间戳 + 用户消息 + AI 回复）
+- ✅ 换电脑后自动加载历史记忆
+- ✅ 异步同步，失败不影响聊天功能
+- **技术实现**:
+  - 位置: `src/App.jsx` - `handleSendMessage()`
+  - 保存内容: 对话时间、用户消息、AI 回复（前 200 字）
+  - 云端接口: `saveAiMemory()`, `getAiMemory()`
+- **数据格式**:
+  ```markdown
+  ## 对话记录 - 01/07/26, 20:15
+
+  **用户**: 帮我写一个 Python 脚本
+
+  **AI**: 好的，我来帮你写...
+  ```
+
+**2. 用户信息智能提取**
+- ✅ 自动检测用户消息中的个人信息关键词
+- ✅ 支持的类别：姓名、职业、所在地、简介、喜好
+- ✅ 自动保存到云端「用户信息」
+- ✅ 去重机制：避免重复保存相同内容
+- **关键词规则**:
+  - 姓名: 我叫、名字是、我是、姓名是...
+  - 职业: 工作、职业、从事、职位、公司...
+  - 所在地: 我在、住在、位于、城市...
+  - 简介: 介绍、简介、关于我...
+  - 喜好: 喜欢、爱好、偏好、擅长...
+
+**3. 设置页面自动加载**
+- ✅ 打开设置时自动从云端拉取最新数据
+- ✅ 并行加载用户信息和 AI 记忆
+- ✅ 懒加载优化：只在打开"高级功能"时加载
+- **技术实现**:
+  - 位置: `src/components/SettingsModal.jsx` - `useEffect()`
+  - 加载时机: 打开设置面板时
+  - 加载内容: 用户信息 + AI 记忆
+
+**4. Markdown 渲染预览**
+- ✅ 用户信息和 AI 记忆支持 Markdown 预览
+- ✅ 支持：标题、列表、代码块、引用、粗体、链接
+- ✅ 编辑/预览模式切换
+- ✅ 优雅的空状态提示
+- **技术实现**:
+  - 组件: `MarkdownRenderer`
+  - 样式: `.markdown-preview` 类
+  - 特性: 代码高亮、引用样式、滚动条
+
+#### 优化改进
+
+**弹窗系统优化**
+- 🎨 创建 `ModalBase.css` 统一基础样式库
+- 🎨 所有弹窗使用统一的绿色主题（`var(--primary)`）
+- 🎨 弹窗代码减少 60-80%
+- 🎨 统一按钮类名：`.btn-modal.primary`, `.btn-modal.secondary`
+- 🎨 统一 z-index 层级体系（1000/2000/9999）
+- 📦 新增组件: `AlertModal`, `ConfirmModal`, `alertService.jsx`
+- 🐛 修复: `.btn-edit` 按钮位置错误（去重 CSS）
+- 🐛 修复: `alertService.js` 扩展名问题（.js → .jsx）
+
+**用户体验改进**
+- 📊 登录用户使用次数显示优化
+- 🎨 优化编辑按钮样式和位置
+- 🐛 修复：系统弹框替换为自定义组件
+- 🐛 修复：所有 `alert()` 和 `confirm()` 替换为统一组件
+
+#### 技术细节
+
+**新增文件**:
+- `src/components/ModalBase.css` - 统一弹窗基础样式
+- `src/components/AlertModal.jsx` - 警告弹窗
+- `src/components/AlertModal.css` - 警告弹窗样式
+- `src/components/ConfirmModal.jsx` - 确认弹窗
+- `src/components/ConfirmModal.css` - 确认弹窗样式
+- `src/lib/alertService.jsx` - 警告服务（动态导入）
+- `docs/modal-component-spec.md` - 弹窗设计规范文档
+- `docs/11-cloud-sync-feature.md` - 云端同步功能文档
+
+**修改文件**:
+- `src/App.jsx` - 添加自动同步逻辑
+- `src/components/SettingsModal.jsx` - 自动加载 + Markdown 预览
+- `src/components/ToastModal.jsx` - 使用 ModalBase.css
+- `src/components/GuestLimitModal.jsx` - 使用 ModalBase.css
+- `src/components/LoginModal.jsx` - 使用 ModalBase.css
+- `src/components/WelcomeModal.jsx` - 使用 ConfirmModal
+- `src/components/Sidebar.jsx` - 使用 ConfirmModal
+- 所有弹窗组件 - 样式优化
+
+#### 数据库变更
+
+无数据库结构变更（使用现有 `user_info` 和 `ai_memory` 表）
+
+#### 测试状态
+
+- ✅ AI 记忆自动同步
+- ✅ 用户信息自动提取
+- ✅ 设置页面自动加载
+- ✅ Markdown 渲染预览
+- ✅ 弹窗样式统一
+- ✅ 跨设备数据同步
+
+#### 已知限制
+
+- 游客模式：10 次免费额度限制
+- 登录用户：无限制使用
+- AI 记忆：只保存前 200 字（摘要）
+- 用户信息：基于关键词匹配（准确率可优化）
+
+#### 相关文档
+- [11-cloud-sync-feature.md](./11-cloud-sync-feature.md) - 云端同步功能详细文档
+- [modal-component-spec.md](./modal-component-spec.md) - 弹窗设计规范
 
 ---
 
