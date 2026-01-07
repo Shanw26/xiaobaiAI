@@ -9,6 +9,23 @@ const SUPABASE_ANON_KEY = 'REMOVED';
 // ==================== 辅助函数 ====================
 
 /**
+ * 获取当前登录用户（从 localStorage）
+ * @returns {object|null}
+ */
+function getCurrentUserSync() {
+  try {
+    const savedUser = localStorage.getItem('xiaobai_user');
+    if (savedUser) {
+      return JSON.parse(savedUser);
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ [云端服务] 获取当前用户失败:', error);
+    return null;
+  }
+}
+
+/**
  * 获取设备ID
  */
 async function getDeviceId() {
@@ -191,11 +208,17 @@ export async function signInWithPhone(phone, code) {
  */
 export async function getCurrentUser() {
   try {
-    // 不再使用 Supabase Auth，直接返回 null
-    // 实际的用户信息由 localStorage 管理
+    // 从 localStorage 读取用户信息
+    const savedUser = localStorage.getItem('xiaobai_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      console.log('✅ [云端服务] 从 localStorage 读取用户信息:', user.phone);
+      return user;
+    }
+    console.log('ℹ️ [云端服务] 未找到登录用户信息');
     return null;
   } catch (error) {
-    console.error('获取当前用户失败:', error);
+    console.error('❌ [云端服务] 获取当前用户失败:', error);
     return null;
   }
 }
@@ -206,11 +229,145 @@ export async function getCurrentUser() {
  */
 export async function signOut() {
   try {
-    // 不再使用 Supabase Auth，直接返回 true
+    // 清除 localStorage 中的用户信息
+    localStorage.removeItem('xiaobai_user');
+    console.log('✅ [云端服务] 已清除登录状态');
     return true;
   } catch (error) {
-    console.error('退出登录失败:', error);
+    console.error('❌ [云端服务] 退出登录失败:', error);
     return false;
+  }
+}
+
+// ==================== 用户使用次数管理 ====================
+
+/**
+ * 获取用户使用次数（从云端）
+ * @returns {Promise<{success: boolean, usedCount?: number, error?: string}>}
+ */
+export async function getUserUsageCount() {
+  try {
+    console.log('📊 [云端服务] 获取用户使用次数');
+
+    const user = getCurrentUserSync();
+
+    if (!user) {
+      console.log('ℹ️  [云端服务] 未登录，使用次数为 0');
+      return { success: true, usedCount: 0 };
+    }
+
+    const deviceId = await getDeviceId();
+
+    // 从 guest_usage 表查询使用次数
+    const { data, error } = await supabaseAdmin
+      .from('guest_usage')
+      .select('used_count')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [云端服务] 获取使用次数失败:', error);
+      // 如果记录不存在，返回 0
+      if (error.code === 'PGRST116') {
+        return { success: true, usedCount: 0 };
+      }
+      return { success: false, error: error.message };
+    }
+
+    const usedCount = data?.used_count || 0;
+    console.log(`✅ [云端服务] 用户已使用 ${usedCount} 次`);
+    return { success: true, usedCount };
+  } catch (error) {
+    console.error('❌ [云端服务] 获取使用次数异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 增加用户使用次数（云端）
+ * @returns {Promise<{success: boolean, usedCount?: number, remaining?: number, error?: string}>}
+ */
+export async function incrementUserUsage() {
+  try {
+    console.log('📊 [云端服务] 增加用户使用次数');
+
+    const user = getCurrentUserSync();
+
+    if (!user) {
+      console.log('ℹ️  [云端服务] 未登录，不记录使用次数');
+      return { success: true, usedCount: 0, remaining: 10 };
+    }
+
+    const deviceId = await getDeviceId();
+
+    // 使用数据库函数来增加使用次数
+    const { data, error } = await supabase.rpc('increment_user_usage', {
+      p_user_id: user.id,
+      p_device_id: deviceId
+    });
+
+    if (error) {
+      console.error('❌ [云端服务] 增加使用次数失败:', error);
+
+      // 如果函数不存在，手动实现
+      const { data: existing } = await supabaseAdmin
+        .from('guest_usage')
+        .select('used_count, remaining')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        const newUsedCount = existing.used_count + 1;
+        const newRemaining = Math.max(0, existing.remaining - 1);
+
+        const { data: updated, error: updateError } = await supabaseAdmin
+          .from('guest_usage')
+          .update({
+            used_count: newUsedCount,
+            remaining: newRemaining,
+            last_used_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          return { success: false, error: updateError.message };
+        }
+
+        console.log(`✅ [云端服务] 使用次数更新: ${newUsedCount}, 剩余: ${newRemaining}`);
+        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
+      } else {
+        // 创建新记录
+        const newUsedCount = 1;
+        const newRemaining = 9;
+
+        const { data: created, error: createError } = await supabaseAdmin
+          .from('guest_usage')
+          .insert({
+            user_id: user.id,
+            device_id: deviceId,
+            used_count: newUsedCount,
+            remaining: newRemaining,
+            last_used_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          return { success: false, error: createError.message };
+        }
+
+        console.log(`✅ [云端服务] 创建使用记录: ${newUsedCount}, 剩余: ${newRemaining}`);
+        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
+      }
+    }
+
+    console.log(`✅ [云端服务] 使用次数: ${data?.used_count || 0}, 剩余: ${data?.remaining || 0}`);
+    return { success: true, usedCount: data?.used_count || 0, remaining: data?.remaining || 0 };
+  } catch (error) {
+    console.error('❌ [云端服务] 增加使用次数异常:', error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -228,14 +385,8 @@ export async function loadConversations() {
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
-    // 获取用户信息（游客模式下 user 为 null，这是正常的）
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    // 游客模式下 authError 是正常的，不应该中断流程
-    if (authError) {
-      console.log('⚠️  [云端服务] Auth 错误（游客模式正常）:', authError.message);
-      // 继续执行，不返回错误
-    }
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
 
     // 获取对话：优先加载登录用户的，其次是该设备的游客对话
     let conversations = [];
@@ -325,14 +476,8 @@ export async function createConversation(conversation) {
     const deviceId = await getDeviceId();
     console.log('   设备ID:', deviceId);
 
-    // 获取用户信息（游客模式下 user 为 null，这是正常的）
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    // 游客模式下 authError 是正常的，不应该中断流程
-    if (authError) {
-      console.log('⚠️  [云端服务] Auth 错误（游客模式正常）:', authError.message);
-      // 继续执行，不返回错误
-    }
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
 
     console.log('   登录状态:', user ? '已登录 (' + user.id + ')' : '游客模式');
 
@@ -531,8 +676,8 @@ export async function getUserInfo() {
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
-    // 优先尝试登录用户的数据
-    const { data: { user } } = await supabase.auth.getUser();
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
     let userId = user?.id;
 
     // 从 Supabase 查询
@@ -582,8 +727,8 @@ export async function saveUserInfo(content) {
 
     const deviceId = await getDeviceId();
 
-    // 获取当前用户
-    const { data: { user } } = await supabase.auth.getUser();
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
     const userId = user?.id;
 
     // 检查是否已存在记录
@@ -642,8 +787,8 @@ export async function getAiMemory() {
 
     const deviceId = await getDeviceId();
 
-    // 获取当前用户
-    const { data: { user } } = await supabase.auth.getUser();
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
     const userId = user?.id;
 
     // 从 Supabase 查询
@@ -691,8 +836,8 @@ export async function saveAiMemory(content) {
 
     const deviceId = await getDeviceId();
 
-    // 获取当前用户
-    const { data: { user } } = await supabase.auth.getUser();
+    // 从 localStorage 获取用户信息
+    const user = getCurrentUserSync();
     const userId = user?.id;
 
     // 检查是否已存在记录

@@ -5,7 +5,7 @@
 **当你读到这个文档时，请按以下顺序执行**：
 
 1. **读取项目开发规范**（必须）⭐：
-   - 路径：`/Users/shawn/Downloads/小白AI/DEVELOPMENT_GUIDELINES.md`
+   - 路径：`Downloads/小白AI/DEVELOPMENT_GUIDELINES.md`
    - 内容：核心原则、开发规范、产品约束、代码质量标准
 
 2. **理解核心约束**：
