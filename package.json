@@ -15,7 +15,10 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "release": "npm run build && electron-builder --publish=never",
     "upload:oss": "node scripts/upload-to-oss.js",
-    "release:oss": "npm run dist:mac && npm run upload:oss"
+    "release:oss": "npm run dist:mac && npm run upload:oss",
+    "config:load": "node scripts/load-from-key.js",
+    "config:sync": "node scripts/sync-config.js",
+    "security:check": "node scripts/security-check.js"
   },
   "keywords": [
     "ai",

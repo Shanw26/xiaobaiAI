@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
@@ -28,6 +28,33 @@ function safeError(...args) {
     }
   } catch (error) {
     // 忽略输出错误，避免崩溃
+  }
+}
+
+/**
+ * 将文件或文件夹移到回收站
+ * @param {string} filePath - 文件或文件夹路径
+ * @returns {Promise<void>}
+ */
+async function moveToTrash(filePath) {
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    // macOS: 使用 AppleScript
+    const script = `tell application "Finder" to move POSIX file "${filePath}" to trash`;
+    await execPromise(`osascript -e '${script}'`);
+  } else if (platform === 'win32') {
+    // Windows: 使用 PowerShell
+    const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${filePath.replace(/\\/g, '\\\\')}', 'OnlyErrorDialogs', 'SendToRecycleBin')`;
+    await execPromise(`powershell -Command "${script}"`, { shell: 'powershell.exe' });
+  } else {
+    // Linux: 使用 gvfs-trash 或 trash-cli
+    try {
+      await execPromise(`gvfs-trash "${filePath}"`);
+    } catch (error) {
+      // 如果 gvfs-trash 不可用，尝试 trash-cli
+      await execPromise(`trash-put "${filePath}"`);
+    }
   }
 }
 
@@ -279,17 +306,19 @@ async function handleToolUse(toolName, input) {
 
         // 检查文件/文件夹是否存在
         const stats = await fs.stat(filePath);
+        const itemType = stats.isDirectory() ? '文件夹' : '文件';
 
-        // 删除文件或文件夹
-        if (stats.isDirectory()) {
-          await fs.rm(filePath, { recursive: true, force: true });
-          safeLog(`✓ 文件夹已删除: ${filePath}`);
-          return `文件夹已删除: ${filePath}`;
-        } else {
-          await fs.unlink(filePath);
-          safeLog(`✓ 文件已删除: ${filePath}`);
-          return `文件已删除: ${filePath}`;
-        }
+        // 将文件/文件夹移到回收站
+        await moveToTrash(filePath);
+        safeLog(`✓ ${itemType}已移到回收站: ${filePath}`);
+
+        // 返回详细信息和恢复提示
+        const fileName = path.basename(filePath);
+        return `${itemType}已移到回收站: ${fileName}
+
+💡 如需恢复，可以：
+1. 打开回收站，右键点击"${fileName}"选择"还原"
+2. 或告诉我"帮我从回收站恢复${fileName}"，我可以帮你操作`;
       }
 
       case 'execute_command': {
