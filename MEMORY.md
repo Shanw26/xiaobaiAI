@@ -634,7 +634,24 @@ const handleKeyDown = (e) => {
 
 ## 🔗 相关链接
 
-- **项目地址**: `/Users/shawn/Downloads/小白AI/`
+### 多电脑配置
+
+小白AI项目在两台电脑上都有副本，通过用户名区分当前使用的电脑：
+
+| 电脑 | 用户名 | 小白AI路径 | 说明 |
+|------|--------|-----------|------|
+| 电脑1 | shawn | `/Users/shawn/Downloads/小白AI/` | 主电脑 |
+| 电脑2 | xiaolin | `/Users/xiaolin/Downloads/小白AI/` | 副电脑（当前） |
+
+**识别方法**：
+- 当前工作路径包含 `/shawn/` → 使用电脑1
+- 当前工作路径包含 `/xiaolin/` → 使用电脑2（当前）
+
+**AI 识别规则**：
+当处理小白AI项目时，先检查当前工作目录，确定使用的是哪台电脑，然后使用对应的路径。
+
+### 其他链接
+
 - **文档目录**: `docs/`
 - **GitHub 仓库**: https://github.com/Shanw26/xiaobaiAI
 - **Supabase 项目**: https://cnszooaxwxatezodbbxq.supabase.co

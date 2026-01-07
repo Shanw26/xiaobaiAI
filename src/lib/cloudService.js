@@ -83,7 +83,7 @@ export async function sendVerificationCode(phone) {
 
     // 保存验证码到数据库（验证码表）
     console.log('💾 [云端服务] 保存验证码到数据库...');
-    const { error: dbError } = await supabase
+    const { error: dbError } = await supabaseAdmin
       .from('verification_codes')
       .insert({
         phone,
@@ -301,7 +301,7 @@ export async function incrementUserUsage() {
     const deviceId = await getDeviceId();
 
     // 使用数据库函数来增加使用次数
-    const { data, error } = await supabase.rpc('increment_user_usage', {
+    const { data, error } = await supabaseAdmin.rpc('increment_user_usage', {
       p_user_id: user.id,
       p_device_id: deviceId
     });
@@ -396,7 +396,7 @@ export async function loadConversations() {
       // 登录用户：获取 user_id 或 device_id 匹配的对话
       console.log('✅ [云端服务] 当前用户ID:', user.id);
 
-      const { data: userConvs, error: error1 } = await supabase
+      const { data: userConvs, error: error1 } = await supabaseAdmin
         .from('conversations')
         .select('*')
         .or(`user_id.eq.${user.id},device_id.eq.${deviceId}`)
@@ -409,7 +409,7 @@ export async function loadConversations() {
       // 游客模式：只获取该设备的对话
       console.log('👤 [云端服务] 游客模式，加载设备对话');
 
-      const { data: guestConvs, error: error2 } = await supabase
+      const { data: guestConvs, error: error2 } = await supabaseAdmin
         .from('conversations')
         .select('*')
         .eq('device_id', deviceId)
@@ -432,7 +432,7 @@ export async function loadConversations() {
     // 为每个对话获取消息
     const conversationsWithMessages = await Promise.all(
       (conversations || []).map(async (conv) => {
-        const { data: messages } = await supabase
+        const { data: messages } = await supabaseAdmin
           .from('messages')
           .select('*')
           .eq('conversation_id', conv.id)
@@ -501,7 +501,7 @@ export async function createConversation(conversation) {
     console.log('   准备插入数据:', JSON.stringify(insertData, null, 2));
 
     // 创建对话
-    const { data: newConv, error: convError } = await supabase
+    const { data: newConv, error: convError } = await supabaseAdmin
       .from('conversations')
       .insert(insertData)
       .select()
@@ -545,7 +545,7 @@ export async function createMessage(conversationId, message) {
     console.log('   消息角色:', message.role);
     console.log('   内容长度:', message.content?.length || 0);
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('messages')
       .insert({
         id: message.id || Date.now().toString(),
@@ -585,7 +585,7 @@ export async function createMessage(conversationId, message) {
  */
 export async function updateMessage(conversationId, messageId, content) {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('messages')
       .update({ content })
       .eq('id', messageId)
@@ -612,7 +612,7 @@ export async function deleteConversation(conversationId) {
   try {
     console.log('🗑️  [云端服务] 删除对话:', conversationId);
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('conversations')
       .update({ is_deleted: true })
       .eq('id', conversationId);
@@ -644,7 +644,7 @@ export async function mergeGuestConversations(userId) {
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
     // 使用数据库函数来合并（避免 RLS 递归问题）
-    const { data, error } = await supabase.rpc('merge_guest_conversations_to_user', {
+    const { data, error } = await supabaseAdmin.rpc('merge_guest_conversations_to_user', {
       p_device_id: deviceId,
       p_user_id: userId
     });
