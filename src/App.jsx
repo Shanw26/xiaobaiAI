@@ -22,6 +22,8 @@ import {
   updateMessage as updateMessageCloud,
   deleteConversation as deleteConversationCloud,
   mergeGuestConversations,
+  mergeGuestUserInfo,
+  mergeGuestAiMemory,
   getUserUsageCount,
   incrementUserUsage,
   saveUserInfo,
@@ -51,6 +53,16 @@ function AppContent() {
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showForceUpdate, setShowForceUpdate] = useState(false);
   const [updateDownloaded, setUpdateDownloaded] = useState(null); // { version }
+
+  // 等待指示器状态（v2.8.7 - 添加 duration）
+  const [waitingIndicator, setWaitingIndicator] = useState({
+    show: false,
+    type: 'thinking', // thinking, reading, searching, network
+    details: {},
+    duration: 0, // 任务执行时长（秒）
+  });
+  const waitingTimerRef = useRef(null);
+  const waitingStartTimeRef = useRef(null);
 
   // 调试：监听 currentUser 变化
   useEffect(() => {
@@ -97,11 +109,153 @@ function AppContent() {
     };
   }, []);
 
-  // 监听流式响应
+  // ========== 等待指示器管理（v2.8.7 - 添加 duration 更新）==========
+
+  // v2.8.7 - 定期更新任务时长
   useEffect(() => {
+    let durationUpdateTimer;
+
+    if (waitingIndicator.show && waitingStartTimeRef.current) {
+      // 每秒更新一次 duration
+      durationUpdateTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - waitingStartTimeRef.current) / 1000);
+        setWaitingIndicator(prev => ({
+          ...prev,
+          duration: elapsed
+        }));
+      }, 1000);
+    }
+
+    return () => {
+      if (durationUpdateTimer) {
+        clearInterval(durationUpdateTimer);
+      }
+    };
+  }, [waitingIndicator.show]);
+
+  // 显示等待指示器
+  const showWaitingIndicator = (type = 'thinking', details = {}) => {
+    setWaitingIndicator({ show: true, type, details, duration: 0 });
+    waitingStartTimeRef.current = Date.now();
+
+    // 如果超过10秒，升级到更详细的提示
+    waitingTimerRef.current = setTimeout(() => {
+      if (waitingStartTimeRef.current && Date.now() - waitingStartTimeRef.current >= 8000) {
+        updateWaitingIndicatorDetails();
+      }
+    }, 8000);
+  };
+
+  // 隐藏等待指示器
+  const hideWaitingIndicator = () => {
+    setWaitingIndicator({ show: false, type: 'thinking', details: {}, duration: 0 });
+    if (waitingTimerRef.current) {
+      clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = null;
+    }
+    waitingStartTimeRef.current = null;
+  };
+
+  // 更新等待指示器详情（动态更新策略）
+  const updateWaitingIndicatorDetails = () => {
+    const elapsed = Date.now() - (waitingStartTimeRef.current || Date.now());
+
+    if (elapsed >= 8000) {
+      // 8秒后：显示更详细的信息
+      setWaitingIndicator((prev) => ({
+        ...prev,
+        details: {
+          ...prev.details,
+          elapsed: Math.floor(elapsed / 1000),
+        },
+      }));
+    }
+  };
+
+  // 检测是否需要显示等待指示器
+  const startWaitingTimer = (content) => {
+    // 根据内容判断操作类型
+    let type = 'thinking';
+    let details = {};
+
+    if (content.includes('搜索') || content.includes('查找') || content.includes('find')) {
+      type = 'searching';
+      details = { progress: { scanned: 0, found: 0 } };
+    } else if (content.includes('查看') || content.includes('读取') || content.includes('分析文件')) {
+      type = 'reading';
+      details = { files: [] };
+    } else if (content.includes('联网') || content.includes('查询最新') || content.includes('version')) {
+      type = 'network';
+      details = { info: { content: '最新版本信息', source: '官方文档' } };
+    }
+
+    // v2.8.8 - 立即显示等待指示器（0秒，优化响应体验）
+    showWaitingIndicator(type, details);
+  };
+
+  // 取消等待计时器
+  const cancelWaitingTimer = () => {
+    if (waitingTimerRef.current) {
+      clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = null;
+    }
+  };
+
+  // ========== 监听流式响应 ==========
+  useEffect(() => {
+    // v2.8.8 - 实时提取思考过程，同步显示思考过程和回答内容
+    const extractThinkingAndContent = (text) => {
+      if (!text) return { thinking: null, content: text };
+
+      // 匹配完整的思考代码块 ```思考\n...\n```
+      const completeThinkingRegex = /```思考\n([\s\S]*?)\n```/;
+      const completeMatch = text.match(completeThinkingRegex);
+
+      if (completeMatch) {
+        // 提取完整思考内容，并从文本中移除
+        const thinking = completeMatch[1].trim();
+        const content = text.replace(completeThinkingRegex, '').trim();
+        return { thinking, content };
+      }
+
+      // 匹配未完成的思考代码块 ```思考\n...
+      const incompleteThinkingRegex = /```思考\n([\s\S]*)$/;
+      const incompleteMatch = text.match(incompleteThinkingRegex);
+
+      if (incompleteMatch) {
+        // 提取未完成思考内容，并从文本中移除
+        const thinking = incompleteMatch[1].trim();
+        const content = text.replace(incompleteThinkingRegex, '').trim();
+        return { thinking, content };
+      }
+
+      // 没有思考过程
+      return { thinking: null, content: text };
+    };
+
     window.electronAPI.onMessageDelta(({ text, fullText }) => {
       if (streamingMessageRef.current) {
-        streamingMessageRef.current(fullText);
+        // 提取思考过程和回答内容
+        const { thinking, content } = extractThinkingAndContent(fullText);
+
+        // 更新回答内容（过滤掉思考过程）
+        streamingMessageRef.current(content);
+
+        // v2.8.8 - 实时更新思考过程到当前消息
+        if (thinking) {
+          setConversations((prev) => {
+            const newConversations = [...prev];
+            const currentChat = newConversations.find((c) => c.id === currentChatId);
+            if (currentChat) {
+              const lastMessage = currentChat.messages[currentChat.messages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.thinking = thinking;
+                console.log('✅ [App] 实时更新思考过程');
+              }
+            }
+            return newConversations;
+          });
+        }
       }
     });
 
@@ -113,7 +267,7 @@ function AppContent() {
         remaining: data.remaining
       }));
     });
-  }, []);
+  }, [currentChatId]); // v2.8.8 - 添加 currentChatId 依赖
 
   // 监听自动更新事件
   useEffect(() => {
@@ -289,6 +443,30 @@ function AppContent() {
     } catch (error) {
       console.error('⚠️  [App] 合并游客对话失败（非致命）:', error);
       // 不阻塞登录流程，继续加载对话历史
+    }
+
+    // 🔥 关键：合并游客用户信息到登录用户
+    try {
+      console.log('🔄 [App] 合并游客用户信息...');
+      const mergeResult = await mergeGuestUserInfo(user.id);
+      if (mergeResult.success) {
+        console.log(`✅ [App] 成功合并游客用户信息`);
+      }
+    } catch (error) {
+      console.error('⚠️  [App] 合并游客用户信息失败（非致命）:', error);
+      // 不阻塞登录流程
+    }
+
+    // 🔥 关键：合并游客AI记忆到登录用户
+    try {
+      console.log('🔄 [App] 合并游客AI记忆...');
+      const mergeResult = await mergeGuestAiMemory(user.id);
+      if (mergeResult.success) {
+        console.log(`✅ [App] 成功合并游客AI记忆`);
+      }
+    } catch (error) {
+      console.error('⚠️  [App] 合并游客AI记忆失败（非致命）:', error);
+      // 不阻塞登录流程
     }
 
     // 直接调用云端加载，传递 user 对象（不依赖 currentUser 状态）
@@ -602,26 +780,12 @@ function AppContent() {
     console.log('💬 [App] 保存用户消息到云端');
     await createMessage(chat.id, userMessage);
 
-    // 创建 AI 消息占位符（带思考过程）
-    const timestamp = new Date().toLocaleTimeString('zh-CN');
-    const thinking = `🔍 **正在分析你的需求...**
-• 理解问题类型和意图
-• 识别关键信息点
-• 确定需要的工具和资源
+    // 🆕 启动等待计时器（v2.8.0）
+    startWaitingTimer(content);
 
-📚 **正在检索相关知识和上下文...**
-• 查阅记忆文件中的历史对话
-• 检索相关技能和经验
-• 准备合适的解决方案
-
-💡 **正在生成回复...**
-• 构建清晰的结构化回答
-• 添加实用的示例和代码
-• 确保回复准确完整
-
-⏰ **完成时间：${timestamp}**`;
+    // 创建 AI 消息占位符（移除假的思考过程 - v2.8.4）
     const aiMessageId = Date.now().toString() + '_ai';
-    const aiMessage = { id: aiMessageId, role: 'assistant', content: '', thinking };
+    const aiMessage = { id: aiMessageId, role: 'assistant', content: '' };
     chat.messages.push(aiMessage);
 
     // 先创建空的 AI 消息到云端（游客和登录用户都保存）
@@ -646,6 +810,12 @@ function AppContent() {
     // 设置流式响应回调
     let lastUpdateTime = Date.now();
     streamingMessageRef.current = (fullText) => {
+      // 🆕 隐藏等待指示器（v2.8.0）
+      if (waitingIndicator.show) {
+        hideWaitingIndicator();
+        cancelWaitingTimer();
+      }
+
       setConversations((prev) => {
         const newConversations = [...prev];
         const currentChat = newConversations.find((c) => c.id === chat.id);
@@ -672,12 +842,32 @@ function AppContent() {
       const result = await window.electronAPI.sendMessage(fullContent, files);
 
       if (result.success) {
+        // v2.8.5 - 如果有思考过程，更新到消息中
+        if (result.thinking) {
+          setConversations((prev) => {
+            const newConversations = [...prev];
+            const currentChat = newConversations.find((c) => c.id === chat.id);
+            if (currentChat) {
+              const lastMessage = currentChat.messages[currentChat.messages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.thinking = result.thinking;
+                console.log('✅ [App] 添加思考过程到消息');
+              }
+            }
+            return newConversations;
+          });
+        }
+
         // 最终更新本地状态
         streamingMessageRef.current(result.content);
 
         // 最终更新云端消息（游客和登录用户都更新）
-        console.log('💾 [App] 更新 AI 消息到云端');
-        await updateMessageCloud(chat.id, aiMessageId, result.content);
+        // v2.9.3 - 同时更新 content 和 thinking
+        console.log('💾 [App] 更新 AI 消息到云端（包含思考过程）');
+        await updateMessageCloud(chat.id, aiMessageId, {
+          content: result.content,
+          thinking: result.thinking || null
+        });
 
         // 增加游客使用次数（登录用户无限制，不计数）
         if (!currentUser) {
@@ -784,7 +974,11 @@ function AppContent() {
 
         <div className="content">
           {currentChat ? (
-            <ChatArea messages={currentChat.messages} currentUser={currentUser} />
+            <ChatArea
+              messages={currentChat.messages}
+              currentUser={currentUser}
+              waitingIndicator={waitingIndicator}
+            />
           ) : (
             <Welcome
               currentUser={currentUser}

@@ -25,7 +25,7 @@ function safeError(...args) {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.7.8';
+const APP_VERSION = '2.9.3';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -488,6 +488,24 @@ ipcMain.handle('open-path', async (event, filePath) => {
   }
 });
 
+// 验证路径是否存在（用于判断是否应该添加下划线）
+ipcMain.handle('validate-path', async (event, filePath) => {
+  try {
+    // 展开用户目录 (~)
+    let expandedPath = filePath;
+    if (filePath.startsWith('~')) {
+      expandedPath = filePath.replace('~', os.homedir());
+    }
+
+    // 检查路径是否存在
+    await fs.access(expandedPath);
+    return { exists: true, path: expandedPath };
+  } catch (error) {
+    // 路径不存在或无法访问
+    return { exists: false, path: filePath };
+  }
+});
+
 // 检查是否首次使用
 ipcMain.handle('is-first-time-user', async () => {
   const userInfoPath = path.join(app.getPath('userData'), 'user-info.md');
@@ -824,8 +842,7 @@ ipcMain.handle('init-agent', async (event, config) => {
       model,
     });
 
-    // 设置工作目录为固定的 userData 目录
-    agent.setWorkDirectory(app.getPath('userData'));
+    // v2.9.1 - 已取消工作目录设置
 
     agentInstance = await agent.createAgent(
       provider,
@@ -904,6 +921,24 @@ ipcMain.handle('send-message', async (event, message, files) => {
 
     safeLog('消息发送成功，响应长度:', fullResponse.length);
 
+    // 提取思考过程（v2.8.5 - 解析 ```thinking 代码块）
+    let thinkingContent = null;
+    let finalContent = result.text || fullResponse;
+
+    // 检查是否包含思考代码块
+    const thinkingRegex = /```思考\n([\s\S]*?)\n```/;
+    const thinkingMatch = finalContent.match(thinkingRegex);
+
+    if (thinkingMatch) {
+      // 提取思考内容
+      thinkingContent = thinkingMatch[1].trim();
+
+      // 从最终内容中移除思考代码块
+      finalContent = finalContent.replace(thinkingRegex, '').trim();
+
+      safeLog('✅ 检测到思考过程，长度:', thinkingContent.length);
+    }
+
     // 保存 token 使用记录
     if (result.inputTokens !== undefined && result.outputTokens !== undefined) {
       await saveTokenUsage(result.inputTokens, result.outputTokens);
@@ -924,7 +959,11 @@ ipcMain.handle('send-message', async (event, message, files) => {
       });
     }
 
-    return { success: true, content: result.text || fullResponse };
+    return {
+      success: true,
+      content: finalContent,
+      thinking: thinkingContent  // v2.8.5 - 返回思考过程
+    };
   } catch (error) {
     safeError('发送消息失败:', error);
     throw error;

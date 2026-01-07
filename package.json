@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.7.8",
+  "version": "2.9.3",
   "description": "小白AI - 基于 Claude Agent SDK 的 AI 助手客户端",
   "main": "electron/main.js",
   "scripts": {
@@ -72,9 +72,9 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "identity": null,
+      "identity": "4E76C4CD7F4ABFA82DF8EED886AA36F117140EDD",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [

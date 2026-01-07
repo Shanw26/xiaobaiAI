@@ -16,6 +16,7 @@
    - 思考过程展示 → `./06-thinking-process.md`
    - 架构相关 → `./07-system-architecture.md`
    - 部署相关 → `./08-deployment-config.md`
+   - macOS 签名 → `./12-macos-code-signing.md`
 
 3. **读取开发规范**（开发任务）：
    - 路径：`./09-development-guidelines.md`
@@ -27,7 +28,7 @@
 
 > **文档说明**: 本目录包含小白AI的完整技术文档，按功能模块分类
 > **最后更新**: 2026-01-07
-> **当前版本**: v2.6.6
+> **当前版本**: v2.8.0
 
 ---
 
@@ -51,6 +52,15 @@
 - **[Development Guidelines](./09-development-guidelines.md)** - 代码风格、Git流程、测试规范
 - **[Changelog](./10-changelog.md)** - 版本历史、重要变更
 
+### 故障排查
+- **[Troubleshooting](./13-troubleshooting.md)** - 常见问题诊断与解决方案
+
+### 平台特定
+- **[macOS Code Signing](./12-macos-code-signing.md)** - macOS 代码签名配置、证书管理、自动签名
+
+### AI 行为规范
+- **[AI Reply Rules](./12-ai-reply-rules.md)** - AI 回复规则、操作规范、用户体验准则
+
 ---
 
 ## 🎯 按场景查找
@@ -70,7 +80,10 @@
 → 看 [Development Guidelines](./08-development-guidelines.md)，了解开发流程
 
 **部署到生产环境**
-→ 看 [Deployment & Config](./07-deployment-config.md)
+→ 看 [Deployment & Config](./08-deployment-config.md)
+
+**配置 macOS 签名**
+→ 看 [macOS Code Signing](./12-macos-code-signing.md)，包含完整配置步骤
 
 **理解游客模式**
 → 看 [Device ID & Guest Mode](./04-deviceid-guest-mode.md)
@@ -79,6 +92,9 @@
 → 看 [File Path Click](./05-file-path-click.md)，有完整代码示例
 
 **了解AI思考过程**
+
+**定义AI回复规则**
+  看 [AI Reply Rules](./12-ai-reply-rules.md)，了解AI的行为准则和格式规范
 → 看 [Thinking Process](./06-thinking-process.md)，了解AI如何展示分析逻辑
 
 ---
@@ -138,6 +154,9 @@
 | Deployment & Config | ✅ 完成 | 2026-01-07 |
 | Development Guidelines | ✅ 完成 | 2026-01-07 |
 | Changelog | ✅ 完成 | 2026-01-07 |
+| macOS Code Signing | ✅ 完成 | 2026-01-07 |
+| AI Reply Rules | ✅ 完成 | 2026-01-07 |
+| Troubleshooting | 🚧 新建 | 2026-01-07 |
 
 ---
 

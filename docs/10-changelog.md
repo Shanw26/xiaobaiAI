@@ -2,7 +2,154 @@
 
 > **说明**: 本文档记录小白AI的所有版本更新和重要变更
 > **更新频率**: 每次发布新版本后立即更新
-> **当前版本**: v2.7.8
+> **当前版本**: v2.8.0
+
+---
+
+## 📅 2026-01-07 - v2.8.0 (开发版本)
+
+### 🐛 Bug 修复
+
+**修复 1: Service Role Key 配置错误** ⭐
+- ❌ **问题**: Service Role Key 错误地使用了 Personal Access Token（`sbp_` 开头）
+- ✅ **解决**: 更新为正确的 Service Role Key（JWT 格式，`eyJ` 开头）
+- 📍 **影响范围**: 用户信息和 AI 记忆云端存储功能
+- 🔧 **修复文件**:
+  - `.env` - 第10行：`VITE_SUPABASE_SERVICE_ROLE_KEY`
+  - `key.md` - 第59行：`Service Role Key`
+
+**修复 2: WelcomeModal 保存失败** ⭐
+- ❌ **问题**: 悬浮框（WelcomeModal）保存用户信息时报错 "Too few parameter values were provided"
+- ✅ **解决**: 统一使用云端保存，与设置页面保持一致
+- 📍 **影响范围**: 新用户引导流程中的个人信息收集
+- 🔧 **修复文件**:
+  - `src/components/WelcomeModal.jsx` - 第55-85行：`handleComplete()` 方法
+
+**错误详情**:
+
+```javascript
+// 之前（错误 - 本地保存）
+const handleComplete = async () => {
+  const result = await window.electronAPI.saveUserInfo(formData);
+  // ❌ 错误: 使用本地保存 API，参数格式不匹配
+};
+
+// 现在（正确 - 云端保存）
+const handleComplete = async () => {
+  const { saveUserInfo } = await import('../lib/cloudService');
+
+  // 将表单数据转换为 Markdown 格式
+  const content = Object.entries(formData)
+    .filter(([_, value]) => value.trim() !== '')
+    .map(([key, value]) => {
+      const labels = {
+        name: '姓名',
+        occupation: '职业',
+        location: '所在地',
+        bio: '简介',
+        preferences: '偏好'
+      };
+      return `**${labels[key]}**: ${value}`;
+    })
+    .join('\n\n');
+
+  const result = await saveUserInfo(content);
+  // ✅ 正确: 使用云端保存 API，与 SettingsModal 保持一致
+};
+```
+
+**根本原因**:
+- WelcomeModal 和 SettingsModal 访问同一份数据（用户信息），但使用了**不同的保存方法**
+- WelcomeModal 使用 `window.electronAPI.saveUserInfo()`（本地保存）
+- SettingsModal 使用 `cloudService.saveUserInfo()`（云端保存）
+- 两个入口的数据格式和保存逻辑不一致，导致保存失败
+
+**数据统一方案**:
+- ✅ 两个入口都使用 `cloudService.saveUserInfo()` 云端保存
+- ✅ 数据格式统一为 Markdown（SettingsModal 已在使用）
+- ✅ WelcomeModal 的表单数据转换为 Markdown 后保存
+- ✅ 过滤空值，只保存有内容的字段
+
+**数据流程**:
+
+```
+悬浮框 (WelcomeModal)
+  ↓ 收集表单数据
+  ↓ 转换为 Markdown
+  ↓ 调用 cloudService.saveUserInfo()
+  ↓
+  Supabase 云端数据库 (user_info 表)
+  ↓
+设置页面 (SettingsModal)
+  ↓ 调用 cloudService.getUserInfo()
+  ↓
+  显示同一份数据
+```
+
+**数据格式示例**:
+
+输入（表单数据）:
+```javascript
+{
+  name: '晓力',
+  occupation: '产品经理',
+  location: '北京',
+  bio: '我是一个运营出身的产品经理',
+  preferences: '喜欢简洁的回复'
+}
+```
+
+输出（Markdown 格式）:
+```markdown
+**姓名**: 晓力
+
+**职业**: 产品经理
+
+**所在地**: 北京
+
+**简介**: 我是一个运营出身的产品经理
+
+**偏好**: 喜欢简洁的回复
+```
+
+**经验教训**:
+1. ⚠️ 同一份数据的多个入口必须使用**统一的保存方法**
+2. ⚠️ 不能一个入口用本地保存，另一个用云端保存
+3. ✅ 在设计时要明确数据的来源和去向
+4. ✅ 多入口访问同一数据时，要保持数据格式一致
+5. ✅ 代码审查时要注意数据流向的一致性
+
+**错误详情**:
+```bash
+# 错误配置（Personal Access Token）
+VITE_SUPABASE_SERVICE_ROLE_KEY=sbp_7eb9c71d4c5416a5f776abd29a20334efc49e4cb
+
+# 正确配置（Service Role Key - JWT 格式）
+VITE_SUPABASE_SERVICE_ROLE_KEY=REMOVED
+```
+
+**症状**:
+- HTTP 401 Unauthorized 错误
+- 错误信息：`Invalid API key`
+- 用户信息和 AI 记忆保存失败
+
+**根本原因**:
+- Personal Access Token 和 Service Role Key 格式混淆
+- Personal Access Token 用于 Supabase CLI，格式为 `sbp_...`
+- Service Role Key 是 JWT Token，格式为 `eyJ...`
+- 两种 key 不能互换使用
+
+**获取正确 Key 的方法**:
+1. 登录 Supabase Dashboard: https://supabase.com/dashboard/project/cnszooaxwxatezodbbxq/settings/api
+2. 找到 **Project API keys** 部分
+3. 复制 **service_role** 密钥（JWT 格式，以 `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9` 开头）
+4. 更新到 `.env` 文件和 `key.md` 文档
+
+**经验教训**:
+- ⚠️ Supabase 有多种类型的 Key，用途各不相同，不能混淆
+- ⚠️ 配置错误会导致功能失效，但错误信息可能不够明确
+- ✅ 在 `key.md` 中记录正确的 Key 格式和获取方法
+- ✅ 配置变更后要同时更新代码和文档
 
 ---
 
@@ -82,14 +229,20 @@
 - 🐛 修复：所有 `alert()` 和 `confirm()` 替换为统一组件
 
 **macOS 兼容性修复** 🔧
-- 🔐 添加 ad-hoc 签名，解决"文件已损坏"问题
-- 📦 创建 `scripts/afterPack.js` 构建后自动签名
+- 🔐 **升级到 Apple Developer 正式签名** ⭐
+- ✅ 用户可以双击直接打开应用，无需右键→打开
+- ✅ 启用 Hardened Runtime，提供更强的安全保护
 - 🎯 支持 Intel (x64) 和 Apple Silicon (ARM64) 两个架构
-- ⚠️ 用户仍需右键→打开启动（macOS 安全限制）
+- 🤖 构建时自动签名，无需手动操作
+- **证书信息**:
+  - 类型: Developer ID Application
+  - 名称: Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39)
+  - Team ID: 666P8DEX39
 - **技术细节**:
-  - `hardenedRuntime: false` - 不使用硬运行时
-  - `identity: null` - 使用 ad-hoc 签名
+  - `hardenedRuntime: true` - 启用硬运行时
+  - `identity: "证书ID"` - 使用正式证书签名
   - `afterPack` 钩子 - 构建后自动执行签名
+  - `--options runtime` - 满足 Hardened Runtime 要求
 
 #### 技术细节
 
@@ -100,13 +253,15 @@
 - `src/components/ConfirmModal.jsx` - 确认弹窗
 - `src/components/ConfirmModal.css` - 确认弹窗样式
 - `src/lib/alertService.jsx` - 警告服务（动态导入）
-- `scripts/afterPack.js` - 构建后自动签名脚本
+- `scripts/afterPack.js` - 构建后自动签名脚本（已更新为正式签名）
 - `scripts/sign-mac.sh` - 手动签名脚本
 - `docs/modal-component-spec.md` - 弹窗设计规范文档
 - `docs/11-cloud-sync-feature.md` - 云端同步功能文档
+- `docs/12-macos-code-signing.md` - macOS 签名配置完整指南 ⭐
 
 **修改文件**:
-- `package.json` - 添加 ad-hoc 签名配置和 afterPack 钩子
+- `package.json` - 添加 Apple Developer 正式签名配置
+- `scripts/afterPack.js` - 更新为正式证书签名
 - `src/App.jsx` - 添加自动同步逻辑
 - `src/components/SettingsModal.jsx` - 自动加载 + Markdown 预览
 - `src/components/ToastModal.jsx` - 使用 ModalBase.css
@@ -128,8 +283,8 @@
 - ✅ Markdown 渲染预览
 - ✅ 弹窗样式统一
 - ✅ 跨设备数据同步
-- ✅ macOS ad-hoc 签名（Intel + ARM64）
-- ✅ 解决"文件已损坏"问题
+- ✅ macOS Apple Developer 正式签名（Intel + ARM64）
+- ✅ 用户可以双击直接打开应用
 
 #### 已知限制
 
@@ -137,10 +292,11 @@
 - 登录用户：无限制使用
 - AI 记忆：只保存前 200 字（摘要）
 - 用户信息：基于关键词匹配（准确率可优化）
-- macOS 首次启动需要右键→打开（系统安全限制）
+- 证书有效期：1年（到期前需续期）
 
 #### 相关文档
 - [11-cloud-sync-feature.md](./11-cloud-sync-feature.md) - 云端同步功能详细文档
+- [12-macos-code-signing.md](./12-macos-code-signing.md) - macOS 签名配置完整指南 ⭐
 - [modal-component-spec.md](./modal-component-spec.md) - 弹窗设计规范
 
 ---
