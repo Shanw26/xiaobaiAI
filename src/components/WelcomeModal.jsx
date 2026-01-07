@@ -54,8 +54,27 @@ function WelcomeModal({ onComplete }) {
 
   const handleComplete = async () => {
     try {
-      const result = await window.electronAPI.saveUserInfo(formData);
+      // 使用云端保存（与设置页面保持一致）
+      const { saveUserInfo } = await import('../lib/cloudService');
+
+      // 将 formData 转换为 Markdown 格式
+      const content = Object.entries(formData)
+        .filter(([_, value]) => value.trim() !== '')
+        .map(([key, value]) => {
+          const labels = {
+            name: '姓名',
+            occupation: '职业',
+            location: '所在地',
+            bio: '简介',
+            preferences: '偏好'
+          };
+          return `**${labels[key]}**: ${value}`;
+        })
+        .join('\n\n');
+
+      const result = await saveUserInfo(content);
       if (result.success) {
+        showAlert('✅ 信息已保存', 'success');
         onComplete();
       } else {
         showAlert('保存失败: ' + result.error, 'error');

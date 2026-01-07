@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   getConfigPath: () => ipcRenderer.invoke('get-config-path'),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
+  validatePath: (filePath) => ipcRenderer.invoke('validate-path', filePath),
   isFirstTimeUser: () => ipcRenderer.invoke('is-first-time-user'),
 
   // 用户信息和记忆（从数据库）

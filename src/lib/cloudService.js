@@ -585,14 +585,25 @@ export async function createMessage(conversationId, message) {
  * 更新消息（保存到云端）
  * @param {string} conversationId - 对话ID
  * @param {string} messageId - 消息ID
- * @param {string} content - 消息内容
+ * @param {object} updates - 更新数据（可以包含 content 和 thinking）
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function updateMessage(conversationId, messageId, content) {
+export async function updateMessage(conversationId, messageId, updates) {
   try {
+    const updateData = {};
+
+    // 只更新提供的字段
+    if (updates.content !== undefined) {
+      updateData.content = updates.content;
+    }
+
+    if (updates.thinking !== undefined) {
+      updateData.thinking = updates.thinking;
+    }
+
     const { error } = await supabaseAdmin
       .from('messages')
-      .update({ content })
+      .update(updateData)
       .eq('id', messageId)
       .eq('conversation_id', conversationId);
 
@@ -736,48 +747,51 @@ export async function saveUserInfo(content) {
     const user = getCurrentUserSync();
     const userId = user?.id;
 
-    // 检查是否已存在记录
-    let query = supabaseAdmin.from('user_info').select('id');
+    console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
+    // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
     if (userId) {
-      query = query.eq('user_id', userId).is('device_id', null);
+      // 登录用户：删除该用户的所有记录
+      await supabaseAdmin
+        .from('user_info')
+        .delete()
+        .eq('user_id', userId);
     } else {
-      query = query.eq('device_id', deviceId).is('user_id', null);
+      // 游客：删除该设备的所有记录
+      await supabaseAdmin
+        .from('user_info')
+        .delete()
+        .eq('device_id', deviceId);
     }
 
-    const { data: existing } = await query.maybeSingle();
+    // 插入新记录
+    const insertData = {
+      user_id: userId || null,
+      device_id: userId ? null : deviceId,
+      content: content,
+      updated_at: new Date().toISOString()
+    };
 
-    let error;
-    if (existing) {
-      // 更新现有记录
-      console.log('🔄 [云端服务] 更新现有用户信息');
-      const result = await supabaseAdmin
-        .from('user_info')
-        .update({ content, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      error = result.error;
-    } else {
-      // 创建新记录
-      console.log('➕ [云端服务] 创建新用户信息');
-      const result = await supabaseAdmin
-        .from('user_info')
-        .insert({
-          user_id: userId || null,
-          device_id: userId ? null : deviceId,
-          content
-        });
-      error = result.error;
-    }
+    console.log('📊 [云端服务] 插入数据:', insertData);
+
+    const { data, error } = await supabaseAdmin
+      .from('user_info')
+      .insert(insertData)
+      .select();
 
     if (error) {
       console.error('❌ [云端服务] 保存用户信息失败:', error);
+      console.error('   错误详情:', JSON.stringify(error, null, 2));
+      console.error('   错误代码:', error.code);
+      console.error('   错误提示:', error.hint);
       return { success: false, error: error.message };
     }
 
-    console.log('✅ [云端服务] 保存用户信息成功');
+    console.log('✅ [云端服务] 保存用户信息成功, data:', data);
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 保存用户信息异常:', error);
+    console.error('   异常堆栈:', error.stack);
     return { success: false, error: error.message };
   }
 }
@@ -845,48 +859,209 @@ export async function saveAiMemory(content) {
     const user = getCurrentUserSync();
     const userId = user?.id;
 
-    // 检查是否已存在记录
-    let query = supabaseAdmin.from('ai_memory').select('id');
+    console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
+    // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
     if (userId) {
-      query = query.eq('user_id', userId).is('device_id', null);
+      // 登录用户：删除该用户的所有记录
+      await supabaseAdmin
+        .from('ai_memory')
+        .delete()
+        .eq('user_id', userId);
     } else {
-      query = query.eq('device_id', deviceId).is('user_id', null);
+      // 游客：删除该设备的所有记录
+      await supabaseAdmin
+        .from('ai_memory')
+        .delete()
+        .eq('device_id', deviceId);
     }
 
-    const { data: existing } = await query.maybeSingle();
+    // 插入新记录
+    const insertData = {
+      user_id: userId || null,
+      device_id: userId ? null : deviceId,
+      content: content,
+      updated_at: new Date().toISOString()
+    };
 
-    let error;
-    if (existing) {
-      // 更新现有记录
-      console.log('🔄 [云端服务] 更新现有AI记忆');
-      const result = await supabaseAdmin
-        .from('ai_memory')
-        .update({ content, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      error = result.error;
-    } else {
-      // 创建新记录
-      console.log('➕ [云端服务] 创建新AI记忆');
-      const result = await supabaseAdmin
-        .from('ai_memory')
-        .insert({
-          user_id: userId || null,
-          device_id: userId ? null : deviceId,
-          content
-        });
-      error = result.error;
-    }
+    console.log('📊 [云端服务] 插入 AI 记忆数据:', insertData);
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_memory')
+      .insert(insertData)
+      .select();
 
     if (error) {
       console.error('❌ [云端服务] 保存AI记忆失败:', error);
+      console.error('   错误详情:', JSON.stringify(error, null, 2));
+      console.error('   错误代码:', error.code);
+      console.error('   错误提示:', error.hint);
       return { success: false, error: error.message };
     }
 
-    console.log('✅ [云端服务] 保存AI记忆成功');
+    console.log('✅ [云端服务] 保存AI记忆成功, data:', data);
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 保存AI记忆异常:', error);
+    console.error('   异常堆栈:', error.stack);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 合并游客用户信息到登录用户
+ * 登录成功后调用，将该设备的游客用户信息关联到登录用户
+ * @param {string} userId - 登录用户的ID
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function mergeGuestUserInfo(userId) {
+  try {
+    console.log('🔄 [云端服务] 合并游客用户信息到用户:', userId);
+
+    const deviceId = await getDeviceId();
+    console.log('📱 [云端服务] 设备ID:', deviceId);
+
+    // 1. 查询游客时期的用户信息（device_id 有值，user_id 为 null）
+    const { data: guestData, error: guestError } = await supabaseAdmin
+      .from('user_info')
+      .select('*')
+      .eq('device_id', deviceId)
+      .is('user_id', null)
+      .maybeSingle();
+
+    if (guestError) {
+      console.error('❌ [云端服务] 查询游客用户信息失败:', guestError);
+      return { success: false, error: guestError.message };
+    }
+
+    // 如果没有游客数据，直接返回成功
+    if (!guestData) {
+      console.log('ℹ️  [云端服务] 没有游客用户信息需要合并');
+      return { success: true };
+    }
+
+    // 2. 查询登录用户是否已有用户信息（user_id 有值，device_id 为 null）
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('user_info')
+      .select('*')
+      .eq('user_id', userId)
+      .is('device_id', null)
+      .maybeSingle();
+
+    if (userError) {
+      console.error('❌ [云端服务] 查询登录用户信息失败:', userError);
+      return { success: false, error: userError.message };
+    }
+
+    if (userData) {
+      // 登录用户已有数据，删除游客数据（保留登录用户的）
+      console.log('🗑️  [云端服务] 登录用户已有数据，删除游客数据');
+      const { error: deleteError } = await supabaseAdmin
+        .from('user_info')
+        .delete()
+        .eq('id', guestData.id);
+
+      if (deleteError) {
+        console.error('❌ [云端服务] 删除游客数据失败:', deleteError);
+        return { success: false, error: deleteError.message };
+      }
+    } else {
+      // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
+      console.log('🔄 [云端服务] 将游客数据关联到登录用户');
+      const { error: updateError } = await supabaseAdmin
+        .from('user_info')
+        .update({ user_id: userId, device_id: null })
+        .eq('id', guestData.id);
+
+      if (updateError) {
+        console.error('❌ [云端服务] 更新游客数据失败:', updateError);
+        return { success: false, error: updateError.message };
+      }
+    }
+
+    console.log('✅ [云端服务] 成功合并游客用户信息');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [云端服务] 合并游客用户信息异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 合并游客AI记忆到登录用户
+ * 登录成功后调用，将该设备的游客AI记忆关联到登录用户
+ * @param {string} userId - 登录用户的ID
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function mergeGuestAiMemory(userId) {
+  try {
+    console.log('🔄 [云端服务] 合并游客AI记忆到用户:', userId);
+
+    const deviceId = await getDeviceId();
+    console.log('📱 [云端服务] 设备ID:', deviceId);
+
+    // 1. 查询游客时期的AI记忆（device_id 有值，user_id 为 null）
+    const { data: guestData, error: guestError } = await supabaseAdmin
+      .from('ai_memory')
+      .select('*')
+      .eq('device_id', deviceId)
+      .is('user_id', null)
+      .maybeSingle();
+
+    if (guestError) {
+      console.error('❌ [云端服务] 查询游客AI记忆失败:', guestError);
+      return { success: false, error: guestError.message };
+    }
+
+    // 如果没有游客数据，直接返回成功
+    if (!guestData) {
+      console.log('ℹ️  [云端服务] 没有游客AI记忆需要合并');
+      return { success: true };
+    }
+
+    // 2. 查询登录用户是否已有AI记忆（user_id 有值，device_id 为 null）
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('ai_memory')
+      .select('*')
+      .eq('user_id', userId)
+      .is('device_id', null)
+      .maybeSingle();
+
+    if (userError) {
+      console.error('❌ [云端服务] 查询登录用户AI记忆失败:', userError);
+      return { success: false, error: userError.message };
+    }
+
+    if (userData) {
+      // 登录用户已有数据，删除游客数据（保留登录用户的）
+      console.log('🗑️  [云端服务] 登录用户已有AI记忆，删除游客数据');
+      const { error: deleteError } = await supabaseAdmin
+        .from('ai_memory')
+        .delete()
+        .eq('id', guestData.id);
+
+      if (deleteError) {
+        console.error('❌ [云端服务] 删除游客AI记忆失败:', deleteError);
+        return { success: false, error: deleteError.message };
+      }
+    } else {
+      // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
+      console.log('🔄 [云端服务] 将游客AI记忆关联到登录用户');
+      const { error: updateError } = await supabaseAdmin
+        .from('ai_memory')
+        .update({ user_id: userId, device_id: null })
+        .eq('id', guestData.id);
+
+      if (updateError) {
+        console.error('❌ [云端服务] 更新游客AI记忆失败:', updateError);
+        return { success: false, error: updateError.message };
+      }
+    }
+
+    console.log('✅ [云端服务] 成功合并游客AI记忆');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [云端服务] 合并游客AI记忆异常:', error);
     return { success: false, error: error.message };
   }
 }

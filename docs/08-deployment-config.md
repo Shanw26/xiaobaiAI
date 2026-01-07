@@ -53,22 +53,57 @@ npm run dev
 
 ### Keys 配置
 
-**文件**: `src/lib/supabaseClient.js`
+**文件**: `.env`
 
-```javascript
-const supabaseUrl = 'https://cnszooaxwxatezodbbxq.supabase.co';
-const supabaseAnonKey = 'sb_publishable_yL-VG_zetVGywK__-nGtRw_kjmqP3jQ';
-const supabaseServiceRoleKey = 'sbp_7eb9c71d4c5416a5f776abd29a20334efc49e4cb';
+```bash
+# Supabase 项目 URL
+VITE_SUPABASE_URL=https://cnszooaxwxatezodbbxq.supabase.co
+
+# Supabase Anon Key（客户端使用）
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImM5bnpvd3h3eXRnd2t4X2tqbXFQM2pRIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYxNzYwNDksImV4cCI6MjA1MTc1MjA0OX0.W2sNZ5Xh8q_nDQTpYuHMPNMm2W0VQQFnqpeuJNVwPLY
+
+# Supabase Service Role Key（仅服务端使用）
+VITE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuc3pvb2F4d3hhdGV6b2RiYnhxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NzY4NjIwMCwiZXhwIjoyMDgzMjYyMjAwfQ.ErS93xT_ljnPe_zQNIWV3mTHJtKASV2a7g2odPo0nXY
 ```
 
 **Key 说明**:
 
-| Key | 用途 | 安全性 |
-|-----|------|-------|
-| **Anon Key** | 前端查询 | 公开，受环境限制 |
-| **Service Role Key** | 后端操作 | **机密**，绕过 RLS |
+| Key | 用途 | 格式 | 安全性 |
+|-----|------|------|-------|
+| **Anon Key** | 前端查询 | JWT (`eyJ` 开头) | 公开，受环境限制 |
+| **Service Role Key** | 后端操作 | JWT (`eyJ` 开头) | **机密**，绕过 RLS |
 
-⚠️ **警告**: Service Role Key 绝不能暴露在客户端代码中！
+⚠️ **重要提示**:
+1. **Service Role Key 必须是 JWT 格式**（`eyJ` 开头），不是 Personal Access Token（`sbp` 开头）
+2. Service Role Key 绝不能暴露在客户端代码中！
+3. Personal Access Token 仅用于 Supabase CLI，不能用于应用配置
+
+**Key 格式识别**:
+
+| Key 类型 | 前缀 | 用途 |
+|---------|------|------|
+| Anon Key | `eyJhbGci...` | 客户端查询 |
+| Service Role Key | `eyJhbGci...` | 服务端操作，绕过 RLS |
+| Personal Access Token | `sbp_...` | Supabase CLI，**不用于应用** |
+
+**如何获取正确的 Key**:
+1. 访问: https://supabase.com/dashboard/project/cnszooaxwxatezodbbxq/settings/api
+2. 找到 **Project API keys** 部分
+3. 复制对应的密钥（注意区分 `anon` 和 `service_role`）
+4. **不要复制 Personal Access Token**（用于 CLI，不是应用）
+
+**常见错误**:
+- ❌ 错误：使用 Personal Access Token（`sbp_...`）作为 Service Role Key
+- ✅ 正确：使用 service_role 密钥（JWT 格式，`eyJ...`）
+
+**错误症状**:
+- HTTP 401 Unauthorized
+- 错误信息：`Invalid API key`
+- 用户信息和 AI 记忆保存失败
+
+**参考文档**:
+- [Supabase API Keys](https://supabase.com/docs/guides/api/api-keys)
+- [更新日志 v2.8.0](./10-changelog.md#2026-01-07---v280-开发版本)
 
 ### 数据库迁移
 
@@ -250,6 +285,99 @@ npm run dist:linux
 **Windows**:
 - `小白AI Setup 2.6.3.exe` - 安装程序
 - `小白AI 2.6.3.exe` - 绿色版
+
+---
+
+## macOS 代码签名配置（v2.7.8+）
+
+### 签名概述
+
+小白AI 使用 **Apple Developer 正式签名**，用户可以双击直接打开应用，无需额外操作。
+
+**当前签名状态**:
+- ✅ Developer ID Application 证书
+- ✅ Hardened Runtime 启用
+- ✅ 自动签名流程
+
+### 证书信息
+
+| 项目 | 值 |
+|------|-----|
+| **证书类型** | Developer ID Application |
+| **证书名称** | Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39) |
+| **Team ID** | 666P8DEX39 |
+| **Hardened Runtime** | true |
+
+### 自动签名流程
+
+**配置文件**:
+1. `package.json` - 签名配置
+2. `scripts/afterPack.js` - 自动签名脚本
+
+**工作流程**:
+```bash
+npm run dist:mac
+  ↓
+1. 构建前端代码
+  ↓
+2. 打包 Electron 应用
+  ↓
+3. 🤖 自动执行签名脚本 ← afterPack.js
+  ↓
+4. 验证签名
+  ↓
+5. 生成 DMG 和 ZIP
+```
+
+**关键配置** (`package.json`):
+```json
+{
+  "build": {
+    "mac": {
+      "hardenedRuntime": true,
+      "identity": "4E76C4CD7F4ABFA82DF8EED886AA36F117140EDD"
+    },
+    "afterPack": "scripts/afterPack.js"
+  }
+}
+```
+
+### 验证签名
+
+```bash
+# 查看签名信息
+codesign -dv --verbose=4 release/mac/小白AI.app
+
+# 查看证书链
+codesign -dv --verbose=4 release/mac/小白AI.app | grep Authority
+```
+
+**预期输出**:
+```
+Authority=Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=666P8DEX39
+```
+
+### 配置新电脑
+
+如果您需要在其他电脑上配置相同的签名，请参考：
+
+👉 **[macOS Code Signing 完整指南](./12-macos-code-signing.md)**
+
+该文档包含：
+- CSR 生成步骤
+- 证书申请流程
+- 证书安装方法
+- 常见问题排查
+
+### 用户体验提升
+
+| 之前（Ad-hoc 签名） | 现在（正式签名） |
+|-------------------|----------------|
+| 双击 → "无法验证开发者" → 右键打开 | 双击 → 直接启动 ✅ |
+| 用户觉得不安全 | 用户可信任 |
 
 ---
 

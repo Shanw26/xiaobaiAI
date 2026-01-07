@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
+import WaitingIndicator from './WaitingIndicator';
 import './ChatArea.css';
 import logoSvg from '/logo.svg';
 
-function ChatArea({ messages, currentUser }) {
+function ChatArea({ messages, currentUser, waitingIndicator }) {
   const messagesEndRef = useRef(null);
   const [expandedThinking, setExpandedThinking] = useState({});
 
@@ -64,17 +65,24 @@ function ChatArea({ messages, currentUser }) {
                 </div>
                 {expandedThinking[index] && (
                   <div className="thinking-content">
-                    {msg.thinking}
+                    <MarkdownRenderer content={msg.thinking} />
                   </div>
                 )}
               </div>
             )}
             {msg.role === 'assistant' ? (
-              msg.content ? (
-                <MarkdownRenderer content={msg.content} />
-              ) : (
-                <span className="typing-indicator">正在思考中...</span>
-              )
+              <>
+                {msg.content ? (
+                  <MarkdownRenderer content={msg.content} />
+                ) : (
+                  // v2.8.9 - 使用新的等待指示器组件（动画 + 文字）
+                  waitingIndicator?.show && index === messages.length - 1 ? (
+                    <WaitingIndicator type={waitingIndicator.type} duration={waitingIndicator.duration || 0} />
+                  ) : (
+                    <span className="typing-indicator">正在思考中...</span>
+                  )
+                )}
+              </>
             ) : (
               <div className="user-message">{msg.content}</div>
             )}
@@ -94,6 +102,27 @@ function ChatArea({ messages, currentUser }) {
           </div>
         </div>
       ))}
+
+      {/* 等待指示器 - 附加到最后一条消息 */}
+      {waitingIndicator?.show && messages.length > 0 && (() => {
+        const lastMsg = messages[messages.length - 1];
+        // 只在最后一条是助手消息时显示
+        if (lastMsg.role === 'assistant') {
+          return null; // 助手消息会在消息内容中显示
+        }
+        // 如果最后一条是用户消息，则等待动画放在新消息中
+        return (
+          <div className="message assistant waiting-message">
+            <div className="avatar assistant">
+              <img src={logoSvg} alt="小白AI" />
+            </div>
+            <div className="bubble">
+              <WaitingIndicator type={waitingIndicator.type} duration={waitingIndicator.duration || 0} />
+            </div>
+          </div>
+        );
+      })()}
+
       <div ref={messagesEndRef} />
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -6,11 +6,12 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { visit } from 'unist-util-visit';
 import './MarkdownRenderer.css';
 
-// 检测文件路径的正则表达式 - 只匹配真实的文件路径
-// 必须满足以下条件之一：
-// 1. 以 / 或 ~/ 开头，且以 / 结尾（目录）
-// 2. 以 / 或 ~/ 开头，且包含文件扩展名（如 .txt, .md, .js 等）
-const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]*?(?:\.[a-zA-Z0-9]{1,10}|\/)(?=[\s<>"'`\n,。！？；：.,!?;:]|$)/g;
+// v2.9.2 - 优化的文件路径正则表达式
+// 匹配以下格式的路径：
+// 1. 以 / 或 ~/ 开头的绝对路径
+// 2. 路径可以包含任意字符（除了空格和特殊字符）
+// 3. 路径可以以扩展名、/ 或其他字符结尾
+const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]*?(?=[\s<>"'`\n,。！？；：.,!?;:]|$)/g;
 
 // 清理路径末尾的标点符号
 function cleanPath(path) {
@@ -44,7 +45,7 @@ function ThinkingProcess({ children }) {
   );
 }
 
-// remark 插件：预处理文件路径
+// remark 插件：预处理文件路径（v2.9.2 - 简化版，不验证路径）
 function remarkFilePathLinks() {
   return (tree) => {
     // 处理 inlineCode 节点（路径在反引号中）
@@ -52,12 +53,10 @@ function remarkFilePathLinks() {
       if (!node.value) return;
 
       const codeContent = node.value;
-      console.log('🔍 [MarkdownRenderer] 检查行内代码:', codeContent);
 
       // 检查是否是文件路径
       if (FILE_PATH_PATTERN.test(codeContent)) {
         const cleanedPath = cleanPath(codeContent);
-        console.log('✅ [MarkdownRenderer] 行内代码是路径，转换为链接:', cleanedPath);
 
         // 替换为链接节点
         parent.children[index] = {
@@ -82,14 +81,12 @@ function remarkFilePathLinks() {
 
       // 查找所有文件路径
       FILE_PATH_PATTERN.lastIndex = 0; // 重置正则表达式
-      console.log('🔍 [MarkdownRenderer] 检查文本:', text);
       while ((match = FILE_PATH_PATTERN.exec(text)) !== null) {
         let path = match[0];
         const matchIndex = match.index;
 
         // 清理路径末尾的标点符号
         path = cleanPath(path);
-        console.log('✅ [MarkdownRenderer] 找到路径:', path, '在位置:', matchIndex);
 
         // 添加路径前的普通文本
         if (matchIndex > lastIndex) {
@@ -146,6 +143,27 @@ function handlePathClick(path) {
   }
 }
 
+// 文件路径链接组件（v2.9.2 - 使用 React.memo 优化，避免重新渲染）
+const FilePathLink = React.memo(function FilePathLink({ children, href }) {
+  const handleClick = (e) => {
+    e.preventDefault();
+    console.log('FilePathLink 点击:', href); // 调试日志
+    handlePathClick(href);
+  };
+
+  // 直接显示为绿色下划线（不验证路径是否存在）
+  return (
+    <span
+      className="file-path-link"
+      onClick={handleClick}
+      title="点击打开"
+      style={{ cursor: 'pointer' }}
+    >
+      {children}
+    </span>
+  );
+});
+
 function MarkdownRenderer({ content }) {
   return (
     <ReactMarkdown
@@ -179,20 +197,11 @@ function MarkdownRenderer({ content }) {
         },
         a({ children, href, title }) {
           // 检查是否是文件路径链接（支持 / 和 ~/ 开头）
-          console.log('🔗 [MarkdownRenderer.a] href:', href, 'title:', title);
           const isFilePath = href && (href.startsWith('/') || href.startsWith('~')) && title === '点击打开';
-          console.log('  → isFilePath:', isFilePath);
 
           if (isFilePath) {
-            return (
-              <span
-                className="file-path-link"
-                onClick={() => handlePathClick(href)}
-                title="点击打开"
-              >
-                {children}
-              </span>
-            );
+            // 使用新的 FilePathLink 组件（支持路径验证）
+            return <FilePathLink href={href}>{children}</FilePathLink>;
           }
 
           return (

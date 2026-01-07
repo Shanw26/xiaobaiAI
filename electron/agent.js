@@ -80,8 +80,8 @@ const MODEL_PROVIDERS = {
   },
 };
 
-// 默认工作目录（小白AI专用工作目录）
-let workDirectory = path.join(os.homedir(), 'Downloads', '小白AI工作目录');
+// v2.9.1 - 取消默认工作目录，不再使用固定的工作目录
+let workDirectory = null;
 
 /**
  * 设置工作目录
@@ -103,13 +103,13 @@ function getWorkDirectory() {
 const FILE_TOOLS = [
   {
     name: 'write_file',
-    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。\n\n重要说明：\n- 如果用户未指定文件路径，默认使用小白AI工作目录\n- 相对路径会自动添加到工作目录下\n- 绝对路径会直接使用\n- 工作目录：~/Downloads/小白AI工作目录',
+    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。\\n\\n重要说明：\\n- 必须使用绝对路径（以 / 开头）或用户主目录路径（以 ~/ 开头）\\n- 不支持相对路径\\n- 文件路径必须由用户明确指定\\n\\n返回格式要求：\\n- 创建成功后，使用格式：✅ 文件已创建：`/完整/文件/路径`\\n- 文件路径必须用反引号包裹，这样用户可以点击打开',
     input_schema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: '文件的相对路径或绝对路径。如果未指定，默认使用工作目录',
+          description: '文件的绝对路径（以 / 或 ~/ 开头）',
         },
         content: {
           type: 'string',
@@ -121,13 +121,13 @@ const FILE_TOOLS = [
   },
   {
     name: 'read_file',
-    description: '读取文件内容',
+    description: '读取文件内容。必须使用绝对路径（以 / 或 ~/ 开头）',
     input_schema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: '文件的相对路径或绝对路径',
+          description: '文件的绝对路径（以 / 或 ~/ 开头）',
         },
       },
       required: ['filePath'],
@@ -135,13 +135,13 @@ const FILE_TOOLS = [
   },
   {
     name: 'list_directory',
-    description: '列出目录中的文件和子目录',
+    description: '列出目录中的文件和子目录。必须使用绝对路径（以 / 或 ~/ 开头）',
     input_schema: {
       type: 'object',
       properties: {
         dirPath: {
           type: 'string',
-          description: '目录的相对路径或绝对路径，默认为工作目录',
+          description: '目录的绝对路径（以 / 或 ~/ 开头）',
         },
       },
       required: [],
@@ -238,9 +238,14 @@ async function handleToolUse(toolName, input) {
     switch (toolName) {
       case 'write_file': {
         let filePath = input.filePath;
-        // 如果是相对路径，拼接工作目录
-        if (!path.isAbsolute(filePath)) {
-          filePath = path.join(workDirectory, filePath);
+        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
+          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        }
+
+        // 处理 ~/ 路径
+        if (filePath.startsWith('~/')) {
+          filePath = path.join(os.homedir(), filePath.slice(2));
         }
 
         // 确保目录存在
@@ -250,13 +255,20 @@ async function handleToolUse(toolName, input) {
         // 写入文件
         await fs.writeFile(filePath, input.content, 'utf-8');
         safeLog(`✓ 文件已创建: ${filePath}`);
-        return `文件已创建: ${filePath}`;
+        // v2.9.2 - 返回格式化的消息，文件路径用反引号包裹以便识别
+        return `✅ 文件已创建：\`${filePath}\``;
       }
 
       case 'read_file': {
         let filePath = input.filePath;
-        if (!path.isAbsolute(filePath)) {
-          filePath = path.join(workDirectory, filePath);
+        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
+          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        }
+
+        // 处理 ~/ 路径
+        if (filePath.startsWith('~/')) {
+          filePath = path.join(os.homedir(), filePath.slice(2));
         }
 
         const content = await fs.readFile(filePath, 'utf-8');
@@ -265,9 +277,15 @@ async function handleToolUse(toolName, input) {
       }
 
       case 'list_directory': {
-        let dirPath = input.dirPath || '.';
-        if (!path.isAbsolute(dirPath)) {
-          dirPath = path.join(workDirectory, dirPath);
+        let dirPath = input.dirPath;
+        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
+        if (!dirPath || (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/'))) {
+          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的目录路径。';
+        }
+
+        // 处理 ~/ 路径
+        if (dirPath.startsWith('~/')) {
+          dirPath = path.join(os.homedir(), dirPath.slice(2));
         }
 
         const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -289,19 +307,32 @@ async function handleToolUse(toolName, input) {
 
       case 'create_directory': {
         let dirPath = input.dirPath;
-        if (!path.isAbsolute(dirPath)) {
-          dirPath = path.join(workDirectory, dirPath);
+        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
+        if (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/')) {
+          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的目录路径。';
+        }
+
+        // 处理 ~/ 路径
+        if (dirPath.startsWith('~/')) {
+          dirPath = path.join(os.homedir(), dirPath.slice(2));
         }
 
         await fs.mkdir(dirPath, { recursive: true });
         safeLog(`✓ 目录已创建: ${dirPath}`);
-        return `目录已创建: ${dirPath}`;
+        // v2.9.2 - 返回格式化的消息
+        return `✅ 目录已创建：\`${dirPath}\``;
       }
 
       case 'delete_file': {
         let filePath = input.filePath;
-        if (!path.isAbsolute(filePath)) {
-          filePath = path.join(workDirectory, filePath);
+        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
+          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        }
+
+        // 处理 ~/ 路径
+        if (filePath.startsWith('~/')) {
+          filePath = path.join(os.homedir(), filePath.slice(2));
         }
 
         // 检查文件/文件夹是否存在
@@ -367,8 +398,8 @@ async function handleToolUse(toolName, input) {
       }
 
       case 'save_user_info': {
-        // 用户信息保存到工作目录的用户信息文件
-        const userInfoPath = path.join(workDirectory, '用户信息.md');
+        // v2.9.1 - 用户信息保存到用户主目录
+        const userInfoPath = path.join(os.homedir(), 'xiaobai-user-info.md');
 
         // 解析用户信息
         const info = input.info;
@@ -399,7 +430,8 @@ async function handleToolUse(toolName, input) {
       }
 
       case 'get_user_info': {
-        const userInfoPath = path.join(workDirectory, '用户信息.md');
+        // v2.9.1 - 用户信息从用户主目录读取
+        const userInfoPath = path.join(os.homedir(), 'xiaobai-user-info.md');
 
         try {
           const content = await fs.readFile(userInfoPath, 'utf-8');
@@ -504,6 +536,29 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 2. **用户信息管理**：可以记住用户的个人信息，提供个性化服务
 3. **对话记忆**：通过全局设置和记忆文件，记住用户偏好
 
+## 工作原则（Claude Code 最佳实践）
+
+### 1. 诚实优先
+- 不知道就说不知道，不要编造
+- 不确定时明确说明，不要假装确定
+- 犯错后立即承认并纠正
+- 示例："我不确定这个文件的准确位置，让我先检查一下" ❌ 而不是 "文件在 /xxx" （实际上不确定）
+
+### 2. 工具使用策略
+- **必须使用工具**：文件操作必须调用 write_file/read_file 等工具
+- **确保真实性**：调用工具后，文件必须真实创建成功
+- **报告准确**：工具调用成功后，必须如实告诉用户实际结果
+
+### 3. 用户体验优先
+- **简洁沟通**：直接回答，不绕弯子
+- **主动确认**：不清楚时主动询问，不要自作主张
+- **格式规范**：文件路径必须用反引号包裹，方便用户点击
+
+### 4. 任务管理
+- **专注当前任务**：一次只做一件事，做好为止
+- **快速迭代**：先实现核心功能，再优化细节
+- **简单 > 完美**：完成比完美更重要
+
 ## 思考过程展示
 回答技术问题时，先展示简洁的思考过程，格式如下：
 
@@ -522,10 +577,17 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 - ❌ 简单问候、闲聊
 
 ## 文件操作规则
-- **默认路径**：如果用户未指定文件位置，默认使用 ~/Downloads/小白AI工作目录
-- **相对路径**：自动添加到工作目录下
-- **绝对路径**：直接使用用户指定的路径
-- **安全限制**：只能操作工作目录内的文件
+- **路径要求**：必须使用绝对路径（以 / 或 ~/ 开头）
+- **不支持相对路径**：用户必须明确指定完整路径
+- **重要**：提到文件路径时，**必须用反引号包裹**，例如：\`/Users/shawn/Desktop/file.txt\`
+- **为什么用反引号**：被反引号包裹的文件路径会显示为绿色下划线，用户可以点击直接打开
+- **错误示例**：文件已创建：/Users/shawn/Desktop/file.txt ❌（不可点击）
+- **正确示例**：文件已创建：\`/Users/shawn/Desktop/file.txt\` ✅（可点击）
+
+**工具调用后的回复格式**：
+- 创建文件：✅ 文件已创建：\`/完整/文件/路径\`
+- 创建目录：✅ 目录已创建：\`/完整/目录/路径\`
+- 其他操作：如实告诉用户实际结果
 
 ## 用户信息管理
 当用户提到以下信息时，**必须先征得用户同意**，然后使用 save_user_info 工具保存：
@@ -549,11 +611,13 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
 - 主动询问，确认需求
 - 记住信息，提供个性化服务
 - 诚实面对不知道的事情
+- 专注解决用户当前问题，不要过度设计
 
 ## 产品哲学（记住这些）
 - **简单**：专注一个功能并做到极致
 - **单点击穿**：找到一个核心价值点
 - **All-in**：投入所有资源
+- **快速迭代**：先做出来，再优化
 
 你是由晓力开发的 AI 助手，帮助他更高效地工作。`;
 

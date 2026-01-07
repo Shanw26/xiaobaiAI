@@ -109,11 +109,9 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   }, [config]);
 
   const handleSave = async () => {
-    if (!localConfig.apiKey) {
-      showAlert('请输入 API Key', 'error');
-      return;
-    }
-
+    // 移除 API Key 强制验证
+    // 用户可能只想保存其他配置（全局提示、记忆内容等）
+    // 登录用户可以使用官方 API Key，无需自己输入
     onSave(localConfig);
   };
 
@@ -450,7 +448,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.7.8</span>
+          <span className="about-version">v2.9.3</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>
