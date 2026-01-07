@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -13,6 +14,32 @@ const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]+/g;
 function cleanPath(path) {
   // 移除路径末尾的常见标点符号
   return path.replace(/[。、，！？；：.,!?:;'"`()（）【】\[\]{}「」『』>]+$/, '');
+}
+
+// 思考过程组件（支持折叠）
+function ThinkingProcess({ children }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const toggle = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  return (
+    <div className="thinking-process">
+      <div className="thinking-header" onClick={toggle}>
+        <span className="thinking-icon">🤔</span>
+        <span className="thinking-title">思考过程</span>
+        <span style={{ marginLeft: 'auto', fontSize: '0.8em' }}>
+          {isExpanded ? '▼' : '▶'}
+        </span>
+      </div>
+      {isExpanded && (
+        <div className="thinking-content">
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // remark 插件：预处理文件路径
@@ -126,6 +153,11 @@ function MarkdownRenderer({ content }) {
           const match = /language-(\w+)/.exec(className || '');
           const language = match ? match[1] : '';
           const codeContent = String(children).replace(/\n$/, '');
+
+          // 特殊处理：思考过程
+          if (!inline && language === '思考') {
+            return <ThinkingProcess {...props}>{children}</ThinkingProcess>;
+          }
 
           return !inline && language ? (
             <SyntaxHighlighter
