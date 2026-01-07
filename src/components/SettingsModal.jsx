@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './SettingsModal.css';
 import logoSvg from '/logo.svg';
+import ToastModal from './ToastModal';
 
 // 格式化数字显示
 function formatNumber(num) {
@@ -44,6 +45,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   const [activeCategory, setActiveCategory] = useState('basic');
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // 设置分类（动态添加徽章）
   const SETTINGS_CATEGORIES = [
@@ -130,7 +132,10 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   const handleCheckUpdate = async () => {
     const result = await window.electronAPI.checkForUpdates();
     if (!result) {
-      alert('当前已是最新版本');
+      setToast({
+        message: '当前已是最新版本',
+        type: 'success'
+      });
     }
   };
 
@@ -393,7 +398,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.7.5</span>
+          <span className="about-version">v2.7.6</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>
@@ -409,9 +414,9 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
 
         {updateAvailable && updateStatus && (
-          <div className="update-notice" onClick={handleCheckUpdate} title="点击立即更新">
+          <div className="update-notice" onClick={handleDownloadUpdate} title="点击立即更新">
             <div className="update-notice-text">
-              发现新版本，点击版本标签可立即更新
+              发现新版本，点击此处或版本标签立即更新
             </div>
           </div>
         )}
@@ -498,6 +503,14 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           </button>
         </div>
       </div>
+
+      {toast && (
+        <ToastModal
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
