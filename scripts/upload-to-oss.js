@@ -9,6 +9,9 @@
  *   ALI_OSS_ACCESS_KEY_SECRET - 阿里云 AccessKey Secret
  */
 
+// 加载 .env 文件
+require('dotenv').config();
+
 const OSS = require('ali-oss');
 const fs = require('fs');
 const path = require('path');
@@ -105,10 +108,10 @@ async function uploadMacVersion(version, releaseDir) {
 
   // macOS 文件列表
   const macFiles = [
-    `xiaobai-ai-${version}.dmg`,
-    `xiaobai-ai-${version}-arm64.dmg`,
-    `xiaobai-ai-${version}-mac.zip`,
-    `xiaobai-ai-${version}-arm64-mac.zip`
+    `小白AI-${version}.dmg`,
+    `小白AI-${version}-arm64.dmg`,
+    `小白AI-${version}-mac.zip`,
+    `小白AI-${version}-arm64-mac.zip`
   ];
 
   const uploadedFiles = [];
