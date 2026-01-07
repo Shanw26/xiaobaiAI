@@ -50,8 +50,11 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
                     dangerouslySetInnerHTML={{ __html: releaseNotes }}
                   />
                 ) : (
-                  <div className="no-notes">
-                    查看 <a href="https://github.com/Shanw26/xiaobaiAI/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 了解详情
+                  <div className="default-notes">
+                    <p>✨ 体验优化和性能提升</p>
+                    <p style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+                      本次更新包含多项改进，让小白AI更加稳定易用
+                    </p>
                   </div>
                 )}
               </div>

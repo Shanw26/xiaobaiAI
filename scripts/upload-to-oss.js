@@ -61,9 +61,9 @@ async function uploadFile(localPath, remotePath, contentType = 'application/octe
 /**
  * 生成 YAML 格式的 latest-mac.yml
  */
-function generateYaml(version, files, baseUrl) {
+function generateYaml(version, files, baseUrl, releaseNotes = '') {
   const releaseDate = new Date().toISOString();
-  const yaml = `version: ${version}
+  let yaml = `version: ${version}
 files:
 ${files.map(f => `  - url: ${baseUrl}/${f.filename}
     sha512: ${f.sha512}
@@ -73,17 +73,24 @@ sha512: ${files[0].sha512}
 size: ${files[0].size}
 releaseDate: '${releaseDate}'
 `;
+
+  // 如果有 releaseNotes，添加到 YAML
+  if (releaseNotes) {
+    yaml += `releaseNotes: ${JSON.stringify(releaseNotes)}
+`;
+  }
+
   return yaml;
 }
 
 /**
  * 上传 latest-mac.yml
  */
-async function uploadLatestYml(version, files, platform = 'mac') {
+async function uploadLatestYml(version, files, platform = 'mac', releaseNotes = '') {
   console.log(`\n📝 生成 latest-${platform}.yml`);
 
   const baseUrl = `https://xiaobai-ai-releases.oss-cn-hangzhou.aliyuncs.com/${platform}`;
-  const yamlContent = generateYaml(version, files, baseUrl);
+  const yamlContent = generateYaml(version, files, baseUrl, releaseNotes);
 
   const ymlPath = `${platform}/latest-${platform}.yml`;
 
@@ -105,7 +112,7 @@ async function uploadLatestYml(version, files, platform = 'mac') {
 /**
  * 主函数：上传 macOS 版本
  */
-async function uploadMacVersion(version, releaseDir) {
+async function uploadMacVersion(version, releaseDir, releaseNotes = '') {
   console.log(`\n🍎 开始上传 macOS 版本 ${version}`);
 
   // macOS 文件列表
@@ -142,7 +149,7 @@ async function uploadMacVersion(version, releaseDir) {
 
   // 上传 latest-mac.yml
   if (uploadedFiles.length > 0) {
-    await uploadLatestYml(version, uploadedFiles, 'mac');
+    await uploadLatestYml(version, uploadedFiles, 'mac', releaseNotes);
   } else {
     console.log('⚠️  没有上传任何文件，跳过 YAML 更新');
   }
@@ -210,9 +217,48 @@ async function main() {
     const packagePath = path.join(__dirname, '../package.json');
     const version = require(packagePath).version;
 
+    // 检查是否强制更新
+    const isForceUpdate = process.env.FORCE_UPDATE === 'true' || process.argv.includes('--force');
+
+    // 读取更新说明（支持环境变量或文件）
+    let releaseNotes = '';
+
+    // 优先使用环境变量
+    if (process.env.RELEASE_NOTES) {
+      releaseNotes = process.env.RELEASE_NOTES;
+    }
+    // 如果是强制更新，添加强制标记
+    else if (isForceUpdate) {
+      releaseNotes = '[强制] 此版本包含重要更新，请尽快升级';
+    }
+    // 尝试从 CHANGELOG.md 读取最新版本的更新内容
+    else {
+      const changelogPath = path.join(__dirname, '../CHANGELOG.md');
+      if (fs.existsSync(changelogPath)) {
+        const changelog = fs.readFileSync(changelogPath, 'utf8');
+        // 匹配 ## [版本号] 到下一个 ## 之间的所有内容
+        const match = changelog.match(new RegExp(`##\\s+\\[${version.replace(/\./g, '\\.')}\\][^\n]*\n([\\s\\S]*?)(?=\n##\s|\n---\n|$)`));
+        if (match && match[1]) {
+          // 提取要点列表（只取前3条）
+          const lines = match[1].split('\n')
+            .map(line => line.trim())
+            .filter(line => line.startsWith('-') || line.startsWith('*'))
+            .slice(0, 3)
+            .join('\n');
+          releaseNotes = lines || '✨ 体验优化和性能提升';
+        }
+      }
+    }
+
     console.log('='.repeat(60));
     console.log(`🚀 小白AI - 阿里云 OSS 上传工具`);
     console.log(`版本: ${version}`);
+    if (isForceUpdate) {
+      console.log(`⚠️  强制更新模式`);
+    }
+    if (releaseNotes) {
+      console.log(`📝 更新说明: ${releaseNotes.substring(0, 50)}...`);
+    }
     console.log(`Bucket: ${config.bucket}`);
     console.log(`地域: ${config.region}`);
     console.log('='.repeat(60));
@@ -227,7 +273,7 @@ async function main() {
     }
 
     // 上传 macOS 版本
-    const macFiles = await uploadMacVersion(version, releaseDir);
+    const macFiles = await uploadMacVersion(version, releaseDir, releaseNotes);
 
     // 上传 Windows 版本（如果存在）
     const winFiles = await uploadWinVersion(version, releaseDir);

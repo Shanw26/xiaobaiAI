@@ -1101,9 +1101,188 @@ const waitingStartTimeRef = useRef(null);
 
 ---
 
-**最后更新**: 2026-01-07 23:40
+**最后更新**: 2026-01-07 23:59
 **更新人**: Claude Code + 晓力
 **当前版本**: v2.9.3
+
+---
+
+## 📅 2026-01-07 (v2.9.3)
+
+### 发布到阿里云 OSS ☁️✅
+
+**核心变更**: v2.9.3 版本已发布到阿里云 OSS，国内用户下载速度提升
+
+**操作记录**:
+1. ✅ 从 key.md 加载阿里云 OSS 配置到 .env
+   - 脚本: `node scripts/load-from-key.js`
+   - Bucket: xiaobai-ai-releases
+   - 地域: oss-cn-hangzhou
+
+2. ✅ 运行上传脚本发布到阿里云
+   - 命令: `npm run upload:oss`
+   - 上传文件: 4个（DMG x2 + ZIP x2）
+   - 更新文件: latest-mac.yml
+
+3. ✅ 验证上传结果
+   - 文件可访问: https://xiaobai-ai-releases.oss-cn-hangzhou.aliyuncs.com/mac/latest-mac.yml
+   - HTTP 状态: 200 OK
+
+**下载地址**:
+- macOS: https://xiaobai-ai-releases.oss-cn-hangzhou.aliyuncs.com/mac/
+
+**重要规则** ⭐:
+- ✅ **每次发布新版本后，都必须上传到阿里云 OSS**
+- ✅ 发布流程: 打包 → GitHub Release → 阿里云 OSS
+- ✅ 自动更新系统优先使用阿里云 OSS（生产环境）
+
+**发布命令**:
+```bash
+# 完整发布流程
+npm run dist:mac          # 1. 打包
+npm run release:oss       # 2. 打包 + 上传到阿里云 OSS
+
+# 或者单独上传
+npm run upload:oss        # 仅上传到阿里云 OSS
+```
+
+**历史版本**:
+- v2.7.8: ✅ 已发布到阿里云 OSS
+- v2.9.3: ✅ 已发布到阿里云 OSS（强制更新）
+
+**强制更新配置**:
+- 版本号: `version: 2.9.3`（保持标准格式，确保版本比较正常）
+- 强制标记: `releaseNotes: "[强制] 此版本包含重要更新，请尽快升级"`
+- 触发条件: 版本号或更新说明包含 `[强制]`、`[force]` 或 `[强制更新]`
+- 用户行为: 自动下载更新，无法跳过
+
+**强制更新发布方法**:
+```bash
+# 方法1：使用环境变量
+FORCE_UPDATE=true npm run upload:oss
+
+# 方法2：使用命令行参数
+npm run upload:oss -- --force
+```
+
+**重要修复**（v2.9.3）:
+- ❌ 之前：强制标记放在版本号中（`2.9.3[强制]`）导致版本比较失败
+- ✅ 现在：强制标记放在 `releaseNotes` 字段中，版本号保持标准格式
+- ✅ 结果：v2.7.8 可以正确检测到 v2.9.3 强制更新
+
+**相关文档**:
+- 阿里云 OSS 配置: `~/Downloads/同步空间/Claude code/key.md`
+- 上传脚本: `scripts/upload-to-oss.js`
+- 使用指南: `scripts/README.md`
+
+---
+
+## 📅 2026-01-07 (v2.9.3)
+
+### 修复强制更新版本号格式问题 🐛✅
+
+**问题发现**:
+- 用户反馈：v2.7.8 点击"检查更新"提示"当前就是最新版"
+- 实际情况：已有 v2.9.3 强制更新版本
+- 严重程度：🔴 高（导致强制更新无法触发）
+
+**问题定位**:
+```bash
+# 测试版本比较
+semver.gt('2.9.3[强制]', '2.7.8')
+// ❌ 报错: Invalid Version: 2.9.3[强制]
+
+semver.gt('2.9.3', '2.7.8')
+// ✅ 正常: true
+```
+
+**根本原因**:
+- 之前将 `[强制]` 标记直接放在 `version` 字段中（`2.9.3[强制]`）
+- electron-updater 使用 `semver` 库比较版本号
+- `semver` 只接受标准的语义化版本号（如 `2.9.3`）
+- 非标准格式导致版本比较失败，v2.7.8 无法识别 v2.9.3
+
+**解决方案**:
+
+**1. 修改上传脚本** (`scripts/upload-to-oss.js`):
+```javascript
+// 之前（错误）
+function generateYaml(version, files, baseUrl) {
+  const yaml = `version: ${version}\n`;
+  return yaml;
+}
+
+// 现在（正确）
+function generateYaml(version, files, baseUrl, releaseNotes = '') {
+  let yaml = `version: ${version}\n`;
+  if (releaseNotes) {
+    yaml += `releaseNotes: ${JSON.stringify(releaseNotes)}\n`;
+  }
+  return yaml;
+}
+```
+
+**2. 支持强制更新模式**:
+```javascript
+// 主函数中检测强制更新标记
+const isForceUpdate = process.env.FORCE_UPDATE === 'true' || process.argv.includes('--force');
+const releaseNotes = isForceUpdate ? '[强制] 此版本包含重要更新，请尽快升级' : '';
+```
+
+**3. 重新生成 latest-mac.yml**:
+```bash
+FORCE_UPDATE=true npm run upload:oss
+```
+
+**修复结果**:
+```yaml
+# 之前（错误）
+version: 2.9.3[强制]
+files: ...
+
+# 现在（正确）
+version: 2.9.3
+files: ...
+releaseNotes: "[强制] 此版本包含重要更新，请尽快升级"
+```
+
+**测试验证**:
+- ✅ 版本比较: `semver.gt('2.9.3', '2.7.8')` → `true`
+- ✅ 强制标记检测: `isForceUpdate('2.9.3', '[强制] ...')` → `true`
+- ✅ v2.7.8 可以正确检测到 v2.9.3 强制更新
+
+**用户行为（v2.7.8 启动时）**:
+1. 启动应用 → 立即检查更新
+2. 发现 v2.9.3 + releaseNotes 包含 `[强制]`
+3. 自动开始下载
+4. 显示强制更新弹窗（z-index: 9999）
+5. 下载完成后倒计时 3 秒自动重启
+
+**修改文件**:
+- `scripts/upload-to-oss.js`
+  - 修改 `generateYaml()` 函数：添加 `releaseNotes` 参数
+  - 修改 `uploadLatestYml()` 函数：传递 `releaseNotes` 参数
+  - 修改 `uploadMacVersion()` 函数：传递 `releaseNotes` 参数
+  - 修改 `main()` 函数：检测 `FORCE_UPDATE` 环境变量和 `--force` 参数
+- `release/latest-mac.yml` - 重新生成，版本号保持标准格式
+
+**重要经验**:
+1. ⚠️ **版本号必须保持标准格式**：只能包含数字和点（如 `2.9.3`）
+2. ✅ **强制标记放在 releaseNotes 中**：避免破坏版本比较逻辑
+3. ✅ **electron-updater 依赖 semver**：任何非标准格式都会导致比较失败
+4. ✅ **测试驱动修复**：先测试版本比较逻辑，再修复代码
+
+**强制更新发布指南**:
+```bash
+# 普通更新
+npm run upload:oss
+
+# 强制更新（方法1：环境变量）
+FORCE_UPDATE=true npm run upload:oss
+
+# 强制更新（方法2：命令行参数）
+npm run upload:oss -- --force
+```
 
 ---
 

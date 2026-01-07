@@ -25,7 +25,7 @@ function safeError(...args) {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.9.3';
+const APP_VERSION = '2.9.4';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -209,6 +209,16 @@ async function downloadUpdate() {
 // 安装并重启
 function installUpdate() {
   safeLog('[更新] 安装更新并重启...');
+
+  // 确保所有窗口都关闭
+  if (mainWindow) {
+    mainWindow.removeAllListeners();
+    // 不销毁窗口，让 electron-updater 处理
+  }
+
+  // 调用 quitAndInstall，应用会自动退出并安装更新
+  // isSilent=false: 显示安装界面
+  // isForceRunAfter=true: 安装完成后自动启动应用
   autoUpdater.quitAndInstall(false, true);
 }
 

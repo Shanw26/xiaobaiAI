@@ -1062,8 +1062,9 @@ function AppContent() {
         <UpdateDownloadedModal
           version={updateDownloaded.version}
           onRestart={async () => {
-            await window.electronAPI.installUpdate();
-            setUpdateDownloaded(null);
+            // 不等待，立即调用安装重启
+            window.electronAPI.installUpdate();
+            // 不需要关闭弹窗，应用即将退出
           }}
           onLater={() => setUpdateDownloaded(null)}
         />

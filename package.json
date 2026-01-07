@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.9.3",
+  "version": "2.9.4",
   "description": "小白AI - 基于 Claude Agent SDK 的 AI 助手客户端",
   "main": "electron/main.js",
   "scripts": {
@@ -16,6 +16,8 @@
     "release": "npm run build && electron-builder --publish=never",
     "upload:oss": "node scripts/upload-to-oss.js",
     "release:oss": "npm run dist:mac && npm run upload:oss",
+    "release:force": "FORCE_UPDATE=true npm run dist:mac && npm run upload:oss",
+    "release:notes": "npm run dist:mac && RELEASE_NOTES=\"$NOTES\" npm run upload:oss",
     "config:load": "node scripts/load-from-key.js",
     "config:sync": "node scripts/sync-config.js",
     "security:check": "node scripts/security-check.js"
