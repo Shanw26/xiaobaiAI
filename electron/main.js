@@ -11,7 +11,7 @@ const db = require('./database');
 const officialConfig = require('./official-config');
 
 // 当前应用版本
-const APP_VERSION = '2.5.4';
+const APP_VERSION = '2.5.5';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
