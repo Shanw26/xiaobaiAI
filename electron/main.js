@@ -11,7 +11,7 @@ const db = require('./database');
 const officialConfig = require('./official-config');
 
 // 当前应用版本
-const APP_VERSION = '2.3.3'; // 统一使用 icon.svg 文件作为所有位置的图标
+const APP_VERSION = '2.5.1';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
