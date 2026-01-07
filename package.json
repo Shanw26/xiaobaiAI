@@ -72,8 +72,9 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "identity": null,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
@@ -93,6 +94,7 @@
         }
       ]
     },
+    "afterPack": "scripts/afterPack.js",
     "dmg": {
       "contents": [
         {
