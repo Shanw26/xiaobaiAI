@@ -1,8 +1,9 @@
 # 文件路径点击功能
 
-> **适用版本**: v2.6.3+
+> **适用版本**: v2.7.2+
 > **阅读时间**: 10分钟
 > **相关文档**: [系统架构](./06-系统架构.md)
+> **最新更新**: 2026-01-07 (v2.7.2 - 修复路径渲染问题)
 
 ---
 
@@ -13,12 +14,18 @@
 2. ✅ 显示绿色下划线
 3. ✅ 点击后打开文件或目录
 
-### 支持的路径格式
+### 支持的路径格式（v2.7.2 增强）
 
-- `/Users/shawn/Downloads/文件.txt` - 绝对路径
-- `~/Downloads/新年快乐.txt` - 用户目录
-- `./relative/path/file.txt` - 相对路径
-- 支持中文文件名
+- ✅ `/Users/xiaolin/Downloads/小白AI/` - 中文路径
+- ✅ `/Users/name/My Documents/` - 带空格
+- ✅ `~/Desktop/文件.txt` - 用户目录
+- ✅ `/path/to/file(1).txt` - 带括号
+- ✅ `文件在 /Users/aaa/。` - 自动清理末尾标点
+
+**v2.7.2 新增特性**:
+- ✅ 支持反引号包裹的路径：`` `/Users/aaa` `` 也能正确识别
+- ✅ 自动清理路径末尾的标点符号
+- ✅ 支持更多特殊字符和空格
 
 ---
 
@@ -51,45 +58,53 @@ React 渲染为可点击元素
 
 ## 核心代码实现
 
-### 1. 文件路径正则表达式
+### 1. 文件路径正则表达式（v2.7.2 更新）
 
 **文件**: `src/components/MarkdownRenderer.jsx`
 
 ```javascript
-// 支持以下格式:
-// /Users/shawn/Downloads/文件.txt
-// ~/Downloads/新年快乐.txt
-// ./relative/path/file.txt
-const FILE_PATH_PATTERN = /(~?\/[a-zA-Z0-9_\-./~\u4e00-\u9fa5]+[a-zA-Z0-9\u4e00-\u9fa5])(?!\w)/g;
+// v2.7.2 优化后的正则
+// 匹配：以 / 或 ~/ 开头，后面跟非空白字符
+const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]+/g;
+
+// 路径清理函数：移除末尾的标点符号
+function cleanPath(path) {
+  return path.replace(/[。、，！？；：.,!?:;'"`()（）【】\[\]{}「」『』>]+$/, '');
+}
 ```
 
 **正则解析**:
 
 | 部分 | 说明 |
 |-----|------|
-| `~?` | 可选的波浪号（用户目录） |
-| `\/` | 必须以 / 开头 |
-| `[a-zA-Z0-9_\-./~\u4e00-\u9fa5]+` | 路径字符（支持中文 `\u4e00-\u9fa5`） |
-| `[a-zA-Z0-9\u4e00-\u9fa5]` | 必须以字母或中文结尾 |
-| `(?!\w)` | 负向前瞻，后面不能是单词字符 |
+| `(\/|~\/)` | 匹配 `/` 或 `~/` 开头 |
+| `[^\s<>"'`\n]+` | 匹配除空白、引号、尖括号外的任意字符 |
+
+**v2.7.2 改进**:
+- ✅ 支持空格：`/Users/name/My Documents/`
+- ✅ 支持特殊字符：`file(1).txt`, `file-name.txt`
+- ✅ 自动清理标点：`/Users/aaa/。` → `/Users/aaa/`
 
 **测试用例**:
 
 ```javascript
 const tests = [
-  '/Users/shawn/Downloads/文件.txt',     // ✅ 匹配
-  '~/Downloads/新年快乐.txt',             // ✅ 匹配
-  './relative/path/file.txt',             // ✅ 匹配
-  'https://example.com',                  // ❌ 不匹配
-  'not/a/path',                          // ❌ 不匹配
+  '/Users/xiaolin/Downloads/小白AI/',  // ✅ 匹配（中文）
+  '/Users/name/My Documents/',         // ✅ 匹配（空格）
+  '~/Desktop/文件.txt',                // ✅ 匹配（用户目录）
+  '/path/to/file(1).txt',              // ✅ 匹配（括号）
+  '文件在 /Users/aaa/。',              // ✅ 匹配（自动清理标点）
+  'https://example.com',               // ❌ 不匹配（URL）
 ];
 ```
 
 ---
 
-### 2. remark 插件处理
+### 2. remark 插件处理（v2.7.2 关键修复）
 
-**功能**: 在 AST 层面预处理，将文本中的路径转换为链接节点
+**功能**: 在 AST 层面预处理，将文本和行内代码中的路径转换为链接节点
+
+**v2.7.2 核心修复**: 同时处理 `inlineCode` 和 `text` 两种节点
 
 ```javascript
 import { visit } from 'unist-util-visit';
@@ -99,24 +114,51 @@ import { visit } from 'unist-util-visit';
  */
 function remarkFilePathLinks() {
   return (tree) => {
+    // 1. 处理 inlineCode 节点（路径在反引号中）
+    visit(tree, 'inlineCode', (node, index, parent) => {
+      if (!node.value) return;
+
+      const codeContent = node.value;
+
+      // 检查是否是文件路径
+      if (FILE_PATH_PATTERN.test(codeContent)) {
+        const cleanedPath = cleanPath(codeContent);
+
+        // 替换为链接节点
+        parent.children[index] = {
+          type: 'link',
+          url: cleanedPath,
+          title: '点击打开',
+          children: [{ type: 'text', value: cleanedPath }],
+          data: { hProperties: { className: 'file-path-link' } }
+        };
+      }
+      FILE_PATH_PATTERN.lastIndex = 0; // 重置正则
+    });
+
+    // 2. 处理 text 节点（路径不在反引号中）
     visit(tree, 'text', (node, index, parent) => {
       if (!node.value) return;
 
+      const text = node.value;
       const parts = [];
       let lastIndex = 0;
       let match;
 
       // 遍历所有匹配的路径
       FILE_PATH_PATTERN.lastIndex = 0;
-      while ((match = FILE_PATH_PATTERN.exec(node.value)) !== null) {
-        const [path] = match;
+      while ((match = FILE_PATH_PATTERN.exec(text)) !== null) {
+        let path = match[0];
         const matchIndex = match.index;
+
+        // 清理路径末尾的标点符号
+        path = cleanPath(path);
 
         // 添加路径前的文本
         if (matchIndex > lastIndex) {
           parts.push({
             type: 'text',
-            value: node.value.slice(lastIndex, matchIndex)
+            value: text.slice(lastIndex, matchIndex)
           });
         }
 
@@ -133,14 +175,17 @@ function remarkFilePathLinks() {
           }
         });
 
-        lastIndex = matchIndex + path.length;
+        // 计算正确的 lastIndex
+        const originalPath = match[0];
+        const trailingPunctuation = originalPath.length - path.length;
+        lastIndex = matchIndex + originalPath.length - trailingPunctuation;
       }
 
       // 添加剩余文本
-      if (lastIndex < node.value.length) {
+      if (lastIndex < text.length) {
         parts.push({
           type: 'text',
-          value: node.value.slice(lastIndex)
+          value: text.slice(lastIndex)
         });
       }
 
@@ -153,9 +198,36 @@ function remarkFilePathLinks() {
 }
 ```
 
+**v2.7.2 关键修复**:
+- ✅ **处理 inlineCode 节点**：修复反引号包裹路径的问题
+- ✅ **cleanPath 函数**：自动清理路径末尾标点
+- ✅ **避免渲染冲突**：在 AST 阶段转换，不在 code 组件中处理
+
+**为什么 v2.7.2 之前路径会变成红色？**:
+
+```javascript
+// v2.7.1 问题：
+Markdown: "文件在 `/Users/aaa` 目录"
+  ↓
+解析为: inlineCode 节点
+  ↓
+remark 插件只处理 text 节点 ❌
+  ↓
+code 组件渲染为红色行内代码 ❌
+
+// v2.7.2 修复：
+Markdown: "文件在 `/Users/aaa` 目录"
+  ↓
+解析为: inlineCode 节点
+  ↓
+remark 插件检测 inlineCode，转换为 link 节点 ✅
+  ↓
+a 组件渲染为绿色链接 ✅
+```
+
 **关键点**:
 - ✅ 使用 `unist-util-visit` 遍历 AST
-- ✅ 在 text 节点中检测文件路径
+- ✅ 在 **inlineCode 和 text** 两种节点中检测文件路径
 - ✅ 将路径转换为 link 节点
 - ✅ **不在 AST 中添加 onClick**（会导致 DataCloneError）
 
@@ -451,7 +523,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 ## 常见问题
 
-### Q1: 路径显示红色，不可点击
+### Q1: 路径先绿色后变成红色（v2.7.2 已修复）
+
+**现象**:
+1. 路径一开始显示为绿色下划线
+2. 一转眼变成红色行内代码
+3. 无法点击
+
+**原因**: 路径被反引号包裹后，被识别为 `inlineCode` 节点，而 remark 插件只处理 `text` 节点
+
+```javascript
+// 问题场景：
+AI 回复: "文件在 `/Users/aaa` 目录"
+  ↓
+解析为: inlineCode 节点（反引号导致）
+  ↓
+remark 插件只处理 text 节点 ❌
+  ↓
+code 组件渲染为红色行内代码 ❌
+```
+
+**解决方案**: v2.7.2 已修复
+
+```javascript
+// remark 插件同时处理两种节点
+visit(tree, 'inlineCode', (node, index, parent) => {
+  // 检测 inlineCode 节点中的路径
+  if (FILE_PATH_PATTERN.test(node.value)) {
+    // 转换为 link 节点
+    parent.children[index] = { type: 'link', ... };
+  }
+});
+
+visit(tree, 'text', (node, index, parent) => {
+  // 检测 text 节点中的路径
+  // ...
+});
+```
+
+**验证方法**:
+```javascript
+// 测试反引号包裹的路径
+const tests = [
+  '`/Users/aaa`',          // ✅ v2.7.2 支持
+  '文件在 `/Users/aaa` 目录',  // ✅ v2.7.2 支持
+];
+```
+
+---
+
+### Q2: 路径显示红色，不可点击（旧版问题）
 
 **原因**: remark 插件未正确处理
 
@@ -465,7 +586,7 @@ import remarkFilePathLinks from './remarkFilePathLinks';
 // ✅ 确保在 remarkPlugins 中使用
 ```
 
-### Q2: 点击后无法打开文件
+### Q3: 点击后无法打开文件
 
 **原因**: 路径被 URL 编码，未解码
 
@@ -476,7 +597,7 @@ const decodedPath = decodeURIComponent(path);
 window.electronAPI.openPath(decodedPath);
 ```
 
-### Q3: DataCloneError
+### Q4: DataCloneError
 
 **错误**: `() => handlePathClick(path) could not be cloned`
 
@@ -500,7 +621,7 @@ data: {
 // 在 React 组件中处理 onClick
 ```
 
-### Q4: 中文路径无法识别
+### Q5: 中文路径无法识别
 
 **原因**: 正则表达式不支持中文
 

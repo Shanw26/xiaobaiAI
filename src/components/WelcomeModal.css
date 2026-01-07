@@ -1,44 +1,47 @@
 .welcome-modal {
-  max-width: 600px;
+  max-width: 520px;
   width: 90%;
-  padding: 40px;
+  padding: 48px 40px;
 }
 
 .welcome-header {
-  margin-bottom: 30px;
+  margin-bottom: 48px;
 }
 
 .welcome-progress {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
 }
 
 .progress-dot {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: #e8e8e8;
   transition: all 0.3s ease;
 }
 
 .progress-dot.active {
-  background: #00cc66;
-  transform: scale(1.2);
+  background: #00c885;
+  width: 24px;
+  border-radius: 3px;
 }
 
 .welcome-content {
   text-align: center;
-  min-height: 300px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 20px;
 }
 
 .welcome-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
+  font-size: 42px;
+  margin-bottom: 16px;
   animation: bounce 1s ease;
 }
 
@@ -53,113 +56,133 @@
 }
 
 .welcome-title {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.3px;
 }
 
 .welcome-description {
   font-size: 15px;
   color: #666;
-  margin: 0 0 30px 0;
-  line-height: 1.6;
-}
-
-.welcome-features {
-  display: flex;
-  gap: 30px;
-  margin-top: 20px;
-}
-
-.feature-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.feature-icon {
-  font-size: 32px;
-}
-
-.feature-text {
-  font-size: 14px;
-  color: #666;
+  margin: 0 0 32px 0;
+  line-height: 1.7;
+  font-weight: 400;
 }
 
 .welcome-content .form-group {
   width: 100%;
-  max-width: 400px;
-  margin-bottom: 20px;
+  max-width: 380px;
+  margin-bottom: 18px;
   text-align: left;
 }
 
 .welcome-content .form-label {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: #555;
   margin-bottom: 8px;
 }
 
 .welcome-content .form-input,
 .welcome-content .form-textarea {
   width: 100%;
-  padding: 12px 16px;
-  border: 1.5px solid #e0e0e0;
+  padding: 11px 14px;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
   font-size: 14px;
   transition: all 0.2s ease;
   font-family: inherit;
+  background: #fafafa;
 }
 
 .welcome-content .form-input:focus,
 .welcome-content .form-textarea:focus {
   outline: none;
-  border-color: #00cc66;
-  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.1);
+  border-color: #00c885;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 200, 133, 0.08);
 }
 
 .welcome-content .form-textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 90px;
 }
 
 .required {
-  color: #ff4444;
+  color: #ff6b6b;
 }
 
 .welcome-summary {
   background: #f8f9fa;
-  padding: 20px;
+  padding: 24px 28px;
   border-radius: 12px;
-  margin: 20px 0;
-  text-align: left;
+  margin: 24px 0 0 0;
+  text-align: center;
+}
+
+.summary-greeting {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 6px 0;
 }
 
 .welcome-summary p {
-  margin: 8px 0;
-  color: #333;
-}
-
-.welcome-tip {
-  font-size: 13px;
-  color: #999;
-  margin-top: 20px;
+  margin: 4px 0;
+  color: #666;
+  font-size: 14px;
 }
 
 .animate-in {
-  animation: fadeInUp 0.4s ease;
+  animation: fadeInUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 按钮样式优化 */
+.welcome-modal .modal-actions {
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.welcome-modal .btn-modal {
+  height: 42px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.welcome-modal .btn-modal.primary {
+  background: #00c885;
+  border: none;
+}
+
+.welcome-modal .btn-modal.primary:hover {
+  background: #00b377;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 200, 133, 0.25);
+}
+
+.welcome-modal .btn-modal.secondary {
+  background: white;
+  border-color: #e5e5e5;
+  color: #666;
+}
+
+.welcome-modal .btn-modal.secondary:hover {
+  background: #fafafa;
+  border-color: #ddd;
+  color: #333;
 }

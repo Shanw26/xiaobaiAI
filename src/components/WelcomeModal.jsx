@@ -14,24 +14,20 @@ function WelcomeModal({ onComplete }) {
 
   const steps = [
     {
-      title: '欢迎 👋',
-      icon: '🎉',
-      description: '欢迎使用小白AI！让我了解一下你的基本信息，以便更好地为你服务。',
+      title: '嗨，你好 👋',
+      description: '先告诉我一点关于你的事，这样我能更懂你',
     },
     {
-      title: '基本信息',
-      icon: '👤',
-      description: '请告诉我你的姓名、职业和所在地',
+      title: '你的信息',
+      description: '',
     },
     {
-      title: '更多关于你',
-      icon: '💬',
-      description: '还有什么想让我知道的吗？（可选）',
+      title: '还想说的',
+      description: '（可选）',
     },
     {
-      title: '完成 🎉',
-      icon: '✨',
-      description: '准备就绪！让我们一起开始吧。',
+      title: '准备好了',
+      description: '让我们开始吧',
     },
   ];
 
@@ -77,23 +73,8 @@ function WelcomeModal({ onComplete }) {
       case 0:
         return (
           <div className="welcome-content animate-in">
-            <div className="welcome-icon">{steps[0].icon}</div>
             <h2 className="welcome-title">{steps[0].title}</h2>
             <p className="welcome-description">{steps[0].description}</p>
-            <div className="welcome-features">
-              <div className="feature-item">
-                <span className="feature-icon">💬</span>
-                <span className="feature-text">智能对话</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">📝</span>
-                <span className="feature-text">文件操作</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">🧠</span>
-                <span className="feature-text">记忆能力</span>
-              </div>
-            </div>
           </div>
         );
 
@@ -169,21 +150,15 @@ function WelcomeModal({ onComplete }) {
       case 3:
         return (
           <div className="welcome-content animate-in">
-            <div className="welcome-icon">{steps[3].icon}</div>
             <h2 className="welcome-title">{steps[3].title}</h2>
             <p className="welcome-description">{steps[3].description}</p>
             {formData.name && (
               <div className="welcome-summary">
-                <p>
-                  <strong>你好，{formData.name}！</strong>
-                </p>
-                {formData.occupation && <p>职业：{formData.occupation}</p>}
-                {formData.location && <p>所在地：{formData.location}</p>}
+                <p className="summary-greeting">嗨，{formData.name}</p>
+                {formData.occupation && <p>{formData.occupation}</p>}
+                {formData.location && <p>{formData.location}</p>}
               </div>
             )}
-            <p className="welcome-tip">
-              💡 你可以随时在「设置」中修改个人信息
-            </p>
           </div>
         );
 

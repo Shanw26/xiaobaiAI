@@ -98,11 +98,11 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         setUserInfo(result.content);
         setIsEditingUserInfo(true);
       } else {
-        alert('❌ 获取用户信息失败: ' + result.error);
+        alert('❌ 获取失败: ' + result.error);
       }
     } catch (error) {
-      console.error('获取用户信息异常:', error);
-      alert('❌ 获取用户信息失败: ' + error.message);
+      console.error('获取异常:', error);
+      alert('❌ 获取失败: ' + error.message);
     } finally {
       setIsLoadingUserInfo(false);
     }
@@ -117,11 +117,11 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         setAiMemory(result.content);
         setIsEditingAiMemory(true);
       } else {
-        alert('❌ 获取AI记忆失败: ' + result.error);
+        alert('❌ 获取失败: ' + result.error);
       }
     } catch (error) {
-      console.error('获取AI记忆异常:', error);
-      alert('❌ 获取AI记忆失败: ' + error.message);
+      console.error('获取异常:', error);
+      alert('❌ 获取失败: ' + error.message);
     } finally {
       setIsLoadingAiMemory(false);
     }
@@ -145,176 +145,38 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   const renderBasicSettings = () => (
     <div className="settings-content animate-in">
       <div className="form-group">
-        <label className="form-label">模型厂商</label>
-        <select
-          className="form-input"
-          value={localConfig.modelProvider}
-          onChange={(e) =>
-            setLocalConfig({
-              ...localConfig,
-              modelProvider: e.target.value,
-              model: MODEL_PROVIDERS[e.target.value].models[0].id,
-            })
-          }
-        >
-          {Object.entries(MODEL_PROVIDERS).map(([key, provider]) => (
-            <option key={key} value={key}>
-              {provider.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">API Key</label>
+        <label className="form-label">
+          API 配置
+          <span className="form-hint">配置你的 Claude API Key</span>
+        </label>
         <input
           type="password"
           className="form-input"
-          placeholder="输入你的 API Key"
-          value={localConfig.apiKey}
+          value={localConfig.apiKey || ''}
           onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
+          placeholder="sk-ant-..."
         />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">模型</label>
-        <select
-          className="form-input"
-          value={localConfig.model}
-          onChange={(e) => setLocalConfig({ ...localConfig, model: e.target.value })}
-        >
-          {currentModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
-
-  // 渲染高级功能内容
-  const renderAdvancedSettings = () => (
-    <div className="settings-content animate-in">
-      <div className="form-group">
-        <label className="form-label">
-          用户信息
-          <span className="form-hint">AI 记住的个人信息</span>
-        </label>
-        {!isEditingUserInfo ? (
-          <>
-            <div className="form-actions">
-              <button
-                className="btn-modal secondary"
-                onClick={handleEditUserInfo}
-                disabled={isLoadingUserInfo}
-              >
-                {isLoadingUserInfo ? '加载中...' : '编辑'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <textarea
-              className="form-textarea"
-              value={userInfo}
-              onChange={(e) => setUserInfo(e.target.value)}
-              rows={12}
-              placeholder="在此输入用户信息..."
-            />
-            <div className="form-actions">
-              <button
-                className="btn-modal secondary"
-                onClick={() => setIsEditingUserInfo(false)}
-              >
-                取消
-              </button>
-              <button
-                className="btn-modal primary"
-                onClick={async () => {
-                  try {
-                    const { saveUserInfo } = await import('../lib/cloudService');
-                    const result = await saveUserInfo(userInfo);
-                    if (result.success) {
-                      setIsEditingUserInfo(false);
-                      alert('✅ 用户信息已保存到云端');
-                    } else {
-                      alert('❌ 保存失败: ' + result.error);
-                    }
-                  } catch (error) {
-                    console.error('保存用户信息异常:', error);
-                    alert('❌ 保存失败: ' + error.message);
-                  }
-                }}
-              >
-                保存
-              </button>
-            </div>
-          </>
-        )}
         <div className="form-help">
-          💡 当你告诉 AI 你的个人信息时，它会记录在这里，方便更好地了解你
+          💡 你的 API Key 将安全保存在本地，不会上传到我们的服务器
         </div>
       </div>
 
       <div className="form-group">
         <label className="form-label">
-          AI记忆
-          <span className="form-hint">自动记录对话历史</span>
+          选择模型
+          <span className="form-hint">Claude 模型版本</span>
         </label>
-        {!isEditingAiMemory ? (
-          <>
-            <div className="form-actions">
-              <button
-                className="btn-modal secondary"
-                onClick={handleEditAiMemory}
-                disabled={isLoadingAiMemory}
-              >
-                {isLoadingAiMemory ? '加载中...' : '编辑'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <textarea
-              className="form-textarea"
-              value={aiMemory}
-              onChange={(e) => setAiMemory(e.target.value)}
-              rows={12}
-              placeholder="在此输入AI记忆..."
-            />
-            <div className="form-actions">
-              <button
-                className="btn-modal secondary"
-                onClick={() => setIsEditingAiMemory(false)}
-              >
-                取消
-              </button>
-              <button
-                className="btn-modal primary"
-                onClick={async () => {
-                  try {
-                    const { saveAiMemory } = await import('../lib/cloudService');
-                    const result = await saveAiMemory(aiMemory);
-                    if (result.success) {
-                      setIsEditingAiMemory(false);
-                      alert('✅ AI记忆已保存到云端');
-                    } else {
-                      alert('❌ 保存失败: ' + result.error);
-                    }
-                  } catch (error) {
-                    console.error('保存AI记忆异常:', error);
-                    alert('❌ 保存失败: ' + error.message);
-                  }
-                }}
-              >
-                保存
-              </button>
-            </div>
-          </>
-        )}
+        <select
+          className="form-input"
+          value={localConfig.model || 'claude-3-5-sonnet-20241022'}
+          onChange={(e) => setLocalConfig({ ...localConfig, model: e.target.value })}
+        >
+          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (推荐)</option>
+          <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (快速)</option>
+          <option value="claude-3-opus-20240229">Claude 3 Opus (最强)</option>
+        </select>
         <div className="form-help">
-          💡 AI 可以根据历史记忆信息提供更个性化的回复
+          💡 不同模型的响应速度和智能程度不同，Sonnet 是平衡之选
         </div>
       </div>
 
@@ -355,7 +217,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           </button>
         </div>
         <div className="form-help">
-          💡 小白AI的所有数据（配置、对话历史、用户信息等）都保存在这个目录中
+          💡 小白AI的所有数据（配置、对话历史等）都保存在这个目录中
         </div>
       </div>
 
@@ -395,6 +257,125 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
     </div>
   );
 
+  // 渲染高级功能内容
+  const renderAdvancedSettings = () => (
+    <div className="settings-content animate-in">
+      <div className="form-group">
+        <label className="form-label">
+          <span className="form-title">用户信息</span>
+          <span className="form-hint">AI 记住的个人信息</span>
+          {!isEditingUserInfo && (
+            <button
+              className="btn-edit"
+              onClick={handleEditUserInfo}
+              disabled={isLoadingUserInfo}
+            >
+              {isLoadingUserInfo ? '加载中...' : '编辑'}
+            </button>
+          )}
+        </label>
+        {isEditingUserInfo && (
+          <>
+            <textarea
+              className="form-textarea"
+              value={userInfo}
+              onChange={(e) => setUserInfo(e.target.value)}
+              placeholder="在此输入用户信息..."
+            />
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={() => setIsEditingUserInfo(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-modal primary"
+                onClick={async () => {
+                  try {
+                    const { saveUserInfo } = await import('../lib/cloudService');
+                    const result = await saveUserInfo(userInfo);
+                    if (result.success) {
+                      setIsEditingUserInfo(false);
+                      alert('✅ 已保存到云端');
+                    } else {
+                      alert('❌ 保存失败: ' + result.error);
+                    }
+                  } catch (error) {
+                    console.error('保存异常:', error);
+                    alert('❌ 保存失败: ' + error.message);
+                  }
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </>
+        )}
+        <div className="form-help">
+          当你告诉 AI 你的个人信息时，它会记录在这里
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          <span className="form-title">AI记忆</span>
+          <span className="form-hint">自动记录对话历史</span>
+          {!isEditingAiMemory && (
+            <button
+              className="btn-edit"
+              onClick={handleEditAiMemory}
+              disabled={isLoadingAiMemory}
+            >
+              {isLoadingAiMemory ? '加载中...' : '编辑'}
+            </button>
+          )}
+        </label>
+        {isEditingAiMemory && (
+          <>
+            <textarea
+              className="form-textarea"
+              value={aiMemory}
+              onChange={(e) => setAiMemory(e.target.value)}
+              placeholder="在此输入AI记忆..."
+            />
+            <div className="form-actions">
+              <button
+                className="btn-modal secondary"
+                onClick={() => setIsEditingAiMemory(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-modal primary"
+                onClick={async () => {
+                  try {
+                    const { saveAiMemory } = await import('../lib/cloudService');
+                    const result = await saveAiMemory(aiMemory);
+                    if (result.success) {
+                      setIsEditingAiMemory(false);
+                      alert('✅ 已保存到云端');
+                    } else {
+                      alert('❌ 保存失败: ' + result.error);
+                    }
+                  } catch (error) {
+                    console.error('保存异常:', error);
+                    alert('❌ 保存失败: ' + error.message);
+                  }
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </>
+        )}
+        <div className="form-help">
+          AI 可以根据历史记忆信息提供更个性化的回复
+        </div>
+      </div>
+    </div>
+  );
+
   // 渲染关于内容
   const renderAbout = () => (
     <div className="settings-content animate-in">
@@ -404,7 +385,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.6.9</span>
+          <span className="about-version">v2.7.3</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>

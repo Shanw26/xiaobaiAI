@@ -830,53 +830,80 @@ select.form-input {
   font-weight: 500;
 }
 
-/* 记忆内容样式 */
-.memory-content {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-  max-height: 300px;
-  overflow-y: auto;
+/* 用户信息和AI记忆 - 极简版本 */
+.form-group .form-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.memory-content pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+.form-group .form-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* 编辑按钮 - 极简 */
+.btn-edit {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
   font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
+.btn-edit:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(0, 200, 130, 0.05);
+}
+
+.btn-edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 文本区域 - 极简 */
 .form-textarea {
   width: 100%;
-  min-height: 240px;
+  min-height: 180px;
+  max-height: 400px;
   padding: 12px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 8px;
-  color: var(--text-primary);
+  color: var(--text);
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+
+.form-textarea:hover {
+  border-color: rgba(0, 0, 0, 0.25);
 }
 
 .form-textarea:focus {
   outline: none;
-  border-color: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 200, 130, 0.1);
 }
 
+/* 按钮组 */
 .form-actions {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .form-actions .btn-modal {
   flex: 1;
+  height: 38px;
+  font-size: 14px;
 }
