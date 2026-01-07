@@ -203,6 +203,14 @@
   margin: 10px 0 4px 0;
 }
 
+.md-h5,
+.md-h6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 8px 0 4px 0;
+}
+
 .md-p {
   margin: 8px 0;
   line-height: 1.7;
@@ -229,7 +237,7 @@
 
 .md-inline-code {
   background: #f3f4f6;
-  color: #dc2626;
+  color: #16a34a;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
@@ -276,6 +284,25 @@
   background: #f9fafb;
   color: #6b7280;
   font-style: italic;
+}
+
+.md-em {
+  font-style: italic;
+  color: #4b5563;
+}
+
+.md-hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
+}
+
+.md-div {
+  margin: 8px 0;
+}
+
+.md-span {
+  color: inherit;
 }
 
 .no-notes {

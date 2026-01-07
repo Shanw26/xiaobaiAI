@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import './UpdateAvailableModal.css';
 
 function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onClose }) {
@@ -72,12 +73,15 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
                 {releaseNotes ? (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
                     components={{
                       // 自定义标签样式
                       h1: ({node, ...props}) => <h1 className="md-h1" {...props} />,
                       h2: ({node, ...props}) => <h2 className="md-h2" {...props} />,
                       h3: ({node, ...props}) => <h3 className="md-h3" {...props} />,
                       h4: ({node, ...props}) => <h4 className="md-h4" {...props} />,
+                      h5: ({node, ...props}) => <h5 className="md-h5" {...props} />,
+                      h6: ({node, ...props}) => <h6 className="md-h6" {...props} />,
                       p: ({node, ...props}) => <p className="md-p" {...props} />,
                       ul: ({node, ...props}) => <ul className="md-ul" {...props} />,
                       ol: ({node, ...props}) => <ol className="md-ol" {...props} />,
@@ -93,7 +97,14 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
                         <a className="md-link" target="_blank" rel="noopener noreferrer" {...props} />
                       ),
                       strong: ({node, ...props}) => <strong className="md-strong" {...props} />,
+                      b: ({node, ...props}) => <strong className="md-strong" {...props} />,
+                      em: ({node, ...props}) => <em className="md-em" {...props} />,
+                      i: ({node, ...props}) => <em className="md-em" {...props} />,
                       blockquote: ({node, ...props}) => <blockquote className="md-blockquote" {...props} />,
+                      hr: ({node, ...props}) => <hr className="md-hr" {...props} />,
+                      // HTML 标签支持
+                      div: ({node, ...props}) => <div className="md-div" {...props} />,
+                      span: ({node, ...props}) => <span className="md-span" {...props} />,
                     }}
                   >
                     {releaseNotes}
