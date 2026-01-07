@@ -11,6 +11,7 @@ import GuestLimitModal from './components/GuestLimitModal';
 import ToastModal from './components/ToastModal';
 import AdminPanel from './components/AdminPanel';
 import UpdateAvailableModal from './components/UpdateAvailableModal';
+import UpdateDownloadedModal from './components/UpdateDownloadedModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import {
@@ -45,6 +46,7 @@ function AppContent() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showForceUpdate, setShowForceUpdate] = useState(false);
+  const [updateDownloaded, setUpdateDownloaded] = useState(null); // { version }
 
   // 调试：监听 currentUser 变化
   useEffect(() => {
@@ -102,6 +104,14 @@ function AppContent() {
         // 普通更新，显示弹窗
         setUpdateInfo(data);
       }
+    });
+
+    // 监听下载完成事件
+    window.electronAPI.onUpdateDownloaded((data) => {
+      console.log('[更新] 下载完成:', data);
+      setUpdateDownloaded(data);
+      // 清除更新信息，避免重复显示
+      setUpdateInfo(null);
     });
 
     return () => {
@@ -711,6 +721,17 @@ function AppContent() {
         <ForceUpdateModal
           version={updateInfo.version}
           releaseNotes={updateInfo.releaseNotes}
+        />
+      )}
+
+      {updateDownloaded && (
+        <UpdateDownloadedModal
+          version={updateDownloaded.version}
+          onRestart={async () => {
+            await window.electronAPI.installUpdate();
+            setUpdateDownloaded(null);
+          }}
+          onLater={() => setUpdateDownloaded(null)}
         />
       )}
     </div>

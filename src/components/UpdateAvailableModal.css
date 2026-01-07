@@ -150,6 +150,12 @@
   font-weight: 500;
 }
 
+.preparing-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
 .update-notes {
   margin-top: 16px;
 }

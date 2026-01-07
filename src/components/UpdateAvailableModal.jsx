@@ -5,23 +5,16 @@ import rehypeRaw from 'rehype-raw';
 import './UpdateAvailableModal.css';
 
 function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onClose }) {
-  const [progress, setProgress] = useState(null);
   const [isPreparing, setIsPreparing] = useState(false);
-
-  useEffect(() => {
-    window.electronAPI.onUpdateProgress((data) => {
-      setProgress(data);
-      setIsPreparing(false);
-    });
-
-    return () => {
-      window.electronAPI.removeUpdateListeners();
-    };
-  }, []);
 
   const handleDownload = async () => {
     setIsPreparing(true);
-    await onDownload();
+    // 开始后台下载，不等待完成
+    onDownload();
+    // 立即关闭弹窗，让用户继续使用
+    setTimeout(() => {
+      onClose();
+    }, 500);
   };
 
   return (
@@ -35,38 +28,23 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
 
         <div className="update-body">
           <div
-            className={`update-version ${!progress && !isPreparing ? 'clickable' : ''}`}
-            onClick={!progress && !isPreparing ? handleDownload : undefined}
-            title={!progress && !isPreparing ? '点击立即更新' : ''}
+            className={`update-version ${!isPreparing ? 'clickable' : ''}`}
+            onClick={!isPreparing ? handleDownload : undefined}
+            title={!isPreparing ? '点击立即更新' : ''}
           >
             v{version}
-            {!progress && !isPreparing && <span className="click-hint">👆 点击版本号或下方按钮更新</span>}
+            {!isPreparing && <span className="click-hint">👆 点击版本号或下方按钮更新</span>}
           </div>
 
-          {isPreparing && !progress && (
+          {isPreparing && (
             <div className="update-preparing">
               <div className="preparing-spinner"></div>
-              <div className="preparing-text">正在准备下载...</div>
+              <div className="preparing-text">正在后台下载更新...</div>
+              <div className="preparing-hint">您可以继续使用应用</div>
             </div>
           )}
 
-          {progress ? (
-            <div className="update-progress">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${progress.percent}%` }} />
-              </div>
-              <div className="progress-info">
-                {progress.percent < 100 ? (
-                  <>
-                    下载中: {progress.percent}% ({progress.transferred}MB/{progress.total}MB)
-                    <span className="progress-speed"> - {progress.speed}KB/s</span>
-                  </>
-                ) : (
-                  <>下载完成！重启后即可使用新版本</>
-                )}
-              </div>
-            </div>
-          ) : (
+          {!isPreparing && (
             <div className="update-notes">
               <h4>更新内容:</h4>
               <div className="notes-content">
@@ -120,7 +98,7 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
         </div>
 
         <div className="update-actions">
-          {!progress && !isPreparing && (
+          {!isPreparing && (
             <>
               <button className="btn-update secondary" onClick={onLater}>
                 稍后提醒
@@ -130,17 +108,9 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
               </button>
             </>
           )}
-          {isPreparing && !progress && (
+          {isPreparing && (
             <button className="btn-update primary" disabled>
-              准备中...
-            </button>
-          )}
-          {progress && progress.percent === 100 && (
-            <button className="btn-update primary" onClick={() => {
-              window.electronAPI.installUpdate();
-              onClose();
-            }}>
-              立即重启并更新
+              后台下载中...
             </button>
           )}
         </div>
