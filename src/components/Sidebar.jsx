@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import './Sidebar.css';
 import logoSvg from '/logo.svg';
+import ConfirmModal from './ConfirmModal';
 
 // 简单的日期分组函数
 function getDateGroup(createdAt) {
@@ -22,6 +24,8 @@ function Sidebar({
   onOpenSettings,
   currentUser,
 }) {
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   const groupedConversations = conversations.reduce((groups, conv) => {
     const group = getDateGroup(conv.createdAt);
     if (!groups[group]) groups[group] = [];
@@ -45,7 +49,7 @@ function Sidebar({
           </div>
           <div className="logo-info">
             <span className="logo-text">小白AI</span>
-            <span className="logo-version">v2.7.5</span>
+            <span className="logo-version">v2.7.8</span>
           </div>
         </div>
         <button className="btn-new-chat" onClick={onNewChat}>
@@ -84,9 +88,7 @@ function Sidebar({
                     title="删除"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm('确定删除这个对话吗？')) {
-                        onDeleteChat(conv.id);
-                      }
+                      setDeleteConfirm(conv.id);
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -117,6 +119,17 @@ function Sidebar({
           设置
         </button>
       </div>
+
+      {deleteConfirm && (
+        <ConfirmModal
+          message="确定删除这个对话吗？"
+          onConfirm={() => {
+            onDeleteChat(deleteConfirm);
+            setDeleteConfirm(null);
+          }}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
     </div>
   );
 }

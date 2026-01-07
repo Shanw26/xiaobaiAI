@@ -1,8 +1,11 @@
 /* 游客限制弹窗样式 */
+@import './ModalBase.css';
+
+/* 使用基础样式的 .modal-overlay */
+
 .guest-limit-modal {
-  max-width: 420px;
+  /* 继承 .modal.small 样式 */
   text-align: center;
-  padding: 40px 32px;
 }
 
 .guest-limit-icon {
@@ -14,19 +17,19 @@
   margin: 0 0 12px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .description {
   margin: 0 0 24px 0;
   font-size: 15px;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
 .benefits {
-  background: #f8fafc;
-  border-radius: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
   padding: 20px;
   margin-bottom: 24px;
   text-align: left;
@@ -36,7 +39,7 @@
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .benefits ul {
@@ -48,7 +51,7 @@
 .benefits li {
   margin-bottom: 8px;
   font-size: 14px;
-  color: #555;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 

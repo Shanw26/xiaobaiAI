@@ -7,17 +7,27 @@
     </linearGradient>
   </defs>
 
-  <!-- 纯色绿色背景，完全填满 -->
-  <rect x="0" y="0" width="1024" height="1024" fill="url(#bgGradient)"/>
+  <!-- 圆角矩形背景（填满整个区域，类似微信） -->
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bgGradient)"/>
 
-  <!-- 白色机器人脸 -->
-  <rect x="248" y="248" width="528" height="528" rx="132" fill="#ffffff"/>
+  <!-- 机器人脸（白色，居中，填满大部分空间） -->
+  <rect x="120" y="180" width="784" height="664" rx="100" ry="100" fill="#ffffff"/>
 
-  <!-- 绿色眼睛 -->
-  <circle cx="420" cy="512" r="64" fill="#22c55e"/>
-  <circle cx="604" cy="512" r="64" fill="#22c55e"/>
+  <!-- 天线 -->
+  <rect x="492" y="80" width="40" height="100" rx="20" ry="20" fill="#ffffff"/>
+  <circle cx="512" cy="60" r="35" fill="#ffffff"/>
+
+  <!-- 左眼（绿色） -->
+  <circle cx="340" cy="512" r="85" fill="#22c55e"/>
+
+  <!-- 右眼（绿色） -->
+  <circle cx="684" cy="512" r="85" fill="#22c55e"/>
 
   <!-- 眼睛高光 -->
-  <ellipse cx="440" cy="492" rx="24" ry="24" fill="#86efac" opacity="0.6"/>
-  <ellipse cx="624" cy="492" rx="24" ry="24" fill="#86efac" opacity="0.6"/>
+  <circle cx="365" cy="487" r="30" fill="#ffffff" opacity="0.6"/>
+  <circle cx="709" cy="487" r="30" fill="#ffffff" opacity="0.6"/>
+
+  <!-- 瞳孔 -->
+  <circle cx="340" cy="512" r="35" fill="#16a34a"/>
+  <circle cx="684" cy="512" r="35" fill="#16a34a"/>
 </svg>

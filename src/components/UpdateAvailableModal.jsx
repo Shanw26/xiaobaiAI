@@ -18,7 +18,6 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
     <div className="modal-overlay update-modal-overlay">
       <div className="modal update-modal">
         <div className="update-header">
-          <div className="update-icon">📦</div>
           <h2>发现新版本</h2>
           <button className="btn-close" onClick={onClose}>×</button>
         </div>

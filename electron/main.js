@@ -25,7 +25,7 @@ function safeError(...args) {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.7.5';
+const APP_VERSION = '2.7.8';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;

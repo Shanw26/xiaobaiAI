@@ -1,9 +1,9 @@
-import './ToastModal.css';
+import './AlertModal.css';
 
-function ToastModal({ message, onClose, type = 'info' }) {
+function AlertModal({ message, type = 'info', onClose }) {
   return (
-    <div className="modal-overlay priority-high" onClick={onClose}>
-      <div className="modal xsmall" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal xsmall alert-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-icon">
           {type === 'error' && '⚠️'}
           {type === 'success' && '✅'}
@@ -16,7 +16,7 @@ function ToastModal({ message, onClose, type = 'info' }) {
 
         <div className="modal-actions">
           <button className="btn-modal primary" onClick={onClose}>
-            我知道了
+            好的
           </button>
         </div>
       </div>
@@ -24,4 +24,4 @@ function ToastModal({ message, onClose, type = 'info' }) {
   );
 }
 
-export default ToastModal;
+export default AlertModal;

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import './WelcomeModal.css';
+import ConfirmModal from './ConfirmModal';
+import { showAlert } from '../lib/alertService';
 
 function WelcomeModal({ onComplete }) {
   const [formData, setFormData] = useState({
@@ -11,6 +13,7 @@ function WelcomeModal({ onComplete }) {
   });
 
   const [currentStep, setCurrentStep] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const steps = [
     {
@@ -33,7 +36,7 @@ function WelcomeModal({ onComplete }) {
 
   const handleNext = () => {
     if (currentStep === 1 && !formData.name) {
-      alert('请至少填写你的姓名');
+      showAlert('请至少填写你的姓名', 'info');
       return;
     }
     if (currentStep < steps.length - 1) {
@@ -55,17 +58,24 @@ function WelcomeModal({ onComplete }) {
       if (result.success) {
         onComplete();
       } else {
-        alert('保存失败: ' + result.error);
+        showAlert('保存失败: ' + result.error, 'error');
       }
     } catch (error) {
-      alert('保存失败: ' + error.message);
+      showAlert('保存失败: ' + error.message, 'error');
     }
   };
 
   const handleSkip = () => {
-    if (confirm('跳过引导？你可以随时在设置中补充信息。')) {
-      onComplete();
-    }
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSkip = () => {
+    setShowConfirm(false);
+    onComplete();
+  };
+
+  const handleCancelSkip = () => {
+    setShowConfirm(false);
   };
 
   const renderStep = () => {
@@ -199,6 +209,14 @@ function WelcomeModal({ onComplete }) {
           </button>
         </div>
       </div>
+
+      {showConfirm && (
+        <ConfirmModal
+          message="跳过引导？你可以随时在设置中补充信息。"
+          onConfirm={handleConfirmSkip}
+          onCancel={handleCancelSkip}
+        />
+      )}
     </div>
   );
 }

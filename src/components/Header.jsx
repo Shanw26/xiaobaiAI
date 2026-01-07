@@ -1,22 +1,23 @@
 import './Header.css';
+import { showAlert } from '../lib/alertService';
 
 function Header({ title, messages }) {
   const handleExport = async () => {
     if (!messages || messages.length === 0) {
-      alert('当前对话没有内容');
+      showAlert('当前对话没有内容', 'info');
       return;
     }
 
     try {
       const result = await window.electronAPI.exportMarkdown(messages, title);
       if (result.success) {
-        alert('导出成功: ' + result.filePath);
+        showAlert('导出成功: ' + result.filePath, 'success');
       } else if (!result.canceled) {
-        alert('导出失败: ' + result.error);
+        showAlert('导出失败: ' + result.error, 'error');
       }
     } catch (error) {
       console.error('导出失败:', error);
-      alert('导出失败: ' + error.message);
+      showAlert('导出失败: ' + error.message, 'error');
     }
   };
 

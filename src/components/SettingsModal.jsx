@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import './SettingsModal.css';
 import logoSvg from '/logo.svg';
 import ToastModal from './ToastModal';
+import AlertModal from './AlertModal';
+import MarkdownRenderer from './MarkdownRenderer';
+import { showAlert } from '../lib/alertService';
 
 // 格式化数字显示
 function formatNumber(num) {
@@ -69,6 +72,29 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
       }
     });
 
+    // 🔄 自动加载云端用户信息
+    const loadCloudData = async () => {
+      try {
+        const { getUserInfo, getAiMemory } = await import('../lib/cloudService');
+
+        // 加载用户信息
+        const userInfoResult = await getUserInfo();
+        if (userInfoResult.success && userInfoResult.content) {
+          setUserInfo(userInfoResult.content);
+        }
+
+        // 加载 AI 记忆
+        const aiMemoryResult = await getAiMemory();
+        if (aiMemoryResult.success && aiMemoryResult.content) {
+          setAiMemory(aiMemoryResult.content);
+        }
+      } catch (error) {
+        console.error('加载云端数据失败:', error);
+      }
+    };
+
+    loadCloudData();
+
     // 监听更新可用事件
     window.electronAPI.onUpdateAvailable((data) => {
       if (!data.forceUpdate) {
@@ -84,7 +110,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
 
   const handleSave = async () => {
     if (!localConfig.apiKey) {
-      alert('请输入 API Key');
+      showAlert('请输入 API Key', 'error');
       return;
     }
 
@@ -100,11 +126,11 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         setUserInfo(result.content);
         setIsEditingUserInfo(true);
       } else {
-        alert('❌ 获取失败: ' + result.error);
+        showAlert('❌ 获取失败: ' + result.error, 'error');
       }
     } catch (error) {
       console.error('获取异常:', error);
-      alert('❌ 获取失败: ' + error.message);
+      showAlert('❌ 获取失败: ' + error.message, 'error');
     } finally {
       setIsLoadingUserInfo(false);
     }
@@ -119,11 +145,11 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         setAiMemory(result.content);
         setIsEditingAiMemory(true);
       } else {
-        alert('❌ 获取失败: ' + result.error);
+        showAlert('❌ 获取失败: ' + result.error, 'error');
       }
     } catch (error) {
       console.error('获取异常:', error);
-      alert('❌ 获取失败: ' + error.message);
+      showAlert('❌ 获取失败: ' + error.message, 'error');
     } finally {
       setIsLoadingAiMemory(false);
     }
@@ -210,16 +236,16 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
             className="btn-select"
             onClick={async () => {
               if (!userDataPathDisplay) {
-                alert('数据目录路径未知');
+                showAlert('数据目录路径未知', 'error');
                 return;
               }
               try {
                 const result = await window.electronAPI.openPath(userDataPathDisplay);
                 if (!result.success) {
-                  alert('打开失败: ' + result.error);
+                  showAlert('打开失败: ' + result.error, 'error');
                 }
               } catch (error) {
-                alert('打开失败: ' + error.message);
+                showAlert('打开失败: ' + error.message, 'error');
               }
             }}
           >
@@ -277,16 +303,16 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         <label className="form-label">
           <span className="form-title">用户信息</span>
           <span className="form-hint">AI 记住的个人信息</span>
-          {!isEditingUserInfo && (
-            <button
-              className="btn-edit"
-              onClick={handleEditUserInfo}
-              disabled={isLoadingUserInfo}
-            >
-              {isLoadingUserInfo ? '加载中...' : '编辑'}
-            </button>
-          )}
+          <button
+            className="btn-edit"
+            onClick={isEditingUserInfo ? () => setIsEditingUserInfo(false) : handleEditUserInfo}
+            disabled={isLoadingUserInfo}
+          >
+            {isEditingUserInfo ? '预览' : (isLoadingUserInfo ? '加载中...' : '编辑')}
+          </button>
         </label>
+
+        {/* 编辑模式 */}
         {isEditingUserInfo && (
           <>
             <textarea
@@ -294,6 +320,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
               value={userInfo}
               onChange={(e) => setUserInfo(e.target.value)}
               placeholder="在此输入用户信息..."
+              style={{ minHeight: '150px' }}
             />
             <div className="form-actions">
               <button
@@ -310,13 +337,13 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
                     const result = await saveUserInfo(userInfo);
                     if (result.success) {
                       setIsEditingUserInfo(false);
-                      alert('✅ 已保存到云端');
+                      showAlert('✅ 已保存到云端', 'success');
                     } else {
-                      alert('❌ 保存失败: ' + result.error);
+                      showAlert('❌ 保存失败: ' + result.error, 'error');
                     }
                   } catch (error) {
                     console.error('保存异常:', error);
-                    alert('❌ 保存失败: ' + error.message);
+                    showAlert('❌ 保存失败: ' + error.message, 'error');
                   }
                 }}
               >
@@ -325,6 +352,18 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
             </div>
           </>
         )}
+
+        {/* 预览模式 */}
+        {!isEditingUserInfo && (
+          <div className="markdown-preview">
+            {userInfo ? (
+              <MarkdownRenderer content={userInfo} />
+            ) : (
+              <div className="empty-state">暂无用户信息</div>
+            )}
+          </div>
+        )}
+
         <div className="form-help">
           当你告诉 AI 你的个人信息时，它会记录在这里
         </div>
@@ -334,16 +373,16 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         <label className="form-label">
           <span className="form-title">AI记忆</span>
           <span className="form-hint">自动记录对话历史</span>
-          {!isEditingAiMemory && (
-            <button
-              className="btn-edit"
-              onClick={handleEditAiMemory}
-              disabled={isLoadingAiMemory}
-            >
-              {isLoadingAiMemory ? '加载中...' : '编辑'}
-            </button>
-          )}
+          <button
+            className="btn-edit"
+            onClick={isEditingAiMemory ? () => setIsEditingAiMemory(false) : handleEditAiMemory}
+            disabled={isLoadingAiMemory}
+          >
+            {isEditingAiMemory ? '预览' : (isLoadingAiMemory ? '加载中...' : '编辑')}
+          </button>
         </label>
+
+        {/* 编辑模式 */}
         {isEditingAiMemory && (
           <>
             <textarea
@@ -351,6 +390,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
               value={aiMemory}
               onChange={(e) => setAiMemory(e.target.value)}
               placeholder="在此输入AI记忆..."
+              style={{ minHeight: '150px' }}
             />
             <div className="form-actions">
               <button
@@ -367,13 +407,13 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
                     const result = await saveAiMemory(aiMemory);
                     if (result.success) {
                       setIsEditingAiMemory(false);
-                      alert('✅ 已保存到云端');
+                      showAlert('✅ 已保存到云端', 'success');
                     } else {
-                      alert('❌ 保存失败: ' + result.error);
+                      showAlert('❌ 保存失败: ' + result.error, 'error');
                     }
                   } catch (error) {
                     console.error('保存异常:', error);
-                    alert('❌ 保存失败: ' + error.message);
+                    showAlert('❌ 保存失败: ' + error.message, 'error');
                   }
                 }}
               >
@@ -382,6 +422,18 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
             </div>
           </>
         )}
+
+        {/* 预览模式 */}
+        {!isEditingAiMemory && (
+          <div className="markdown-preview">
+            {aiMemory ? (
+              <MarkdownRenderer content={aiMemory} />
+            ) : (
+              <div className="empty-state">暂无 AI 记忆</div>
+            )}
+          </div>
+        )}
+
         <div className="form-help">
           AI 可以根据历史记忆信息提供更个性化的回复
         </div>
@@ -398,7 +450,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.7.6</span>
+          <span className="about-version">v2.7.8</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>
@@ -483,7 +535,6 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
               >
                 <span className="settings-nav-icon">{category.icon}</span>
                 <span className="settings-nav-text">{category.name}</span>
-                {category.badge && <span className="update-badge">🔔</span>}
               </div>
             ))}
           </div>
