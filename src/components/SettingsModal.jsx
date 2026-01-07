@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './SettingsModal.css';
+import logoSvg from '/logo.svg';
 
 // 格式化数字显示
 function formatNumber(num) {
@@ -323,7 +324,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
     <div className="settings-content animate-in">
       <div className="about-section">
         <div className="about-logo">
-          <img src="/logo.svg" alt="小白AI Logo" />
+          <img src={logoSvg} alt="小白AI Logo" />
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>

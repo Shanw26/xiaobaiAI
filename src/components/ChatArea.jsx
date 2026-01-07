@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import './ChatArea.css';
+import logoSvg from '/logo.svg';
 
 function ChatArea({ messages, currentUser }) {
   const messagesEndRef = useRef(null);
@@ -35,7 +36,7 @@ function ChatArea({ messages, currentUser }) {
                 </svg>
               )
             ) : (
-              <img src="/logo.svg" alt="小白AI" />
+              <img src={logoSvg} alt="小白AI" />
             )}
           </div>
           <div className="bubble">
