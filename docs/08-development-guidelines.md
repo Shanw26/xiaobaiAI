@@ -464,9 +464,10 @@ console.timeEnd('API调用');
 ### 第十四条：敏感信息记录 🔑
 
 **要求**:
-1. **自动记录**: 用户交流中反馈的任何敏感信息，必须立即记录到 `key.md`
-2. **记录范围**: API Key、Token、密码、AccessKey、Secret 等
-3. **记录格式**: 清晰标注用途、来源、时间
+1. **自动记录**: 用户交流中反馈的任何敏感信息，必须立即记录到全局 `key.md`
+2. **记录位置**: `~/Downloads/同步空间/Claude code/key.md` (多电脑通用)
+3. **记录范围**: API Key、Token、密码、AccessKey、Secret 等
+4. **记录格式**: 按项目分类，清晰标注用途、来源、时间
 
 **必须记录的信息**:
 - 用户提供的 API Key（任何服务）
@@ -502,8 +503,9 @@ console.timeEnd('API调用');
 - 测试时用户提供临时凭据时
 
 **安全原则**:
-- ✅ 记录到本地 `key.md` 文件
-- ✅ 不要提交到 Git 仓库（添加到 `.gitignore`）
+- ✅ 记录到全局 `key.md` 文件（`~/Downloads/同步空间/Claude code/key.md`）
+- ✅ 按项目分类管理
+- ✅ 不要提交到 Git 仓库（全局文件已在 `.gitignore` 中）
 - ❌ 不要在对话中重复展示完整敏感信息
 - ❌ 不要在代码中硬编码
 
@@ -929,7 +931,7 @@ function BadModal({ isOpen, onClose }) {
 ### 开发完成后
 - [ ] 更新 `MEMORY.md`
 - [ ] 更新 `docs/` 相关文档
-- [ ] 记录敏感信息到 `key.md`（如果有）
+- [ ] 记录敏感信息到全局 `key.md`（如果有）
 - [ ] 更新版本号（4个位置）
 - [ ] 运行完整测试
 - [ ] 提交代码（遵循 Git 规范）
@@ -956,7 +958,7 @@ function BadModal({ isOpen, onClose }) {
 1. `MEMORY.md` - 项目历史和变更记录
 2. `DEVELOPMENT_GUIDELINES.md` - 本文件（开发规范）
 3. `docs/README.md` - 文档导航
-4. `key.md` - 敏感信息记录（API Key、Token等）
+4. 全局 `key.md` - 敏感信息记录（`~/Downloads/同步空间/Claude code/key.md`）
 
 **核心约束**:
 - 无密码、无Email
