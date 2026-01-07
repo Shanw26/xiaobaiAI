@@ -33,6 +33,344 @@
 
 ---
 
+## 📅 2026-01-07 (v2.7.3)
+
+### 登录系统完整修复 🔐✅
+
+**核心变更**: 修复登录验证码保存和用户创建的两个关键问题
+
+**问题背景**:
+- 用户反馈：登录时提示"Invalid API key"
+- 用户反馈：提交验证码后提示"创建用户失败"
+- 影响范围：登录功能完全无法使用
+- 严重程度：🔴 高（阻塞性问题）
+
+**问题1: Service Role Key 格式错误**
+
+**错误信息**:
+```json
+{
+  "message": "Invalid API key",
+  "hint": "Double check your Supabase `anon` or `service_role` API key."
+}
+```
+
+**根本原因**:
+- `.env` 文件中的 `VITE_SUPABASE_SERVICE_ROLE_KEY` 使用了错误的格式
+- 之前：`sbp_7eb9c71d4c5416a5f776abd29a20334efc49e4cb`（只是 ID 引用）
+- 正确：`eyJhbGci...`（完整的 JWT token）
+
+**修复方案**:
+1. 从 Supabase Dashboard 获取完整的 Service Role Key
+   - 访问：https://supabase.com/dashboard/project/cnszooaxwxatezodbbxq/settings/api
+   - 找到 "Project API keys" → `service_role` 密钥
+   - 点击 "Reveal" 复制完整 token（约300-400字符）
+
+2. 更新 `.env` 文件
+   ```bash
+   # 第12行
+   VITE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ```
+
+**验证结果**:
+- ✅ 短信成功发送到手机（Edge Function 工作正常）
+- ✅ 验证码成功保存到数据库
+
+---
+
+**问题2: 用户创建缺少必需字段**
+
+**错误信息**:
+```
+null value in column "id" of relation "user_profiles" violates not-null constraint
+```
+
+**根本原因**:
+- `user_profiles` 表结构要求 `id` 和 `user_id` 字段
+- 之前代码只提供了 `phone` 和 `created_at`
+
+**表结构**（`supabase/migrations/002_fix_user_profiles.sql`）:
+```sql
+CREATE TABLE user_profiles (
+  id TEXT PRIMARY KEY,          -- ❌ 缺失
+  user_id TEXT NOT NULL UNIQUE, -- ❌ 缺失
+  phone TEXT NOT NULL,          -- ✅ 已提供
+  nickname TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**修复方案**:
+使用 `crypto.randomUUID()` 生成唯一ID
+
+```javascript
+// src/lib/cloudService.js - signInWithPhone() 函数
+
+if (profileError || !profile) {
+  // 生成用户ID（使用 UUID）
+  const userId = crypto.randomUUID();
+
+  // 创建新用户
+  const { data: newProfile, error: createError } = await supabaseAdmin
+    .from('user_profiles')
+    .insert([{
+      id: userId,              // ✅ 新增
+      user_id: userId,         // ✅ 新增
+      phone: phone,
+      created_at: new Date().toISOString()
+    }])
+    .select()
+    .single();
+}
+```
+
+**修改文件**:
+- `src/lib/cloudService.js` - 第154-182行
+  - 修改 `signInWithPhone()` 函数中的用户创建逻辑
+  - 添加 `userId = crypto.randomUUID()` 生成唯一ID
+  - 在 `insert()` 中添加 `id` 和 `user_id` 字段
+
+**测试结果**: ✅ 完全通过
+- ✅ 发送验证码 → 收到短信
+- ✅ 保存验证码 → 数据库成功
+- ✅ 验证码登录 → 用户创建成功
+- ✅ 登录成功 → 进入应用界面
+
+**技术总结**:
+| 问题 | 原因 | 解决方案 | 状态 |
+|------|------|----------|------|
+| Invalid API key | Service Role Key 格式错误 | 使用完整 JWT token | ✅ 已修复 |
+| 创建用户失败 | 缺少 id 和 user_id 字段 | 使用 crypto.randomUUID() | ✅ 已修复 |
+
+**重要经验**:
+1. **环境变量格式很重要**: Service Role Key 必须是完整的 JWT token，不能只是 ID 引用
+2. **表结构必须严格遵守**: 缺少任何 NOT NULL 字段都会导致插入失败
+3. **UUID 生成**: 使用 `crypto.randomUUID()` 比自定义算法更可靠
+
+**相关文档**:
+- `docs/02-login-system.md` - 登录系统设计
+- `docs/03-database-design.md` - 数据库表结构
+- `supabase/migrations/002_fix_user_profiles.sql` - user_profiles 表定义
+
+**版本号更新**:
+- `package.json` - 版本号: 2.7.3
+- `electron/main.js` - APP_VERSION: 2.7.3
+- `src/components/Sidebar.jsx` - 版本号: v2.7.3
+- `src/components/SettingsModal.jsx` - 版本号: v2.7.3
+
+---
+
+## 📅 2026-01-07 (v2.7.2)
+
+### 文件路径点击功能 🔗✅
+
+**核心变更**: 修复并完善 AI 回答中文件路径的可点击功能
+
+**问题背景**:
+- 之前的实现：路径可以点击，但存在渲染问题
+- 用户反馈：路径"一转眼就变成了红色"
+- 根本原因：路径被反引号包裹后，被识别为行内代码（inlineCode），而非普通文本（text）
+
+**技术分析**:
+```
+Markdown: "文件在 `/Users/aaa` 目录"
+          ↓
+解析为 AST: inlineCode 节点
+          ↓
+之前的 remark 插件：只处理 text 节点 ❌
+          ↓
+渲染为：红色行内代码 ❌
+```
+
+**实施方案**:
+- ✅ 优化路径识别正则：`/(\/|~\/)[^\s<>"'`\n]+/g`
+  - 支持空格、中文、特殊字符
+  - 支持绝对路径、相对路径、用户目录（~）
+- ✅ 新增 `cleanPath()` 函数：自动清理路径末尾的标点符号
+- ✅ 扩展 remark 插件：同时处理 `inlineCode` 和 `text` 两种节点
+  - 在 AST 阶段将路径转换为 `link` 节点
+  - 避免 `code` 组件和 `a` 组件的渲染冲突
+- ✅ 移除 code 组件中的重复路径检测逻辑
+
+**修改文件**:
+- `src/components/MarkdownRenderer.jsx`
+  - 优化 `FILE_PATH_PATTERN` 正则表达式
+  - 新增 `cleanPath()` 函数
+  - 扩展 `remarkFilePathLinks()` 插件：处理 inlineCode 节点
+  - 简化 `code` 组件：移除重复的路径检测逻辑
+  - 保留 `a` 组件：处理路径点击事件
+
+**功能特点**:
+| 特性 | 说明 |
+|------|------|
+| 🎨 样式 | 绿色下划线，悬停时背景变绿 |
+| 🌐 格式支持 | 绝对路径、相对路径、用户目录（~） |
+| 🔤 字符支持 | 中文、空格、括号、常见特殊字符 |
+| 🧹 智能清理 | 自动移除路径末尾的标点符号 |
+| 📂 打开方式 | 使用系统默认程序（Finder）打开 |
+| ✨ 双格式支持 | 纯文本和反引号包裹都能正确识别 |
+
+**支持示例**:
+- ✅ `/Users/xiaolin/Downloads/小白AI/`（中文路径）
+- ✅ `/Users/name/My Documents/`（带空格）
+- ✅ `~/Desktop/文件.txt`（用户目录）
+- ✅ `/path/to/file(1).txt`（带括号）
+- ✅ `文件在 /Users/aaa/。`（自动清理末尾标点）
+
+**代码统计**:
+- 修改文件：1个
+- 新增函数：1个（cleanPath）
+- 扩展插件：remarkFilePathLinks（inlineCode 节点处理）
+- 删除代码：约15行（移除 code 组件重复逻辑）
+
+**测试状态**: ✅ 已通过（用户确认成功）
+
+**重要经验**:
+1. **AST 阶段处理优于渲染阶段**：在 remark 插件中转换节点，避免组件渲染冲突
+2. **节点类型要全面覆盖**：inlineCode 和 text 都需要处理
+3. **正则表达式要灵活**：支持中文、空格、特殊字符
+4. **用户体验细节**：自动清理标点符号，提升识别准确率
+5. **调试日志很重要**：console.log 帮助快速定位问题
+
+---
+
+## 📅 2026-01-07 (v2.7.1)
+
+### 移除用户信息和AI记忆编辑功能 ❌
+
+**核心变更**: 移除设置面板中的用户信息和AI记忆编辑功能
+
+**原因**:
+- 用户反馈：这个功能太复杂，不符合"简单原则"
+- 产品定位：小白AI应该专注于核心对话功能，不需要复杂的记忆管理
+
+**实施方案**:
+- ✅ 移除"高级功能"分类
+- ✅ 删除用户信息和AI记忆的编辑UI
+- ✅ 删除相关的state和函数
+- ✅ 清理CSS样式
+- ✅ 保留应用数据目录和Token统计（移到基础配置）
+
+**修改文件**:
+- `src/components/SettingsModal.jsx`
+  - 删除 state: userInfo, aiMemory, isEditingUserInfo, isEditingAiMemory, isLoadingUserInfo, isLoadingAiMemory
+  - 删除函数: handleEditUserInfo, handleEditAiMemory
+  - 删除分类: 'advanced'（从 SETTINGS_CATEGORIES）
+  - 删除渲染函数: renderAdvancedSettings
+  - 合并基础配置：将应用数据目录和Token统计移到 renderBasicSettings
+- `src/components/SettingsModal.css`
+  - 删除样式: .form-group.*, .btn-edit, .form-textarea, .form-actions
+  - 共删除约100行CSS代码
+- `package.json` - 版本号: 2.7.1
+- `electron/main.js` - APP_VERSION: 2.7.1
+- `src/components/Sidebar.jsx` - 版本号: v2.7.1
+- `src/components/SettingsModal.jsx` - 版本号: v2.7.1
+
+**设置面板简化对比**:
+
+| 分类 | v2.7.0 | v2.7.1 |
+|------|--------|--------|
+| 基础配置 | API Key、模型选择 | API Key、模型选择、应用数据目录、Token统计 |
+| 高级功能 | 用户信息、AI记忆、数据目录、Token统计 | ❌ 已移除 |
+| 关于 | 版本信息、退出登录 | （保持不变） |
+
+**云端数据库表**:
+- ✅ `user_info` 表保留（虽然前端移除了编辑功能，但表已创建）
+- ✅ `ai_memory` 表保留（未来可能需要）
+- ⚠️ 这些表暂时不会被使用，但保留以备后用
+
+**代码统计**:
+- 删除代码行数：约200行
+- CSS清理：约100行
+- 简化效果：设置面板从3个分类减少到2个
+
+**测试状态**: ✅ 完成
+
+**重要经验**:
+1. **简单原则**: 功能越简单越好，不符合核心需求的应该果断移除
+2. **用户反馈优先**: 用户觉得复杂就是复杂，不需要解释
+3. **数据保留**: 虽然移除功能，但数据库表可以保留，以备将来需要
+
+---
+
+## 📅 2026-01-07 (v2.7.0)
+
+### 用户信息和AI记忆云端存储 + UI简化 🎨☁️
+
+**核心变更**: 用户信息和AI记忆保存到Supabase云端，UI改为极简风格
+
+**原因**:
+- 用户反馈：UI太复杂，希望极简
+- 产品定位：小白AI是"云端优先"架构，所有数据应保存在云端
+- 修复bug：之前保存失败是因为Supabase缺少这两个表
+
+**实施方案**:
+- ✅ UI极简化（透明背景、简单边框、小圆角）
+- ✅ 恢复云端保存（使用 cloudService.js）
+- ✅ 创建Supabase数据库迁移文件
+- ✅ 应用数据库迁移到云端
+
+**数据库迁移**:
+
+| 表名 | 用途 | 字段 |
+|------|------|------|
+| `user_info` | 用户个人信息 | id, user_id, device_id, content, created_at, updated_at |
+| `ai_memory` | AI对话记忆 | id, user_id, device_id, content, created_at, updated_at |
+
+**迁移文件**: `supabase/migrations/20260107_add_user_info_and_memory.sql`
+
+**执行方式**（通过Supabase Dashboard）:
+1. 打开 https://cnszooaxwxatezodbbxq.supabase.co
+2. SQL Editor → New Query
+3. 粘贴迁移SQL并执行
+4. 验证表创建成功
+
+**修改文件**:
+- `src/components/SettingsModal.jsx`
+  - 恢复使用 cloudService.js（云端保存）
+  - `getUserInfo()`, `saveUserInfo()`, `getAiMemory()`, `saveAiMemory()`
+  - UI简化：移除复杂样式，使用极简设计
+- `src/components/SettingsModal.css`
+  - 移除渐变背景、复杂动画
+  - 简化边框、圆角、间距
+  - 极简按钮样式（透明背景）
+- `应用用户信息和AI记忆表迁移.md` - 迁移操作指南（新建）
+- `package.json` - 版本号: 2.7.0
+- `electron/main.js` - APP_VERSION: 2.7.0
+- `src/components/Sidebar.jsx` - 版本号: v2.7.0
+- `src/components/SettingsModal.jsx` - 版本号: v2.7.0
+
+**UI简化对比**:
+
+| 元素 | v2.7.0（复杂版） | v2.7.0（极简版） |
+|------|----------------|----------------|
+| 容器背景 | 渐变灰色 (#fafafa→#f8f8f8) | 透明 |
+| 容器边框 | 1.5px 圆角边框 (16px) | 无 |
+| 按钮样式 | 白色背景+图标+阴影 | 透明背景+简单边框 |
+| 圆角 | 12-16px | 6-8px |
+| 动画 | 复杂hover效果 | 简单过渡 |
+
+**数据存储策略**:
+- **登录用户**: 保存到 `user_id` 字段（跨设备同步）
+- **游客模式**: 保存到 `device_id` 字段（当前设备）
+- **唯一性**: 一个用户/设备只有一条记录（UNIQUE约束）
+
+**Bug修复**:
+- ❌ 之前：错误地使用本地数据库保存
+- ✅ 现在：正确保存到Supabase云端
+- ❌ 之前：Supabase缺少这两个表导致保存失败
+- ✅ 现在：已通过迁移创建表
+
+**测试状态**: ✅ 已通过（用户已执行迁移）
+
+**重要经验**:
+1. **产品定位优先**: 小白AI是云端优先架构，不能随意改为本地存储
+2. **数据库变更必须留档**: 每次表结构变更都要记录迁移文件和执行方式
+3. **用户反馈很重要**: 极简比复杂更符合"简单原则"
+
+---
+
 ## 📅 2026-01-07 (v2.6.9)
 
 ### 数据库安全修复（方案A - 快速修复）🔒

@@ -154,10 +154,15 @@ export async function signInWithPhone(phone, code) {
     if (profileError || !profile) {
       console.log('⚠️  [云端服务] 用户不存在，创建新用户...');
 
+      // 生成用户ID（使用 UUID）
+      const userId = crypto.randomUUID();
+
       // 创建新用户（使用 admin 客户端）
       const { data: newProfile, error: createError } = await supabaseAdmin
         .from('user_profiles')
         .insert([{
+          id: userId,
+          user_id: userId,
           phone: phone,
           created_at: new Date().toISOString()
         }])

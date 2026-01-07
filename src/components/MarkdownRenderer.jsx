@@ -5,12 +5,44 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { visit } from 'unist-util-visit';
 import './MarkdownRenderer.css';
 
-// 检测文件路径的正则表达式 - 支持绝对路径、相对路径和中文文件名
-const FILE_PATH_PATTERN = /(~?\/[a-zA-Z0-9_\-./~\u4e00-\u9fa5]+[a-zA-Z0-9\u4e00-\u9fa5])(?!\w)/g;
+// 检测文件路径的正则表达式 - 支持绝对路径、相对路径、中文文件名、空格
+// 匹配：以 / 或 ~/ 开头，后面跟非空白字符
+const FILE_PATH_PATTERN = /(\/|~\/)[^\s<>"'`\n]+/g;
+
+// 清理路径末尾的标点符号
+function cleanPath(path) {
+  // 移除路径末尾的常见标点符号
+  return path.replace(/[。、，！？；：.,!?:;'"`()（）【】\[\]{}「」『』>]+$/, '');
+}
 
 // remark 插件：预处理文件路径
 function remarkFilePathLinks() {
   return (tree) => {
+    // 处理 inlineCode 节点（路径在反引号中）
+    visit(tree, 'inlineCode', (node, index, parent) => {
+      if (!node.value) return;
+
+      const codeContent = node.value;
+      console.log('🔍 [MarkdownRenderer] 检查行内代码:', codeContent);
+
+      // 检查是否是文件路径
+      if (FILE_PATH_PATTERN.test(codeContent)) {
+        const cleanedPath = cleanPath(codeContent);
+        console.log('✅ [MarkdownRenderer] 行内代码是路径，转换为链接:', cleanedPath);
+
+        // 替换为链接节点
+        parent.children[index] = {
+          type: 'link',
+          url: cleanedPath,
+          title: '点击打开',
+          children: [{ type: 'text', value: cleanedPath }],
+          data: { hProperties: { className: 'file-path-link' } }
+        };
+      }
+      FILE_PATH_PATTERN.lastIndex = 0; // 重置正则
+    });
+
+    // 处理 text 节点（路径不在反引号中）
     visit(tree, 'text', (node, index, parent) => {
       if (!node.value) return;
 
@@ -23,8 +55,11 @@ function remarkFilePathLinks() {
       FILE_PATH_PATTERN.lastIndex = 0; // 重置正则表达式
       console.log('🔍 [MarkdownRenderer] 检查文本:', text);
       while ((match = FILE_PATH_PATTERN.exec(text)) !== null) {
-        const [path] = match;
+        let path = match[0];
         const matchIndex = match.index;
+
+        // 清理路径末尾的标点符号
+        path = cleanPath(path);
         console.log('✅ [MarkdownRenderer] 找到路径:', path, '在位置:', matchIndex);
 
         // 添加路径前的普通文本
@@ -41,7 +76,10 @@ function remarkFilePathLinks() {
           data: { hProperties: { className: 'file-path-link' } }
         });
 
-        lastIndex = matchIndex + path.length;
+        // 使用清理后的路径长度计算lastIndex
+        const originalPath = match[0];
+        const trailingPunctuation = originalPath.length - path.length;
+        lastIndex = matchIndex + originalPath.length - trailingPunctuation;
       }
 
       // 添加剩余的普通文本
@@ -87,6 +125,7 @@ function MarkdownRenderer({ content }) {
         code({ node, inline, className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || '');
           const language = match ? match[1] : '';
+          const codeContent = String(children).replace(/\n$/, '');
 
           return !inline && language ? (
             <SyntaxHighlighter
@@ -96,7 +135,7 @@ function MarkdownRenderer({ content }) {
               className="code-block"
               {...props}
             >
-              {String(children).replace(/\n$/, '')}
+              {codeContent}
             </SyntaxHighlighter>
           ) : (
             <code className={`inline-code ${className || ''}`} {...props}>
