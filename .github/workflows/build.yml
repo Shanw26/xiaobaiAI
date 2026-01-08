@@ -5,11 +5,6 @@ name: Build Multi-Platform
       tags:
         - 'v*'
     workflow_dispatch:
-      inputs:
-        version:
-          description: '版本号'
-          required: true
-          default: 'v2.10.16'
 
   jobs:
     build-windows:
