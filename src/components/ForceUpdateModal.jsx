@@ -45,17 +45,14 @@ function ForceUpdateModal({ version, releaseNotes }) {
           为了您的使用体验和数据安全，请更新到最新版本 v{version}
         </p>
 
-        {/* 下载中或下载完成 */}
-        {(downloading || downloaded) ? (
+        {/* 下载中显示进度，下载完成后隐藏 */}
+        {downloading ? (
           <div className="update-progress">
             <div className="progress-bar">
               <div className="progress-fill" style={{ width: `${progress?.percent || 0}%` }} />
             </div>
             <div className="progress-info">
-              {progress?.percent < 100
-                ? `下载中: ${progress?.percent || 0}% (${progress?.transferred || 0}MB/${progress?.total || 0}MB)`
-                : '✓ 下载完成！'
-              }
+              {`下载中: ${progress?.percent || 0}% (${progress?.transferred || 0}MB/${progress?.total || 0}MB)`}
             </div>
           </div>
         ) : (
