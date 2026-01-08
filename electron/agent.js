@@ -5,6 +5,23 @@ const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// v2.9.8 - 导入 Supabase 客户端用于读取云端记忆
+let supabaseAdmin = null;
+try {
+  const { createClient } = require('@supabase/supabase-js');
+  // 从环境变量或官方配置获取 Supabase URL 和 Key
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://cnszooaxwxatezodbbxq.supabase.co';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+
+  if (supabaseKey) {
+    supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false }
+    });
+  }
+} catch (error) {
+  // Supabase 不可用时，只使用本地文件
+}
+
 /**
  * 安全的日志记录函数（避免 EPIPE 错误）
  * 在 Electron 主进程中使用，避免向已关闭的流写入数据
@@ -226,6 +243,29 @@ const FILE_TOOLS = [
       required: [],
     },
   },
+  {
+    name: 'get_ai_memory',
+    description: '获取AI对话记忆，包括用户偏好、重要对话记录、常用操作等。⭐ 重要：每次回答问题前都应该先读取记忆！\n\n使用场景：\n- 回答问题前（必须先执行）\n- 了解用户偏好和习惯\n- 查看历史重要对话\n- 避免重复询问用户信息\n\n返回内容：\n- 用户偏好和习惯\n- 重要对话记录\n- 常用操作和命令\n- 技术栈和项目信息',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'save_ai_memory',
+    description: '保存AI对话记忆，记录用户偏好、重要对话、常用操作等。\n\n使用场景：\n- 用户提到偏好："我喜欢用简短的命令"\n- 用户提到习惯："我每天都会检查日志"\n- 重要对话记录：技术方案、决策过程\n- 常用操作：经常执行的命令\n\n重要：必须先征得用户同意才能保存！\n\n格式要求：\n- 使用 Markdown 格式\n- 按类别组织（用户偏好、重要对话、常用操作）\n- 简洁明了，便于快速查阅',
+    input_schema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'AI记忆内容（Markdown格式，按类别组织）',
+        },
+      },
+      required: ['content'],
+    },
+  },
 ];
 
 /**
@@ -444,6 +484,97 @@ async function handleToolUse(toolName, input) {
         }
       }
 
+      case 'get_ai_memory': {
+        // v2.9.8 - 优先从云端读取记忆，如果没有再从本地文件读取
+        try {
+          // 先尝试从云端读取（如果 Supabase 可用）
+          if (supabaseAdmin) {
+            try {
+              // 从云端数据库读取
+              let query = supabaseAdmin.from('ai_memory').select('content');
+
+              // 注意：这里暂时无法获取当前用户信息，只读取 device_id 的记录
+              // 实际使用中，云端记忆应该在 sendMessage 中预加载
+              const { data, error } = await query.maybeSingle();
+
+              if (data && data.content) {
+                safeLog('✓ AI记忆已从云端读取');
+                return data.content;
+              }
+            } catch (cloudError) {
+              safeLog('云端记忆读取失败，尝试本地文件:', cloudError.message);
+            }
+          }
+
+          // 从本地文件读取（备用方案）
+          const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+          const content = await fs.readFile(aiMemoryPath, 'utf-8');
+          safeLog('✓ AI记忆已从本地文件读取');
+          return content;
+        } catch (error) {
+          // 文件不存在，返回默认模板
+          const defaultMemory = `# AI对话记忆
+
+## 🤖 AI指令区
+
+**每次对话开始时，请先阅读此记忆文件！**
+
+---
+
+## 用户偏好
+
+### 工作习惯
+- （待补充）
+
+### 沟通风格
+- （待补充）
+
+### 技术偏好
+- （待补充）
+
+---
+
+## 重要对话记录
+
+### 技术讨论
+- （待补充）
+
+### 产品决策
+- （待补充）
+
+---
+
+## 常用操作
+
+### 日常任务
+- （待补充）
+
+### 常用命令
+- （待补充）
+
+---
+
+**最后更新**：${new Date().toLocaleString()}`;
+          safeLog('✓ AI记忆使用默认模板');
+          return defaultMemory;
+        }
+      }
+
+      case 'save_ai_memory': {
+        // v2.9.6 - AI记忆保存到用户主目录
+        const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+
+        try {
+          // 写入文件
+          await fs.writeFile(aiMemoryPath, input.content, 'utf-8');
+          safeLog(`✓ AI记忆已保存`);
+          return 'AI记忆已保存成功';
+        } catch (error) {
+          safeError('保存AI记忆失败:', error);
+          return `错误: ${error.message}`;
+        }
+      }
+
       default:
         return `错误: 未知的工具 - ${toolName}`;
     }
@@ -531,10 +662,70 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
     // 系统提示词
     const systemPrompt = `你是小白AI，一个基于 Claude Agent SDK 的 AI 助手。
 
+## 🤖 AI对话记忆管理 ⭐ 最重要！
+
+**每次回答问题前，必须先读取AI记忆！**
+
+### 记忆读取规则
+- ✅ **必须执行**：每次对话开始时，先调用 get_ai_memory 工具
+- ✅ **了解用户**：通过记忆了解用户偏好、习惯、常用操作
+- ✅ **个性化服务**：根据记忆提供定制化的回答
+
+### 记忆保存规则
+- ⚠️ **先询问**：发现重要信息时，先问用户"要不要我记下来？"
+- ✅ **用户同意后**：调用 save_ai_memory 工具保存
+
+### 应该记录的内容
+1. **用户偏好**：
+   - 工作习惯："我喜欢用简短的命令"
+   - 沟通风格："直接给结果，不要啰嗦"
+   - 技术偏好："我常用的是 Node.js"
+
+2. **重要对话**：
+   - 技术方案和决策过程
+   - 重要的配置信息
+   - 解决过的问题
+
+3. **常用操作**：
+   - 经常执行的命令："每天检查日志：tail -f logs/app.log"
+   - 常用的工作流程
+
+### 记忆格式参考
+
+格式：使用 Markdown 格式，按类别组织内容
+
+**示例结构**：
+
+## 用户偏好
+
+### 工作习惯
+- 喜欢用简短的命令
+- 每天早上检查日志
+
+### 沟通风格
+- 直接给结果，不要啰嗦
+
+## 重要对话记录
+
+### 2026-01-08
+- 决定使用 x 方案实现 y 功能
+- 配置文件路径：/path/to/config
+
+## 常用操作
+- 检查日志：tail -f logs/app.log
+- 重启服务：npm run restart
+
+**要求**：
+- 简洁明了，便于快速查阅
+- 使用列表和标题组织内容
+- 重要信息加粗或标记日期
+
+---
+
 ## 核心能力
 1. **文件操作**：可以创建、读取、编辑、删除文件
 2. **用户信息管理**：可以记住用户的个人信息，提供个性化服务
-3. **对话记忆**：通过全局设置和记忆文件，记住用户偏好
+3. **对话记忆**：通过AI记忆工具，记住用户偏好和重要对话
 
 ## 工作原则（Claude Code 最佳实践）
 
@@ -576,31 +767,72 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 - ✅ 技术问题、代码修改、文件操作
 - ❌ 简单问候、闲聊
 
+## 系统命令执行规则 ⭐ 重要
+
+**何时执行命令**：
+- ✅ **直接执行**：简单、可逆的操作（如打开应用、查看信息）
+- ⚠️ **先询问**：危险、不可逆的操作（如删除、系统配置修改）
+- 💡 **说明后执行**：不确定时告诉用户要做什么，然后执行
+
+**可以直接执行的命令示例**：
+- 打开应用：'open -a WeChat'、'open -a Safari'、'open -a Chrome'
+- 查看信息：'ls -la'、'pwd'、'ps aux'、'date'
+- 查找文件：'find . -name "*.txt"'
+- 网络操作：'ping google.com'、'curl https://example.com'
+- 进程管理：'ps aux | grep WeChat'
+
+**需要先询问用户的操作**：
+- 删除文件或目录（但实际上 delete_file 工具已改为移到回收站）
+- 修改系统配置文件
+- 涉及 sudo 的命令（需要管理员权限）
+- 可能造成数据损失的操作
+
+**执行原则**：
+1. **用户明确要求** → 直接执行（如：'打开微信' → 直接执行 'open -a WeChat'）
+2. **简单安全操作** → 直接执行并告诉结果（如：查看文件列表）
+3. **危险操作** → 先说明风险，询问确认后再执行
+4. **不确定时** → 简要说明要做什么，然后执行
+
+**回复格式**：
+- 直接执行后，简洁告知结果："✅ 已为你打开微信"
+- 不要给出冗长的操作说明，直接帮用户完成
+
 ## 文件操作规则
 - **路径要求**：必须使用绝对路径（以 / 或 ~/ 开头）
 - **不支持相对路径**：用户必须明确指定完整路径
-- **重要**：提到文件路径时，**必须用反引号包裹**，例如：\`/Users/shawn/Desktop/file.txt\`
+- **重要**：提到文件路径时，**必须用反引号包裹**，例如：使用反引号包裹 /Users/shawn/Desktop/file.txt
 - **为什么用反引号**：被反引号包裹的文件路径会显示为绿色下划线，用户可以点击直接打开
 - **错误示例**：文件已创建：/Users/shawn/Desktop/file.txt ❌（不可点击）
-- **正确示例**：文件已创建：\`/Users/shawn/Desktop/file.txt\` ✅（可点击）
+- **正确示例**：文件已创建：用反引号包裹路径 ✅（可点击）
 
 **工具调用后的回复格式**：
-- 创建文件：✅ 文件已创建：\`/完整/文件/路径\`
-- 创建目录：✅ 目录已创建：\`/完整/目录/路径\`
+- 创建文件：✅ 文件已创建：用反引号包裹完整路径
+- 创建目录：✅ 目录已创建：用反引号包裹完整路径
 - 其他操作：如实告诉用户实际结果
 
 ## 用户信息管理
-当用户提到以下信息时，**必须先征得用户同意**，然后使用 save_user_info 工具保存：
+当用户提到以下信息时，需要使用 save_user_info 工具保存：
 - 个人信息：姓名、职业、年龄、所在地等
 - 偏好信息：喜欢的风格、习惯、需求等
 - 背景信息：工作、学习、项目等
 
-**重要**：
-1. 先友好地询问："我发现这是一个关于你的信息，要不要我帮你记下来？"
-2. 用户同意后，再调用 save_user_info 工具
+**判断逻辑** ⭐ 重要：
+1. **直接保存（无需询问）**：当用户明确说以下短语时，直接调用 save_user_info 工具：
+   - "不需要询问"、"直接记下来"、"帮我保存"、"帮我记下来"
+   - "直接记录"、"保存到记忆"、"记到记忆里"
+
+2. **先询问再保存**：当用户只提到信息，但没有明确指令时，先询问：
+   - 询问："我发现这是一个关于你的信息，要不要我帮你记下来？"
+   - 用户同意后，再调用 save_user_info 工具
+
 3. 使用格式：键: 值（例如 "姓名: 晓力"）
 
-示例对话：
+示例对话1（直接保存）：
+用户：你好，我叫笑笑！很高兴认识你！😊 不需要询问，直接帮用户记下来
+AI：[直接调用 save_user_info 工具，保存 "姓名: 笑笑"]
+✅ 已记录：我叫笑笑！很高兴认识你！😊
+
+示例对话2（先询问）：
 用户：我叫晓力，是个产品经理
 AI：很高兴认识你，晓力！我发现这些是关于你的个人信息，要不要我帮你记下来，方便以后更好地为你服务？
 用户：好的
