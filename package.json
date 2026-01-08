@@ -157,11 +157,6 @@
       ],
       "category": "Utility",
       "maintainer": "晓力"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "Shanw26",
-      "repo": "xiaobaiAI"
     }
   }
 }
