@@ -34,6 +34,111 @@
 
 ---
 
+## 📅 2026-01-08 (v2.10.14)
+
+### Windows 白屏问题修复 🔧✅
+
+**核心变更**: 修复 Windows 平台上应用打开后白屏的问题
+
+**背景**:
+- 用户反馈：Windows 打开小白AI后显示白屏
+- 原因：`loadFile()` 在 Windows 上加载 asar 包内文件时可能失败
+
+**问题分析**:
+```javascript
+// 旧代码（在 Windows 上可能失败）
+mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+```
+
+**问题根源**:
+1. 打包后 `__dirname` 指向 `app.asar/electron`
+2. `../dist/index.html` 尝试跨 asar 边界访问文件
+3. Windows 上 `loadFile()` 对 asar 文件的处理不稳定
+
+**实施方案**:
+
+**1. 使用 loadURL + file:// 协议** (electron/main.js:291-324):
+```javascript
+// 🔥 Windows 修复：使用 loadURL + file:// 协议
+const distPath = path.join(__dirname, '../dist/index.html');
+const absolutePath = path.resolve(distPath);
+
+// Windows 路径需要特殊处理：C:\path\to\file.html -> file:///C:/path/to/file.html
+// Unix 路径：/path/to/file.html -> file:///path/to/file.html
+let fileUrl;
+if (process.platform === 'win32') {
+  // Windows: 需要三个斜杠 + 盘符 + 路径（反斜杠转正斜杠）
+  fileUrl = `file:///${absolutePath.replace(/\\/g, '/')}`;
+} else {
+  // Unix/macOS: 需要三个斜杠 + 路径
+  fileUrl = `file://${absolutePath}`;
+}
+
+mainWindow.loadURL(fileUrl).catch(err => {
+  safeError('❌ 加载页面失败:', err);
+  // 降级：尝试 loadFile
+  mainWindow.loadFile(distPath);
+});
+```
+
+**2. 添加错误监听和调试功能** (electron/main.js:333-367):
+```javascript
+// 监听页面加载失败
+mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+  safeError('❌ 页面加载失败:');
+  safeError('  错误码:', errorCode);
+  safeError('  错误描述:', errorDescription);
+  safeError('  URL:', validatedURL);
+
+  dialog.showErrorBox('页面加载失败', `无法加载页面\n\n错误: ${errorDescription}`);
+});
+
+// 监听渲染进程崩溃
+mainWindow.webContents.on('render-process-gone', (event, details) => {
+  safeError('❌ 渲染进程崩溃:');
+  safeError('  原因:', details.reason);
+  dialog.showErrorBox('渲染进程崩溃', `应用渲染进程已崩溃\n\n原因: ${details.reason}`);
+});
+
+// 监听控制台消息（帮助调试）
+mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+  const logLevel = level === 0 ? 'ERROR' : level === 1 ? 'WARN' : 'INFO';
+  safeLog(`[渲染进程 ${logLevel}] ${message}`);
+});
+```
+
+**修改文件**:
+- `electron/main.js` - 修复路径加载逻辑 + 添加错误监听
+- `package.json` - 版本号: 2.10.13 → 2.10.14
+- `src/components/Sidebar.jsx` - 版本号: v2.10.13 → v2.10.14
+- `src/components/SettingsModal.jsx` - 版本号: v2.10.13 → v2.10.14
+
+**版本号更新**:
+- ✅ `package.json`: 2.10.14
+- ✅ `electron/main.js`: 2.10.14
+- ✅ `src/components/Sidebar.jsx`: v2.10.14
+- ✅ `src/components/SettingsModal.jsx`: v2.10.14
+
+**重要改进**:
+- ✅ 使用 `loadURL` 替代 `loadFile`（Windows 兼容性更好）
+- ✅ 正确处理 Windows 路径格式（反斜杠转正斜杠）
+- ✅ 添加降级方案（如果 loadURL 失败，尝试 loadFile）
+- ✅ 详细的错误日志和对话框提示
+- ✅ 监听渲染进程崩溃和控制台消息
+
+**技术细节**:
+- Windows file URL 格式：`file:///C:/path/to/file.html`（三个斜杠 + 盘符）
+- Unix/macOS file URL 格式：`file:///path/to/file.html`（三个斜杠 + 路径）
+- `path.resolve()` 确保路径是绝对路径
+- `.replace(/\\/g, '/')` 将 Windows 反斜杠转换为正斜杠
+
+**后续工作**:
+- 在 Windows 上测试打包后的应用
+- 验证白屏问题是否已解决
+- 检查控制台日志确认无错误
+
+---
+
 ## 📅 2026-01-08 (v2.10.12)
 
 ### 发送失败保留消息优化 🔄✅
