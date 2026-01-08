@@ -1,173 +1,70 @@
 name: Build Multi-Platform
 
-on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号（例如：v2.10.13）'
-        required: true
-        default: 'v2.10.13'
+  on:
+    push:
+      tags:
+        - 'v*'
+    workflow_dispatch:
+      inputs:
+        version:
+          description: '版本号'
+          required: true
+          default: 'v2.10.16'
 
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  jobs:
+    build-windows:
+      runs-on: windows-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+        - run: npm install
+        - run: npm run build
+        - run: npx electron-builder --win --publish never
+          env:
+            ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
+        - uses: actions/upload-artifact@v4
+          if: always()
+          with:
+            name: windows-installer
+            path: release/*.exe
+            retention-days: 30
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+    build-macos:
+      runs-on: macos-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+        - run: npm install
+        - run: npm run build
+        - run: npx electron-builder --mac --publish never
+          env:
+            ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
+        - uses: actions/upload-artifact@v4
+          if: always()
+          with:
+            name: macos-dmg
+            path: release/*.dmg
+            retention-days: 30
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build Windows
-        run: npx electron-builder --win --publish never
-        env:
-          # 可以在这里添加环境变量
-          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
-
-      - name: Upload Windows artifacts
-                if: always()  # ← 添加这一行
-
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: release/*.exe
-          retention-days: 30
-
-      - name: Upload Windows portable
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-portable
-          path: release/*.exe
-          if-no-files-found: ignore
-          retention-days: 30
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Import certificates
-        if: github.event_name == 'push'
-        uses: apple-actions/import-codesign-certs@v2
-        with:
-          p12-file-base64: ${{ secrets.APPLE_CERTIFICATES_P12 }}
-          p12-password: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}
-
-      - name: Build macOS
-        run: npm run dist:mac
-        env:
-          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
-          # macOS 签名相关
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Upload macOS artifacts
-                if: always()  # ← 添加这一行
-
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: release/*.dmg
-          retention-days: 30
-
-      - name: Upload macOS zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-zip
-          path: release/*.zip
-          retention-days: 30
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build Linux
-        run: npm run dist:linux
-        env:
-          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
-
-      - name: Upload Linux artifacts
-                if: always()  # ← 添加这一行
-
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage
-          path: release/*.AppImage
-          retention-days: 30
-
-      - name: Upload Linux deb
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-deb
-          path: release/*.deb
-          retention-days: 30
-
-      - name: Upload Linux rpm
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-rpm
-          path: release/*.rpm
-          retention-days: 30
-
-  create-release:
-    needs: [build-windows, build-macos, build-linux]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            artifacts/windows-installer/*.exe
-            artifacts/windows-portable/*.exe
-            artifacts/macos-dmg/*.dmg
-            artifacts/macos-zip/*.zip
-            artifacts/linux-appimage/*.AppImage
-            artifacts/linux-deb/*.deb
-            artifacts/linux-rpm/*.rpm
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    build-linux:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+        - run: npm install
+        - run: npm run build
+        - run: npx electron-builder --linux --publish never
+          env:
+            ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
+        - uses: actions/upload-artifact@v4
+          if: always()
+          with:
+            name: linux-appimage
+            path: release/*.AppImage
+            retention-days: 30
