@@ -43,6 +43,7 @@ function AppContent() {
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [memoryContent, setMemoryContent] = useState('');
   const streamingMessageRef = useRef(null);
+  const isForceUpdateRef = useRef(false); // 🔥 追踪是否为强制更新
 
   // 使用 AuthContext 的用户状态
   const currentUser = auth.currentUser;
@@ -278,10 +279,12 @@ function AppContent() {
     window.electronAPI.onUpdateAvailable((data) => {
       if (data.forceUpdate) {
         // 强制更新
+        isForceUpdateRef.current = true;
         setUpdateInfo(data);
         setShowForceUpdate(true);
       } else {
         // 普通更新，显示弹窗
+        isForceUpdateRef.current = false;
         setUpdateInfo(data);
       }
     });
@@ -290,8 +293,11 @@ function AppContent() {
     window.electronAPI.onUpdateDownloaded((data) => {
       console.log('[更新] 下载完成:', data);
       setUpdateDownloaded(data);
-      // 清除更新信息，避免重复显示
-      setUpdateInfo(null);
+      // 🔥 修复：只有非强制更新才清除 updateInfo
+      // 强制更新需要保持弹窗显示，让用户点击"立即重启并安装"
+      if (!isForceUpdateRef.current) {
+        setUpdateInfo(null);
+      }
     });
 
     return () => {
