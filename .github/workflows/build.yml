@@ -3,7 +3,7 @@ name: Build Multi-Platform
 on:
   push:
     tags:
-      - v*
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -24,4 +24,42 @@ jobs:
         with:
           name: windows-installer
           path: release/*.exe
+          retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - run: npx electron-builder --mac --publish never
+        env:
+          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-dmg
+          path: release/*.dmg
+          retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - run: npx electron-builder --linux --publish never
+        env:
+          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-appimage
+          path: release/*.AppImage
           retention-days: 30
