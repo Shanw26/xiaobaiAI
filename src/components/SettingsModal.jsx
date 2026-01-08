@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import './SettingsModal.css';
 import logoSvg from '/logo.svg';
-import ToastModal from './ToastModal';
 import AlertModal from './AlertModal';
 import MarkdownRenderer from './MarkdownRenderer';
+import ToastModal from './ToastModal';
 import { showAlert } from '../lib/alertService';
+import { getPlatformClassNames } from '../lib/platformUtil';
 
 // 格式化数字显示
 function formatNumber(num) {
@@ -445,7 +446,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.9.9</span>
+          <span className="about-version">v2.10.13</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>
@@ -507,7 +508,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <h2 className="settings-title">设置</h2>

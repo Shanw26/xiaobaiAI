@@ -43,6 +43,8 @@
 - **[Device ID & Guest Mode](./04-deviceid-guest-mode.md)** - 设备识别、游客数据、自动合并
 - **[File Path Click](./05-file-path-click.md)** - 路径识别、Markdown渲染、Electron集成
 - **[Thinking Process](./06-thinking-process.md)** - AI思考过程展示、用户信任度提升
+- **[并行任务与小红点提示 (v2.10.1)](./v2.10.1-并行任务与小红点提示.md)** - 多会话并行执行、后台任务完成通知
+- **[新建会话体验优化 (v2.10.1)](./v2.10.1-新建会话体验优化.md)** - 立即创建空白会话、欢迎页面显示
 
 ### 架构与部署
 - **[System Architecture](./07-system-architecture.md)** - 整体架构、技术选型、模块关系
@@ -156,6 +158,8 @@
 | Changelog | ✅ 完成 | 2026-01-07 |
 | macOS Code Signing | ✅ 完成 | 2026-01-07 |
 | AI Reply Rules | ✅ 完成 | 2026-01-07 |
+| 并行任务与小红点提示 (v2.10.1) | ✅ 完成 | 2026-01-08 |
+| 新建会话体验优化 (v2.10.1) | ✅ 完成 | 2026-01-08 |
 | Troubleshooting | 🚧 新建 | 2026-01-07 |
 
 ---

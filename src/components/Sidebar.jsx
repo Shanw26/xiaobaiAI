@@ -23,6 +23,7 @@ function Sidebar({
   onDeleteChat,
   onOpenSettings,
   currentUser,
+  unreadConversations,  // ✨ v2.10.1 新增：未读会话（小红点）
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -49,7 +50,7 @@ function Sidebar({
           </div>
           <div className="logo-info">
             <span className="logo-text">小白AI</span>
-            <span className="logo-version">v2.9.9</span>
+            <span className="logo-version">v2.10.13</span>
           </div>
         </div>
         <button className="btn-new-chat" onClick={onNewChat}>
@@ -77,7 +78,13 @@ function Sidebar({
                   </svg>
                 </div>
                 <div className="chat-item-info">
-                  <div className="chat-item-title">{conv.title}</div>
+                  <div className="chat-item-title">
+                    {conv.title}
+                    {/* ✨ v2.10.1 新增：小红点提示（后台完成回复） */}
+                    {unreadConversations?.has(conv.id) && (
+                      <span className="unread-badge">●</span>
+                    )}
+                  </div>
                   <div className="chat-item-preview">
                     {conv.messages[0]?.content.slice(0, 30) || '空对话'}...
                   </div>
@@ -88,7 +95,12 @@ function Sidebar({
                     title="删除"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDeleteConfirm(conv.id);
+                      // ✨ v2.10.1 优化：空白会话直接删除，无需确认
+                      if (!conv.messages || conv.messages.length === 0) {
+                        onDeleteChat(conv.id);
+                      } else {
+                        setDeleteConfirm(conv.id);
+                      }
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">

@@ -205,7 +205,7 @@
 .thinking-content {
   padding: 1em;
   font-size: 0.95em;
-  line-height: 1.6;
+  line-height: 1.4;
   color: #555;
   background: #fafafa;
 }
@@ -216,7 +216,7 @@
 }
 
 .thinking-content p {
-  margin: 0.5em 0;
+  margin: 0.8em 0;
 }
 
 .thinking-content p:first-child {
@@ -236,4 +236,43 @@
   font-size: 0.95em;
   padding: 0 2px;
   opacity: 0.7;
+}
+
+/* 执行过程样式（v2.10.1） */
+.markdown-paragraph {
+  position: relative;
+}
+
+/* ⏺ 主要步骤标记 */
+.execution-step {
+  display: flex;
+  align-items: flex-start;
+  margin: 0.8em 0;
+  padding: 0.5em 0;
+  line-height: 1.5;
+}
+
+.execution-step::before {
+  content: '⏺ ';
+  color: var(--primary, #1890ff);
+  margin-right: 0.3em;
+  flex-shrink: 0;
+}
+
+/* ⎿ 子步骤/结果标记 */
+.execution-substep {
+  display: flex;
+  align-items: flex-start;
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+  line-height: 1.4;
+  font-size: 0.95em;
+  color: var(--text-secondary, #666);
+}
+
+.execution-substep::before {
+  content: '⎿ ';
+  color: var(--text-tertiary, #999);
+  margin-right: 0.3em;
+  flex-shrink: 0;
 }

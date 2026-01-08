@@ -6,15 +6,16 @@ import Header from './components/Header';
 import Welcome from './components/Welcome';
 import SettingsModal from './components/SettingsModal';
 import StartupScreen from './components/StartupScreen';
-import FloatingGuide from './components/FloatingGuide';
 import LoginModal from './components/LoginModal';
 import GuestLimitModal from './components/GuestLimitModal';
-import ToastModal from './components/ToastModal';
 import UpdateAvailableModal from './components/UpdateAvailableModal';
 import UpdateDownloadedModal from './components/UpdateDownloadedModal';
 import ForceUpdateModal from './components/ForceUpdateModal';
+import ToastModal from './components/ToastModal';
+import PlatformStyles from './components/PlatformStyles';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { showAlert } from './lib/alertService';
+import { getPlatformClassNames } from './lib/platformUtil';
 import {
   loadConversations as loadConversationsCloud,
   createConversation,
@@ -37,7 +38,6 @@ function AppContent() {
   const [conversations, setConversations] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showFloatingGuide, setShowFloatingGuide] = useState(false);
   const [showStartup, setShowStartup] = useState(true);
   const [isAgentReady, setIsAgentReady] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState('');
@@ -49,11 +49,13 @@ function AppContent() {
   const [guestStatus, setGuestStatus] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
-  const [toast, setToast] = useState(null); // { message, type }
   const [updateInfo, setUpdateInfo] = useState(null);
   const [showForceUpdate, setShowForceUpdate] = useState(false);
   const [updateDownloaded, setUpdateDownloaded] = useState(null); // { version }
+  const [toast, setToast] = useState(null);
 
+  // ✨ v2.10.1 新增：小红点状态（记录哪些会话在后台完成回复）
+  const [unreadConversations, setUnreadConversations] = useState(new Set());
   // 等待指示器状态（v2.8.7 - 添加 duration）
   const [waitingIndicator, setWaitingIndicator] = useState({
     show: false,
@@ -233,7 +235,8 @@ function AppContent() {
       return { thinking: null, content: text };
     };
 
-    window.electronAPI.onMessageDelta(({ text, fullText }) => {
+    // ✨ v2.10.1 修改：支持并行任务，添加 conversationId
+    window.electronAPI.onMessageDelta(({ conversationId, text, fullText }) => {
       if (streamingMessageRef.current) {
         // 提取思考过程和回答内容
         const { thinking, content } = extractThinkingAndContent(fullText);
@@ -245,9 +248,10 @@ function AppContent() {
         if (thinking) {
           setConversations((prev) => {
             const newConversations = [...prev];
-            const currentChat = newConversations.find((c) => c.id === currentChatId);
-            if (currentChat) {
-              const lastMessage = currentChat.messages[currentChat.messages.length - 1];
+            // ✨ 使用 conversationId 找到对应的会话（支持并行任务）
+            const targetChat = newConversations.find((c) => c.id === conversationId);
+            if (targetChat) {
+              const lastMessage = targetChat.messages[targetChat.messages.length - 1];
               if (lastMessage && lastMessage.role === 'assistant') {
                 lastMessage.thinking = thinking;
                 console.log('✅ [App] 实时更新思考过程');
@@ -295,6 +299,30 @@ function AppContent() {
     };
   }, []);
 
+  // ✨ v2.10.1 新增：监听消息完成事件（小红点提示）
+  useEffect(() => {
+    const handleMessageCompleted = (data) => {
+      const { conversationId, timestamp } = data;
+      console.log('📬 [App] 消息完成:', conversationId);
+
+      // 如果不是当前活跃的会话，添加到未读列表
+      if (conversationId !== currentChatId) {
+        setUnreadConversations(prev => new Set([...prev, conversationId]));
+        console.log('🔴 [App] 添加小红点:', conversationId);
+      }
+    };
+
+    // 监听消息完成事件
+    window.electronAPI.onMessageCompleted(handleMessageCompleted);
+
+    return () => {
+      // 清理监听器
+      if (window.electronAPI.removeMessageCompletedListener) {
+        window.electronAPI.removeMessageCompletedListener();
+      }
+    };
+  }, [currentChatId]);
+
   const loadConfig = async () => {
     try {
       const savedConfig = await window.electronAPI.readConfig();
@@ -302,12 +330,6 @@ function AppContent() {
 
       // 加载全局提示和记忆文件
       await loadGlobalPromptAndMemory(savedConfig);
-
-      // 检查是否是首次使用，显示悬浮球引导
-      const firstTimeCheck = await window.electronAPI.isFirstTimeUser();
-      if (firstTimeCheck.isFirstTime) {
-        setShowFloatingGuide(true);
-      }
 
       // 获取当前用户状态
       let userStatus = await window.electronAPI.getCurrentUser();
@@ -343,7 +365,7 @@ function AppContent() {
           // 登录用户
           console.log('✅ [App] 检测到登录用户:', userStatus.user);
           console.log('   hasApiKey:', userStatus.user.hasApiKey);
-          setCurrentUser(userStatus.user);
+          auth.login(userStatus.user);
 
           // 如果用户有API Key，使用用户配置初始化Agent
           if (userStatus.user.hasApiKey) {
@@ -375,10 +397,15 @@ function AppContent() {
     } catch (error) {
       console.error('加载配置失败:', error);
     } finally {
-      // 延迟关闭启动动画，让用户看到完整动画
+      // 🔥 优化：减少启动屏延迟，提升启动速度
+      // 只保留最小延迟（500ms）让启动屏动画可见，避免闪烁
       setTimeout(() => {
         setShowStartup(false);
-      }, 2000);
+        // 🔥 关键：通知 Electron 窗口可以显示了
+        if (window.electronAPI && window.electronAPI.readyToShow) {
+          window.electronAPI.readyToShow();
+        }
+      }, 500); // 从 2000ms 减少到 500ms
     }
   };
 
@@ -406,9 +433,25 @@ function AppContent() {
     auth.login(user);
     setShowLoginModal(false);
 
-    // 加载用户使用次数（从 localStorage）
-    const savedUsage = localStorage.getItem(`user_usage_${user.id}`);
-    setUserUsageCount(savedUsage ? parseInt(savedUsage, 10) : 0);
+    // 🔥 关键修复：清空游客状态
+    setGuestStatus(null);
+    console.log('✅ [App] 已清空游客状态');
+
+    // 🔥 关键修复：清空本地对话列表，避免与云端数据重复
+    setConversations([]);
+    setCurrentChatId(null);
+    console.log('✅ [App] 已清空本地对话列表');
+
+    // 🔥 关键修复：从云端加载用户使用次数，而不是 localStorage
+    try {
+      const usageResult = await getUserUsageCount();
+      if (usageResult.success) {
+        setUserUsageCount(usageResult.usedCount);
+        console.log(`✅ [App] 云端使用次数: ${usageResult.usedCount}`);
+      }
+    } catch (error) {
+      console.error('⚠️  [App] 获取云端使用次数失败（非致命）:', error);
+    }
 
     // 重新初始化Agent
     const savedConfig = await window.electronAPI.readConfig();
@@ -469,7 +512,7 @@ function AppContent() {
       // 不阻塞登录流程
     }
 
-    // 直接调用云端加载，传递 user 对象（不依赖 currentUser 状态）
+    // 🔥 关键修复：合并完成后再加载云端对话，确保数据一致性
     try {
       console.log('📥 [App] 从云端加载对话历史...');
       const result = await loadConversationsCloud();
@@ -501,13 +544,13 @@ function AppContent() {
 
     // 切换到游客模式
     await window.electronAPI.useGuestMode();
-    const status = await loadUserStatus();
+    await loadUserStatus();  // 重新加载游客状态（无返回值）
 
-    // 重新初始化Agent
+    // 重新初始化Agent（游客模式）
     const result = await window.electronAPI.initAgent({
-      modelProvider: 'anthropic',
+      modelProvider: 'zhipu',
       apiKey: '',
-      model: 'claude-3-5-sonnet-20241022'
+      model: 'glm-4.7'
     });
 
     if (result.success) {
@@ -571,8 +614,24 @@ function AppContent() {
     setConversations(updated);
   }, []);
 
-  const handleNewChat = () => {
-    setCurrentChatId(null);
+  const handleNewChat = async () => {
+    // ✨ v2.10.1 优化：立即创建空白会话，提升用户体验
+    const newChat = {
+      id: Date.now().toString(),
+      title: '新对话',  // 临时标题，发送消息后会更新
+      createdAt: new Date().toISOString(),
+      model: config?.model || 'claude-3-5-sonnet-20241022',
+      messages: [],
+      isNew: true,  // 标记为新对话，用于后续处理
+    };
+
+    // 添加到会话列表顶部
+    setConversations(prev => [newChat, ...prev]);
+    setCurrentChatId(newChat.id);
+
+    // 同步到云端（游客和登录用户都保存）
+    console.log('📝 [App] 创建新对话到云端:', newChat.title);
+    await createConversation(newChat);
   };
 
   const handleSaveConfig = async (newConfig) => {
@@ -585,6 +644,7 @@ function AppContent() {
 
       // 重新初始化 Agent
       if (newConfig.apiKey && newConfig.apiKey.trim() !== '') {
+        // 用户有 API Key，使用用户配置初始化 Agent
         const result = await window.electronAPI.initAgent(newConfig);
         console.log('Agent 初始化结果', result);
         if (result.success) {
@@ -594,9 +654,19 @@ function AppContent() {
           showAlert('AI 初始化失败: ' + result.error, 'error');
         }
       } else {
-        // 如果清空了 API Key，重置状态
-        setIsAgentReady(false);
-        setShowSettings(false);
+        // 用户没有 API Key，使用官方 Key 初始化 Agent（游客模式）
+        const result = await window.electronAPI.initAgent({
+          modelProvider: 'zhipu',
+          apiKey: '',
+          model: 'glm-4.7'
+        });
+        console.log('Agent 初始化结果（游客模式）', result);
+        if (result.success) {
+          setIsAgentReady(true);
+          setShowSettings(false);
+        } else {
+          showAlert('AI 初始化失败: ' + result.error, 'error');
+        }
       }
     } catch (error) {
       console.error('保存配置失败:', error);
@@ -606,6 +676,13 @@ function AppContent() {
 
   const handleSelectChat = (chatId) => {
     setCurrentChatId(chatId);
+
+    // ✨ v2.10.1 新增：切换会话时清除该会话的小红点
+    setUnreadConversations(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(chatId);
+      return newSet;
+    });
   };
 
   const handleDeleteChat = async (chatId) => {
@@ -650,6 +727,19 @@ function AppContent() {
 
       // 读取当前记忆文件内容
       let currentMemory = memoryContent || '';
+
+      // 🔥 性能优化：限制对话记录数量，只保留最近 3 条
+      const lines = currentMemory.split('\n');
+      const recordHeaders = lines.filter(line => line.startsWith('## 对话记录'));
+
+      // 如果已有 3 条记录，删除最旧的一条
+      if (recordHeaders.length >= 3) {
+        const firstRecordIndex = lines.findIndex(line => line.startsWith('## 对话记录'));
+        const secondRecordIndex = lines.findIndex((line, i) => i > firstRecordIndex && line.startsWith('## 对话记录'));
+
+        // 删除第一条记录
+        currentMemory = lines.slice(secondRecordIndex).join('\n');
+      }
 
       // 更新记忆内容
       const updatedMemory = currentMemory + newEntry;
@@ -752,7 +842,7 @@ function AppContent() {
     let isNewConversation = false;
 
     if (!currentChatId) {
-      // 创建新对话
+      // 兜底：如果没有当前会话，创建新对话（通常不会走到这里，因为handleNewChat已经创建了）
       isNewConversation = true;
       chat = {
         id: Date.now().toString(),
@@ -760,6 +850,7 @@ function AppContent() {
         createdAt: new Date().toISOString(),
         model: config?.model || 'claude-3-5-sonnet-20241022',
         messages: [],
+        isNew: true,
       };
       updated.unshift(chat);
       setCurrentChatId(chat.id);
@@ -768,7 +859,18 @@ function AppContent() {
       console.log('📝 [App] 创建新对话到云端:', chat.title);
       await createConversation(chat);
     } else {
+      // 找到当前会话
       chat = updated.find((c) => c.id === currentChatId);
+
+      // ✨ v2.10.1 优化：如果是空白新会话，更新标题
+      if (chat.isNew && chat.messages.length === 0) {
+        chat.title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+        chat.isNew = false;  // 移除新标记
+
+        // 更新云端会话标题
+        console.log('📝 [App] 更新新对话标题:', chat.title);
+        // 这里可以调用更新云端的API（如果需要）
+      }
     }
 
     // 添加用户消息
@@ -794,27 +896,19 @@ function AppContent() {
 
     setConversations(updated);
 
-    // 构建完整的消息内容（包含全局提示和记忆）
+    // 构建完整的消息内容（只包含全局提示，记忆由AI通过工具调用获取）
     let fullContent = content;
-    if (globalPrompt || memoryContent) {
-      fullContent = '';
-      if (globalPrompt) {
-        fullContent += `【全局设置】\n${globalPrompt}\n\n`;
-      }
-      if (memoryContent) {
-        fullContent += `【记忆】\n${memoryContent}\n\n`;
-      }
-      fullContent += `【用户消息】\n${content}`;
+    if (globalPrompt) {
+      fullContent = `【全局设置】\n${globalPrompt}\n\n【用户消息】\n${content}`;
     }
 
     // 设置流式响应回调
     let lastUpdateTime = Date.now();
     streamingMessageRef.current = (fullText) => {
-      // 🆕 隐藏等待指示器（v2.8.0）
-      if (waitingIndicator.show) {
-        hideWaitingIndicator();
-        cancelWaitingTimer();
-      }
+      // 🔥 关键修复：始终隐藏等待指示器（v2.10.1）
+      // 移除 if 检查以避免闭包导致的过时状态
+      hideWaitingIndicator();
+      cancelWaitingTimer();
 
       setConversations((prev) => {
         const newConversations = [...prev];
@@ -839,12 +933,26 @@ function AppContent() {
 
     try {
       // 调用 Agent SDK 发送消息（传递完整内容）
-      const result = await window.electronAPI.sendMessage(fullContent, files);
+      // ✨ v2.10.1 新增：传递 conversationId，支持并行任务
+      const result = await window.electronAPI.sendMessage(chat.id, fullContent, files);
 
-      if (result.success) {
-        // v2.8.5 - 如果有思考过程，更新到消息中
-        if (result.thinking) {
-          setConversations((prev) => {
+      // 🔥 关键修复：检查是否需要登录（游客限制）
+      if (result.needLogin) {
+        setShowGuestLimitModal(true);
+        // 移除 AI 消息占位符
+        chat.messages.pop();
+        setConversations([...conversations]);
+        return chat;
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || '发送消息失败');
+      }
+
+      // result.success === true，继续处理成功响应
+      // v2.8.5 - 如果有思考过程，更新到消息中
+      if (result.thinking) {
+        setConversations((prev) => {
             const newConversations = [...prev];
             const currentChat = newConversations.find((c) => c.id === chat.id);
             if (currentChat) {
@@ -855,65 +963,70 @@ function AppContent() {
               }
             }
             return newConversations;
-          });
-        }
-
-        // 最终更新本地状态
-        streamingMessageRef.current(result.content);
-
-        // 最终更新云端消息（游客和登录用户都更新）
-        // v2.9.3 - 同时更新 content 和 thinking
-        console.log('💾 [App] 更新 AI 消息到云端（包含思考过程）');
-        await updateMessageCloud(chat.id, aiMessageId, {
-          content: result.content,
-          thinking: result.thinking || null
         });
+      }
 
-        // 增加游客使用次数（登录用户无限制，不计数）
-        if (!currentUser) {
-          const result = await incrementUserUsage();
-          if (result.success) {
-            console.log(`📊 [App] 游客使用次数更新: ${result.usedCount}/10, 剩余: ${result.remaining}`);
-          } else {
-            console.error('❌ [App] 更新游客使用次数失败:', result.error);
-          }
+      // 最终更新本地状态
+      streamingMessageRef.current(result.content);
+
+      // 最终更新云端消息（游客和登录用户都更新）
+      // v2.9.3 - 同时更新 content 和 thinking
+      console.log('💾 [App] 更新 AI 消息到云端（包含思考过程）');
+      await updateMessageCloud(chat.id, aiMessageId, {
+        content: result.content,
+        thinking: result.thinking || null
+      });
+
+      // 增加游客使用次数（登录用户无限制，不计数）
+      if (!currentUser) {
+        const incrementResult = await incrementUserUsage();
+        if (incrementResult.success) {
+          console.log(`📊 [App] 游客使用次数更新: ${incrementResult.usedCount}/10, 剩余: ${incrementResult.remaining}`);
+          // 🔥 关键修复：同步更新本地状态，确保前端显示正确
+          setGuestStatus(prev => ({
+            ...prev,
+            usedCount: incrementResult.usedCount,
+            remaining: incrementResult.remaining
+          }));
+        } else {
+          console.error('❌ [App] 更新游客使用次数失败:', incrementResult.error);
         }
+      }
 
-        // 自动更新记忆文件
-        await updateMemoryFile(content, result.content);
+      // 自动更新记忆文件
+      await updateMemoryFile(content, result.content);
 
-        // 🔄 自动同步 AI 记忆到云端（换电脑后可恢复）
-        try {
-          const timestamp = new Date().toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          const newEntry = `\n## 对话记录 - ${timestamp}\n\n**用户**: ${content}\n\n**AI**: ${result.content.slice(0, 200)}${result.content.length > 200 ? '...' : ''}\n`;
+      // 🔄 自动同步 AI 记忆到云端（换电脑后可恢复）
+      try {
+        const timestamp = new Date().toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const newEntry = `\n## 对话记录 - ${timestamp}\n\n**用户**: ${content}\n\n**AI**: ${result.content.slice(0, 200)}${result.content.length > 200 ? '...' : ''}\n`;
 
-          // 获取当前云端记忆
-          const { getAiMemory } = await import('./lib/cloudService');
-          const memoryResult = await getAiMemory();
-          let currentMemory = memoryResult.success ? memoryResult.content : '';
+        // 获取当前云端记忆
+        const { getAiMemory } = await import('./lib/cloudService');
+        const memoryResult = await getAiMemory();
+        let currentMemory = memoryResult.success ? memoryResult.content : '';
 
-          // 更新并保存到云端
-          const updatedMemory = currentMemory + newEntry;
-          await saveAiMemory(updatedMemory);
-          console.log('✅ [App] AI 记忆已同步到云端');
-        } catch (error) {
-          console.error('❌ [App] 同步 AI 记忆到云端失败（非致命）:', error);
-          // 不阻塞聊天流程
-        }
+        // 更新并保存到云端
+        const updatedMemory = currentMemory + newEntry;
+        await saveAiMemory(updatedMemory);
+        console.log('✅ [App] AI 记忆已同步到云端');
+      } catch (error) {
+        console.error('❌ [App] 同步 AI 记忆到云端失败（非致命）:', error);
+        // 不阻塞聊天流程
+      }
 
-        // 🔄 自动检测并保存用户个人信息到云端
-        try {
-          await extractAndSaveUserInfo(content);
-        } catch (error) {
-          console.error('❌ [App] 保存用户信息失败（非致命）:', error);
-          // 不阻塞聊天流程
-        }
+      // 🔄 自动检测并保存用户个人信息到云端
+      try {
+        await extractAndSaveUserInfo(content);
+      } catch (error) {
+        console.error('❌ [App] 保存用户信息失败（非致命）:', error);
+        // 不阻塞聊天流程
       }
     } catch (error) {
       console.error('发送消息失败:', error);
@@ -951,8 +1064,11 @@ function AppContent() {
 
   console.log('App 渲染', { config, hasApiKey: !!config?.apiKey });
 
+  // ✨ v2.10.1 新增：根据平台添加样式类名
+  const platformClassNames = getPlatformClassNames().join(' ');
+
   return (
-    <div className="app">
+    <div className={`app ${platformClassNames}`}>
       <Sidebar
         conversations={conversations}
         currentChatId={currentChatId}
@@ -964,6 +1080,7 @@ function AppContent() {
         guestStatus={guestStatus}
         onLoginClick={() => setShowLoginModal(true)}
         onLogout={handleLogout}
+        unreadConversations={unreadConversations}  // ✨ v2.10.1 新增：小红点状态
       />
 
       <div className="main">
@@ -973,7 +1090,7 @@ function AppContent() {
         />
 
         <div className="content">
-          {currentChat ? (
+          {currentChat && currentChat.messages.length > 0 ? (
             <ChatArea
               messages={currentChat.messages}
               currentUser={currentUser}
@@ -1037,8 +1154,6 @@ function AppContent() {
         />
       )}
 
-      {showFloatingGuide && <FloatingGuide />}
-
       {updateInfo && !showForceUpdate && (
         <UpdateAvailableModal
           version={updateInfo.version}
@@ -1066,7 +1181,7 @@ function AppContent() {
             window.electronAPI.installUpdate();
             // 不需要关闭弹窗，应用即将退出
           }}
-          onLater={() => setUpdateDownloaded(null)}
+          onClose={() => setUpdateDownloaded(null)}
         />
       )}
     </div>
@@ -1077,7 +1192,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <PlatformStyles>
+        <AppContent />
+      </PlatformStyles>
     </AuthProvider>
   );
 }

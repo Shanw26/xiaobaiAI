@@ -177,6 +177,27 @@
   font-weight: 600;
 }
 
+/* ✨ v2.10.1 新增：未读消息小红点样式 */
+.unread-badge {
+  color: #ff4444;
+  margin-left: 6px;
+  font-size: 10px;
+  animation: pulse 2s ease-in-out infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
 .chat-item-preview {
   font-size: 12px;
   color: var(--text-light);

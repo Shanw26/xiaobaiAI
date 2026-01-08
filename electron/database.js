@@ -2,6 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
+const { createClient } = require('@supabase/supabase-js');
 
 // ==================== 安全的日志输出 ====================
 // 检查流可写性，避免 EPIPE 错误
@@ -32,10 +34,55 @@ function initDatabase() {
   const dbPath = getDatabasePath();
   safeLog('初始化数据库:', dbPath);
 
-  db = new Database(dbPath);
+  // v2.9.8 - 确保数据库文件可写
+  const fs = require('fs');
+  const path = require('path');
 
-  // 启用外键约束
-  db.pragma('foreign_keys = ON');
+  // 确保数据库目录存在
+  const dbDir = path.dirname(dbPath);
+  try {
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+  } catch (error) {
+    safeError('创建数据库目录失败:', error);
+  }
+
+  // 如果数据库文件存在，检查并修复权限
+  if (fs.existsSync(dbPath)) {
+    try {
+      fs.accessSync(dbPath, fs.constants.W_OK);
+    } catch (error) {
+      safeError('数据库文件只读，尝试修复:', error);
+      // 尝试修复权限
+      try {
+        fs.chmodSync(dbPath, 0o666);
+        safeLog('✓ 数据库文件权限已修复');
+      } catch (chmodError) {
+        safeError('无法修复数据库文件权限:', chmodError);
+        // 如果无法修复，备份并重新创建
+        try {
+          const backupPath = dbPath + '.readonly.' + Date.now();
+          fs.renameSync(dbPath, backupPath);
+          safeLog('✓ 只读数据库已备份:', backupPath);
+        } catch (renameError) {
+          safeError('备份数据库失败:', renameError);
+        }
+      }
+    }
+  }
+
+  try {
+    db = new Database(dbPath, { /* v2.9.8 添加错误处理 */ });
+
+    // 启用外键约束
+    db.pragma('foreign_keys = ON');
+
+    safeLog('✓ 数据库连接成功');
+  } catch (error) {
+    safeError('数据库连接失败:', error);
+    throw error;
+  }
 
   // 创建表
   createTables();
@@ -128,13 +175,64 @@ function createTables() {
 
 // 生成设备ID（基于机器特征）
 function getDeviceId() {
+  try {
+    let hardwareId = null;
+
+    // 根据不同操作系统获取硬件UUID
+    if (process.platform === 'darwin') {
+      // macOS: 使用 ioreg 获取硬件UUID
+      try {
+        hardwareId = execSync('ioreg -rd1 -c IOPlatformExpertDevice | grep UUID | awk \'{print $3}\' | tr -d \'"\'', {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'ignore']
+        }).trim();
+      } catch (error) {
+        safeError('获取macOS硬件UUID失败:', error.message);
+      }
+    } else if (process.platform === 'win32') {
+      // Windows: 使用 MachineGuid
+      try {
+        hardwareId = execSync('reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'ignore']
+        }).match(/REG_SZ\s+([A-F0-9-]{36})/i)?.[1];
+      } catch (error) {
+        safeError('获取Windows MachineGuid失败:', error.message);
+      }
+    } else if (process.platform === 'linux') {
+      // Linux: 使用 /etc/machine-id 或 /var/lib/dbus/machine-id
+      try {
+        const fs = require('fs');
+        const machineIdPath = '/etc/machine-id';
+        if (fs.existsSync(machineIdPath)) {
+          hardwareId = fs.readFileSync(machineIdPath, 'utf-8').trim();
+        }
+      } catch (error) {
+        safeError('获取Linux machine-id失败:', error.message);
+      }
+    }
+
+    // 如果成功获取到硬件UUID，使用它
+    if (hardwareId && hardwareId.length > 0) {
+      // 转换为小写并移除可能的空格和括号
+      hardwareId = hardwareId.toLowerCase().replace(/\s+/g, '');
+      safeLog('✅ 使用硬件UUID:', hardwareId);
+      return hardwareId;
+    }
+  } catch (error) {
+    safeError('获取硬件UUID失败，使用降级方案:', error.message);
+  }
+
+  // 降级方案：如果硬件UUID获取失败，使用原来的方法
   const hostname = os.hostname();
   const platform = os.platform();
   const arch = os.arch();
   const cpus = os.cpus()[0]?.model || 'unknown';
 
   const uniqueString = `${hostname}-${platform}-${arch}-${cpus}`;
-  return crypto.createHash('md5').update(uniqueString).digest('hex');
+  const fallbackId = crypto.createHash('md5').update(uniqueString).digest('hex');
+  safeLog('⚠️ 使用降级方案设备ID:', fallbackId);
+  return fallbackId;
 }
 
 // ==================== 用户相关操作 ====================
@@ -364,22 +462,137 @@ function setSystemConfig(key, value, description = null) {
   return stmt.run(key, value, description);
 }
 
+// ✨ v2.10.13 安全改进：从 Supabase 获取官方配置
+// 避免在源代码中硬编码 API Key
+async function fetchOfficialConfigFromSupabase() {
+  try {
+    // 从环境变量读取 Supabase 配置
+    // 兼容 VITE_ 前缀（前端）和无前缀（后端）
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    // 优先使用 Service Role Key（绕过 RLS），其次使用 Anon Key
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                        process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+                        process.env.SUPABASE_ANON_KEY ||
+                        process.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase 配置缺失');
+    }
+
+    safeLog('📡 正在连接 Supabase:', supabaseUrl.substring(0, 30) + '...');
+    safeLog('🔑 使用 Key 类型:', supabaseKey.includes('service_role') ? 'Service Role' : 'Anon');
+
+    // 创建 Supabase 客户端
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
+
+    safeLog('✅ Supabase 客户端创建成功');
+
+    // ✨ 改用直接查询，避免 RPC 函数权限问题
+    const { data: apiKeyData, error: apiKeyError } = await supabase
+      .from('system_configs')
+      .select('key, value, description')
+      .eq('key', 'official_api_key')
+      .single();
+
+    if (apiKeyError) {
+      safeError('❌ 查询 API Key 失败:', apiKeyError);
+      throw new Error('获取 API Key 失败: ' + apiKeyError.message);
+    }
+
+    const { data: providerData } = await supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'official_provider')
+      .single();
+
+    const { data: modelData } = await supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'official_model')
+      .single();
+
+    const { data: limitData } = await supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'free_usage_limit')
+      .single();
+
+    // 提取配置值
+    const apiKey = apiKeyData?.value || null;
+    const provider = providerData?.value || 'zhipu';
+    const model = modelData?.value || 'glm-4.7';
+    const limit = limitData?.value || '10';
+
+    if (!apiKey) {
+      throw new Error('API Key 为空');
+    }
+
+    safeLog('✅ 从 Supabase 成功获取官方配置');
+    safeLog('  - 模型提供商:', provider);
+    safeLog('  - 模型:', model);
+    safeLog('  - API Key:', apiKey.substring(0, 10) + '...');
+    safeLog('  - 免费限制:', limit, '次');
+
+    return { apiKey, provider, model, limit };
+  } catch (error) {
+    safeError('❌ 从 Supabase 获取配置失败:', error.message);
+    return null;
+  }
+}
+
 // 初始化官方配置（首次启动时调用）
-function initOfficialConfig() {
+async function initOfficialConfig() {
   // 检查是否已初始化
   const isInitialized = getSystemConfig('official_config_initialized');
   if (isInitialized) {
+    safeLog('✅ 官方配置已存在，跳过初始化');
     return;
   }
 
-  // 写入官方API Key
-  setSystemConfig('official_api_key', 'c2204ed0321b40a78e7f8b6eda93ff39.h9MOF4P51SCQpPhI', '官方智谱GLM API Key（游客模式使用）');
-  setSystemConfig('official_provider', 'zhipu', '官方模型提供商');
-  setSystemConfig('official_model', 'glm-4.7', '官方默认模型');
-  setSystemConfig('free_usage_limit', '10', '游客免费使用次数限制');
+  safeLog('🔄 开始初始化官方配置...');
+
+  let officialApiKey = null;
+  let officialProvider = 'zhipu';
+  let officialModel = 'glm-4.7';
+  let freeUsageLimit = '10';
+
+  // ✨ v2.10.13 优先级：Supabase > 环境变量 > 默认值
+  // 1. 尝试从 Supabase 获取（推荐）
+  const supabaseConfig = await fetchOfficialConfigFromSupabase();
+  if (supabaseConfig) {
+    officialApiKey = supabaseConfig.apiKey;
+    officialProvider = supabaseConfig.provider;
+    officialModel = supabaseConfig.model;
+    freeUsageLimit = supabaseConfig.limit;
+    safeLog('✅ 使用 Supabase 配置');
+  } else {
+    // 2. 降级方案：环境变量
+    officialApiKey = process.env.ZHIPU_OFFICIAL_API_KEY;
+    if (officialApiKey) {
+      safeLog('✅ 使用环境变量配置');
+    } else {
+      // 3. 最后兜底：使用默认值（不推荐，仅用于开发测试）
+      safeError('⚠️  警告：无法从 Supabase 或环境变量获取 API Key');
+      safeError('⚠️  游客模式将无法使用');
+      safeError('⚠️  请在 Supabase system_configs 表中配置 official_api_key');
+      safeError('⚠️  或在 .env 文件中设置 ZHIPU_OFFICIAL_API_KEY');
+      return;  // 不使用硬编码 Key，让初始化失败
+    }
+  }
+
+  // 写入官方API Key到数据库（仅首次写入）
+  setSystemConfig('official_api_key', officialApiKey, '官方智谱GLM API Key（游客模式使用）');
+  setSystemConfig('official_provider', officialProvider, '官方模型提供商');
+  setSystemConfig('official_model', officialModel, '官方默认模型');
+  setSystemConfig('free_usage_limit', freeUsageLimit, '游客免费使用次数限制');
   setSystemConfig('official_config_initialized', 'true', '配置已初始化标记');
 
-  safeLog('官方配置已初始化到数据库');
+  safeLog('✅ 官方配置已初始化到数据库（存储在本地加密数据库中）');
 }
 
 // 获取官方API Key
@@ -545,6 +758,7 @@ module.exports = {
   setSystemConfig,
   initOfficialConfig,
   getOfficialApiKey,
+  fetchOfficialConfigFromSupabase,  // ✨ v2.10.13 新增
 
   // 工具函数
   getDatabasePath,

@@ -1,4 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker } = require('electron');
+// 加载环境变量（必须在最前面）
+require('dotenv').config();
+
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, Menu } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { exec } = require('child_process');
 const util = require('util');
@@ -24,12 +27,37 @@ function safeError(...args) {
   }
 }
 
+// ✨ v2.10.7 修复：全局错误处理（延迟初始化，避免 app 未就绪时崩溃）
+function setupGlobalErrorHandlers() {
+  try {
+    const userDataPath = app.getPath('userData');
+    const errorLogPath = path.join(userDataPath, 'error.log');
+
+    process.on('uncaughtException', (error) => {
+      safeError('[致命错误] 未捕获的异常:', error);
+      const errorMessage = `${new Date().toISOString()} - Uncaught Exception: ${error.message}\n${error.stack}\n\n`;
+      fs.appendFile(errorLogPath, errorMessage).catch(() => {});
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      safeError('[致命错误] 未处理的 Promise 拒绝:', reason);
+      const errorMessage = `${new Date().toISOString()} - Unhandled Rejection: ${reason}\n\n`;
+      fs.appendFile(errorLogPath, errorMessage).catch(() => {});
+    });
+
+    safeLog('[启动] 全局错误处理器已安装');
+  } catch (error) {
+    safeError('[启动] 安装错误处理器失败:', error.message);
+  }
+}
+
 // 当前应用版本
-const APP_VERSION = '2.9.9';
+const APP_VERSION = '2.10.13';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
-let agentInstance = null;
+let agentInstance = null; // 全局默认Agent（向后兼容）
+const conversationAgents = new Map(); // 会话ID -> Agent实例（v2.10.1新增：支持并行任务）
 let currentUser = null; // 当前登录用户
 let isGuestMode = false; // 是否为游客模式
 
@@ -249,6 +277,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 500,
     show: false, // 🔥 关键：先隐藏窗口，等待页面加载完成
+    autoHideMenuBar: true, // ✨ v2.10.1 新增：Windows 上默认隐藏菜单栏，按 Alt 可显示
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -281,20 +310,57 @@ function createWindow() {
 
 // 应用准备就绪时创建窗口
 app.whenReady().then(async () => {
-  // 检查版本并清理旧数据
-  await checkAndCleanOldData();
+  try {
+    safeLog('='.repeat(60));
+    safeLog(`[启动] 小白AI v${APP_VERSION} 正在启动...`);
+    safeLog(`[启动] 平台: ${process.platform}`);
+    safeLog(`[启动] 架构: ${process.arch}`);
+    safeLog(`[启动] Electron: ${process.versions.electron}`);
+    safeLog('='.repeat(60));
 
-  // 初始化数据库
-  db.initDatabase();
-  safeLog('数据库初始化完成');
+    // ✨ v2.10.7 修复：首先安装全局错误处理器
+    setupGlobalErrorHandlers();
 
-  // 初始化官方配置到数据库（首次启动时）
-  db.initOfficialConfig();
+    // 检查版本并清理旧数据
+    safeLog('[启动] 检查版本...');
+    await checkAndCleanOldData();
+
+    // 初始化数据库
+    safeLog('[启动] 初始化数据库...');
+    try {
+      db.initDatabase();
+      safeLog('[启动] ✓ 数据库初始化完成');
+    } catch (error) {
+      safeError('[启动] ✗ 数据库初始化失败:', error);
+      throw new Error(`数据库初始化失败: ${error.message}`);
+    }
+
+    // 初始化官方配置到数据库（首次启动时）
+    safeLog('[启动] 初始化官方配置...');
+    try {
+      await db.initOfficialConfig();
+      safeLog('[启动] ✓ 官方配置初始化完成');
+    } catch (error) {
+      safeError('[启动] ✗ 官方配置初始化失败:', error);
+      // 不抛出异常，允许应用继续启动（游客模式不可用）
+    }
 
   // 定时清理过期验证码（每5分钟）
   setInterval(() => {
     db.cleanExpiredCodes();
   }, 5 * 60 * 1000);
+
+  // ✨ v2.10.1 修复：隐藏 Windows 系统默认菜单栏（英文菜单）
+  // Windows/Linux 上隐藏默认的 File、Edit、View 等英文菜单
+  if (process.platform !== 'darwin') {
+    try {
+      Menu.setApplicationMenu(null);
+      safeLog('[菜单] 已隐藏系统默认菜单栏（Windows/Linux）');
+    } catch (error) {
+      safeError('[菜单] 隐藏菜单栏失败:', error.message);
+      // 不影响应用启动，继续执行
+    }
+  }
 
   createWindow();
 
@@ -332,6 +398,33 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+
+  safeLog('='.repeat(60));
+  safeLog('[启动] ✅ 启动流程完成');
+  safeLog('='.repeat(60));
+} catch (error) {
+  safeError('[启动] ❌ 启动失败:', error);
+  safeError('[启动] 错误堆栈:', error.stack);
+
+  // 尝试写入错误到文件
+  try {
+    const userDataPath = app.getPath('userData');
+    const errorLogPath = path.join(userDataPath, 'startup-error.log');
+    const errorMessage = `${new Date().toISOString()} - Startup Failed: ${error.message}\n${error.stack}\n\n`;
+    fs.appendFile(errorLogPath, errorMessage).catch(() => {});
+
+    // 显示错误对话框
+    dialog.showErrorBox(
+      '小白AI 启动失败',
+      `应用启动时发生错误：\n\n${error.message}\n\n错误信息已保存到：\n${errorLogPath}`
+    );
+  } catch (e) {
+    // 如果连错误日志都写不了，就没办法了
+  }
+
+  // 退出应用
+  app.quit();
+}
 });
 
 // 所有窗口关闭时退出应用（macOS 除外）
@@ -516,6 +609,14 @@ ipcMain.handle('save-ai-memory-content', async (event, content) => {
     safeError('保存AI记忆失败:', error);
     return { success: false, error: error.message };
   }
+});
+
+// 获取记忆文件路径
+ipcMain.handle('get-memory-file-path', async () => {
+  const os = require('os');
+  const path = require('path');
+  const memoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+  return memoryPath;
 });
 
 // 打开文件或目录
@@ -861,6 +962,17 @@ ipcMain.handle('init-agent', async (event, config) => {
       }
 
       apiKey = officialConfig.apiKey;
+      safeLog('[游客模式] 使用官方API Key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NULL');
+
+      // 双重检查：确保 API Key 存在
+      if (!apiKey) {
+        safeError('[游客模式] ❌ 官方API Key为空！');
+        return {
+          success: false,
+          error: '系统配置错误：官方API Key未设置，请联系管理员',
+          needLogin: false
+        };
+      }
       provider = officialConfig.provider; // 使用官方配置的provider
       model = officialConfig.defaultModel;
       safeLog('游客模式：使用官方API Key', { provider, model });
@@ -899,13 +1011,35 @@ ipcMain.handle('init-agent', async (event, config) => {
 });
 
 // 发送消息（流式响应）
-ipcMain.handle('send-message', async (event, message, files) => {
-  safeLog('收到发送消息请求:', { message, hasFiles: files?.length > 0 });
+ipcMain.handle('send-message', async (event, conversationId, message, files) => {
+  safeLog('收到发送消息请求:', { conversationId, message, hasFiles: files?.length > 0 });
 
-  if (!agentInstance) {
-    safeError('Agent 未初始化');
-    throw new Error('Agent 未初始化，请先配置 API Key');
+  // ✨ v2.10.1 新增：为每个会话创建独立的Agent实例，支持并行任务
+  let targetAgent = conversationAgents.get(conversationId);
+
+  if (!targetAgent) {
+    // 如果会话没有独立的Agent，使用全局Agent作为模板创建新的
+    if (!agentInstance) {
+      safeError('Agent 未初始化');
+      throw new Error('Agent 未初始化，请先配置 API Key');
+    }
+
+    safeLog('为会话', conversationId, '创建独立的Agent实例');
+
+    // 复制全局Agent的配置创建新实例
+    targetAgent = await agent.createAgent(
+      agentInstance.provider,
+      agentInstance.apiKey,
+      agentInstance.model
+    );
+
+    // 保存到Map中
+    conversationAgents.set(conversationId, targetAgent);
+    safeLog('✅ 会话Agent已创建，当前活跃会话数:', conversationAgents.size);
   }
+
+  // 记录当前会话ID，用于后续通知
+  const activeConversationId = conversationId;
 
   // 游客模式：先检查限制，再增加使用次数
   if (isGuestMode) {
@@ -964,17 +1098,28 @@ ipcMain.handle('send-message', async (event, message, files) => {
     safeLog('开始发送消息到 Agent...');
     // 发送消息并获取流式响应
     const result = await agent.sendMessage(
-      agentInstance,
+      targetAgent,  // ✨ 使用会话独立的Agent
       message,
       fileInfos,
       ({ text, fullText }) => {
         // 流式回调：发送增量更新到渲染进程
         fullResponse = fullText;
-        mainWindow.webContents.send('message-delta', { text, fullText });
+        mainWindow.webContents.send('message-delta', {
+          conversationId: activeConversationId,  // ✨ 添加会话ID
+          text,
+          fullText
+        });
       }
     );
 
     safeLog('消息发送成功，响应长度:', fullResponse.length);
+
+    // ✨ v2.10.1 新增：消息完成后通知前端（用于小红点提示）
+    mainWindow.webContents.send('message-completed', {
+      conversationId: activeConversationId,
+      timestamp: Date.now()
+    });
+    safeLog('✅ 消息完成通知已发送:', activeConversationId);
 
     // 提取思考过程（v2.8.5 - 解析 ```thinking 代码块）
     let thinkingContent = null;
@@ -1002,7 +1147,7 @@ ipcMain.handle('send-message', async (event, message, files) => {
       db.logRequest({
         userId: currentUser?.id || null,
         deviceId: isGuestMode ? db.getDeviceId() : null,
-        model: agentInstance.model || officialConfig.defaultModel,
+        model: targetAgent.model || officialConfig.defaultModel,  // ✨ 使用会话Agent的模型
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens
       });
@@ -1149,11 +1294,30 @@ ipcMain.handle('capture-screen', async () => {
       // -r: 不显示声音
       await execPromise(`screencapture -i -r "${filePath}"`);
     } else if (process.platform === 'win32') {
-      // Windows: 使用 PowerShell 截图工具
-      throw new Error('Windows 暂不支持截图功能，建议使用 macOS');
+      // Windows: 使用 Snipping Tool（截图工具）
+      // 🔥 关键修复：Windows 10/11 自带截图工具
+      const psScript = `
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+
+        # 全屏截图
+        $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        $bmp = New-Object System.Drawing.Bitmap $bounds.width, $bounds.height
+        $graphics = [System.Drawing.Graphics]::FromImage($bmp)
+        $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.size)
+
+        # 保存到文件
+        $bmp.Save('${filePath.replace(/\\/g, '\\\\')}', [System.Drawing.Imaging.ImageFormat]::Png)
+        $graphics.Dispose()
+        $bmp.Dispose()
+      `;
+      await execPromise(`powershell -NoProfile -Command "${psScript.replace(/\n/g, '').replace(/\s+/g, ' ')}"`, {
+        shell: 'powershell.exe',
+        windowsHide: true
+      });
     } else {
       // Linux: 需要安装 ImageMagick 或其他工具
-      throw new Error('Linux 暂不支持截图功能，建议使用 macOS');
+      throw new Error('Linux 暂不支持截图功能，建议使用 macOS 或 Windows');
     }
 
     // 恢复窗口

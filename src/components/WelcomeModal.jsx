@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './WelcomeModal.css';
 import ConfirmModal from './ConfirmModal';
 import { showAlert } from '../lib/alertService';
+import { getPlatformClassNames } from '../lib/platformUtil';
 
 function WelcomeModal({ onComplete }) {
   const [formData, setFormData] = useState({
@@ -197,7 +198,7 @@ function WelcomeModal({ onComplete }) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`}>
       <div className="modal welcome-modal">
         <div className="welcome-header">
           <div className="welcome-progress">
@@ -220,9 +221,6 @@ function WelcomeModal({ onComplete }) {
               返回
             </button>
           )}
-          <button className="btn-modal secondary" onClick={handleSkip}>
-            跳过
-          </button>
           <button className="btn-modal primary" onClick={handleNext}>
             {currentStep === steps.length - 1 ? '开始使用' : '下一步'}
           </button>

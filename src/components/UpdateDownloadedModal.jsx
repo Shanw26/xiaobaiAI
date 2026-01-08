@@ -1,12 +1,14 @@
 import './UpdateDownloadedModal.css';
+import { getPlatformClassNames } from '../lib/platformUtil';
 
-function UpdateDownloadedModal({ version, onRestart, onLater }) {
+function UpdateDownloadedModal({ version, onRestart, onClose }) {
   return (
-    <div className="toast-overlay">
+    <div className="toast-overlay" onClick={onClose}>
       <div className="update-downloaded-modal" onClick={(e) => e.stopPropagation()}>
         <div className="update-downloaded-header">
           <div className="update-downloaded-icon">✅</div>
           <h2>更新已准备就绪</h2>
+          <button className="btn-close-toast" onClick={onClose}>×</button>
         </div>
 
         <div className="update-downloaded-body">
@@ -17,8 +19,8 @@ function UpdateDownloadedModal({ version, onRestart, onLater }) {
         </div>
 
         <div className="update-downloaded-actions">
-          <button className="btn-update secondary" onClick={onLater}>
-            稍后提醒
+          <button className="btn-update secondary" onClick={onClose}>
+            稍后
           </button>
           <button className="btn-update primary" onClick={onRestart}>
             立即重启

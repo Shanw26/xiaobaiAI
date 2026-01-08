@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveUserInfo: (content) => ipcRenderer.invoke('save-user-info-content', content),
   getAiMemory: () => ipcRenderer.invoke('get-ai-memory'),
   saveAiMemory: (content) => ipcRenderer.invoke('save-ai-memory-content', content),
+  getMemoryFilePath: () => ipcRenderer.invoke('get-memory-file-path'),
 
   // 对话历史管理
   saveConversations: (conversations) => ipcRenderer.invoke('save-conversations', conversations),
@@ -38,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // AI Agent 功能
   initAgent: (config) => ipcRenderer.invoke('init-agent', config),
-  sendMessage: (message, files) => ipcRenderer.invoke('send-message', message, files),
+  sendMessage: (conversationId, message, files) => ipcRenderer.invoke('send-message', conversationId, message, files),  // ✨ v2.10.1 修改：添加 conversationId
   getProviders: () => ipcRenderer.invoke('get-providers'),
   getModels: (providerId) => ipcRenderer.invoke('get-models', providerId),
 
@@ -86,9 +87,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMessageDelta: (callback) => ipcRenderer.on('message-delta', (event, data) => callback(data)),
   removeMessageDeltaListener: () => ipcRenderer.removeAllListeners('message-delta'),
 
+  // ✨ v2.10.1 新增：监听消息完成事件（小红点提示）
+  onMessageCompleted: (callback) => ipcRenderer.on('message-completed', (event, data) => callback(data)),
+  removeMessageCompletedListener: () => ipcRenderer.removeAllListeners('message-completed'),
+
   // 监听游客使用次数更新
   onGuestUsageUpdated: (callback) => ipcRenderer.on('guest-usage-updated', (event, data) => callback(data)),
   removeGuestUsageUpdatedListener: () => ipcRenderer.removeAllListeners('guest-usage-updated'),
+
+  // 🔥 新增：通知主进程窗口可以显示了（优化启动体验）
+  readyToShow: () => ipcRenderer.send('ready-to-show'),
 
   // 平台信息
   platform: process.platform,

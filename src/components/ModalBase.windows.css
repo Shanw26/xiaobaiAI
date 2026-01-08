@@ -1,0 +1,301 @@
+/* ===================================
+   Windows Fluent Design 风格弹窗
+   适配 Windows 11 设计语言
+   =================================== */
+
+/* ==================== 遮罩层 - Windows 风格 ==================== */
+.modal-overlay.windows-style {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: none; /* Windows 使用简单的半透明背景 */
+  -webkit-backdrop-filter: none;
+}
+
+/* ==================== 弹窗容器 - Windows Fluent Design ==================== */
+.modal.windows-style {
+  background: #FFFFFF; /* ✨ Windows 11: 纯白色背景 */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 8px; /* Windows Fluent Design: 8px 圆角 */
+  border: 1px solid rgba(0, 0, 0, 0.12); /* ✨ 更明显的边框 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.10); /* ✨ 优化阴影 */
+  font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  animation: fadeInWindows 0.15s cubic-bezier(0.16, 1, 0.3, 1); /* ✨ 更快的动画 */
+}
+
+@keyframes fadeInWindows {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ==================== 按钮 - Windows Fluent Design ==================== */
+.windows-style .btn-modal {
+  border-radius: 4px;
+  height: 32px;
+  padding: 0 16px; /* ✨ 标准内边距 */
+  font-size: 14px;
+  font-weight: 400;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1); /* ✨ 更快更流畅的过渡 */
+  letter-spacing: 0.01em; /* ✨ 微妙的字间距 */
+}
+
+.windows-style .btn-modal.primary {
+  background: var(--primary);
+  border: none;
+  color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.windows-style .btn-modal.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px); /* ✨ 微妙的抬升效果 */
+}
+
+.windows-style .btn-modal.primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.windows-style .btn-modal.secondary {
+  background: rgba(255, 255, 255, 1); /* ✨ 纯白背景 */
+  border: 1px solid rgba(0, 0, 0, 0.22); /* ✨ 更明显的边框 */
+  color: #000000;
+}
+
+.windows-style .btn-modal.secondary:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.30);
+  transform: translateY(-1px);
+}
+
+.windows-style .btn-modal.secondary:active {
+  transform: translateY(0);
+}
+
+/* ==================== 表单元素 - Windows Fluent Design ==================== */
+.windows-style .form-input {
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.22); /* ✨ 更明显的边框 */
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  height: 32px;
+  background: #FFFFFF;
+  transition: all 0.15s ease;
+}
+
+.windows-style .form-input:hover {
+  border-color: rgba(0, 0, 0, 0.30); /* ✨ hover 时边框变深 */
+}
+
+.windows-style .form-input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.15); /* ✨ 更明显的焦点环 */
+}
+
+.windows-style .form-textarea {
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 8px 12px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.windows-style .form-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 204, 102, 0.2);
+}
+
+/* ==================== 关闭按钮 - Windows Fluent Design ==================== */
+.windows-style .modal-close,
+.windows-style .btn-close {
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+  font-size: 20px;
+  color: #606060;
+}
+
+.windows-style .modal-close:hover,
+.windows-style .btn-close:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
+}
+
+.windows-style .modal-close:active,
+.windows-style .btn-close:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ==================== 头部 - Windows Fluent Design ==================== */
+.windows-style .modal-header {
+  padding: 20px 24px 12px; /* ✨ 调整内边距 */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.windows-style .modal-title {
+  font-size: 20px; /* ✨ Windows 标准字号 */
+  font-weight: 600; /* Semibold */
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  letter-spacing: -0.01em; /* ✨ 微妙的负字间距 */
+  color: #000000;
+}
+
+/* ==================== 内容区域 - Windows Fluent Design ==================== */
+.windows-style .modal-body {
+  padding: 16px 24px 24px; /* ✨ 调整内边距 */
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.6; /* ✨ 标准 line-height */
+  color: #202020; /* ✨ Windows 标准文字颜色 */
+}
+
+/* ==================== 底部操作区 - Windows Fluent Design ==================== */
+.windows-style .modal-actions {
+  padding: 12px 24px 20px; /* ✨ 调整内边距 */
+  gap: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: flex-end; /* ✨ 按钮右对齐 */
+}
+
+/* ==================== 强制更新弹窗 - Windows 风格 ==================== */
+.modal-overlay.force-update.windows-style {
+  background: rgba(0, 0, 0, 0.4); /* 稍深的遮罩 */
+}
+
+.windows-style.force-update-modal {
+  border-radius: 8px;
+  border: 2px solid #dc2626; /* 红色边框强调重要性 */
+  box-shadow: 0 12px 48px rgba(220, 38, 38, 0.2); /* 红色阴影 */
+}
+
+.windows-style .force-update-btn {
+  border-radius: 4px;
+  height: 36px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2); /* 较小的阴影 */
+}
+
+.windows-style .force-update-btn:hover {
+  transform: none; /* Windows: 不移动 */
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+/* ==================== 更新弹窗 - Windows 风格 ==================== */
+.windows-style.update-modal {
+  border-radius: 8px;
+}
+
+.windows-style .update-notes {
+  background: rgba(0, 0, 0, 0.02); /* 浅灰背景 */
+  border-left: 3px solid var(--primary); /* 左侧强调线 */
+  border-radius: 4px;
+}
+
+.windows-style .update-notes .markdown-content h1,
+.windows-style .update-notes .markdown-content h2 {
+  color: var(--text); /* Windows: 使用标准文字颜色 */
+}
+
+.windows-style .update-notes .markdown-content code {
+  background: rgba(0, 0, 0, 0.06); /* 浅灰背景 */
+  color: var(--text);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 2px 6px;
+}
+
+.windows-style .update-notes .markdown-content pre {
+  background: #1e1e1e; /* VS Code 深色主题 */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.windows-style .progress-bar {
+  height: 4px; /* Windows: 细进度条 */
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.windows-style .progress-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ==================== Toast 提示 - Windows 风格 ==================== */
+.windows-style.toast-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.windows-style.update-downloaded-modal {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+/* ==================== 文本样式 - Windows Fluent Design ==================== */
+.windows-style .modal-description {
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #606060; /* ✨ Windows 标准灰色 */
+}
+
+.windows-style .form-label {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: #000000;
+}
+
+.windows-style .form-hint {
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  font-size: 12px;
+  color: #737373; /* ✨ Windows 标准提示色 */
+}
+
+/* ==================== 错误提示 - Windows 风格 ==================== */
+.windows-style .modal-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626; /* 左侧强调线 */
+  border-radius: 4px;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* ==================== 响应式 - Windows ==================== */
+@media (max-width: 768px) {
+  .windows-style.modal.small,
+  .windows-style.modal.medium,
+  .windows-style.modal.large {
+    width: 95%;
+    max-width: none;
+  }
+
+  .windows-style.modal-header {
+    padding: 16px 20px;
+  }
+
+  .windows-style.modal-body {
+    padding: 20px;
+  }
+
+  .windows-style.modal-actions {
+    padding: 12px 20px 16px;
+  }
+}

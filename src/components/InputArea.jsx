@@ -10,6 +10,7 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
   const [pendingScreenshot, setPendingScreenshot] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [hasPrompted, setHasPrompted] = useState(false);
+  const [isSending, setIsSending] = useState(false); // ✨ v2.10.8 新增：发送状态
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -54,15 +55,39 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!message.trim() && files.length === 0 && screenshots.length === 0) return;
+
+    // 防止重复发送
+    if (isSending) return;
 
     // 合并文件和截图
     const allFiles = [...files, ...screenshots];
-    onSendMessage(message, allFiles);
-    setMessage('');
-    setFiles([]);
-    setScreenshots([]);
+    const messageContent = message; // 保存消息内容
+    const filesContent = [...files]; // 保存文件引用
+    const screenshotsContent = [...screenshots]; // 保存截图引用
+
+    setIsSending(true); // 设置发送状态
+
+    try {
+      // ✨ v2.10.8 改进：等待发送结果
+      const result = await onSendMessage(messageContent, allFiles);
+
+      // 只有发送成功才清空输入框
+      // 检查返回值或是否抛出错误
+      if (result === undefined || result === null || result.success !== false) {
+        // 发送成功（或者没有明确的失败标记）
+        setMessage('');
+        setFiles([]);
+        setScreenshots([]);
+      }
+      // 如果 result.success === false，保留消息和文件，让用户重试
+    } catch (error) {
+      // 发送失败，保留消息和文件
+      console.error('发送失败，保留消息:', error);
+    } finally {
+      setIsSending(false); // 重置发送状态
+    }
   };
 
   const handleFileSelect = async (e) => {
@@ -188,9 +213,10 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
             rows={1}
           />
           <button
-            className="btn-send"
+            className={`btn-send ${isSending ? 'sending' : ''}`}
             onClick={handleSend}
-            disabled={!message.trim() && files.length === 0 && screenshots.length === 0}
+            disabled={(!message.trim() && files.length === 0 && screenshots.length === 0) || isSending}
+            title={isSending ? '发送中...' : '发送消息 (Enter)'}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />

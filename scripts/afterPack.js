@@ -16,12 +16,19 @@ exports.default = async function (context) {
     // 先对整个 .app 包进行深度签名
     // 使用 --options runtime 确保签名满足 hardened runtime 要求
     // 使用 --timestamp 添加时间戳，避免签名验证问题
-    execSync(`codesign --force --deep --timestamp --options runtime --sign "Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39)" "${appPath}"`, {
+    // 🔥 使用 package.json 中配置的证书
+    execSync(`codesign --force --deep --timestamp --options runtime --sign "4E76C4CD7F4ABFA82DF8EED886AA36F117140EDD" "${appPath}"`, {
       stdio: 'inherit'
     });
 
     // 验证签名
     execSync(`codesign --verify --deep "${appPath}"`, {
+      stdio: 'inherit'
+    });
+
+    // 显示详细的签名信息
+    console.log('📋 签名信息:');
+    execSync(`codesign --display --verbose=4 "${appPath}"`, {
       stdio: 'inherit'
     });
 

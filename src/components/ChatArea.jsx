@@ -6,12 +6,39 @@ import logoSvg from '/logo.svg';
 
 function ChatArea({ messages, currentUser, waitingIndicator }) {
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const [expandedThinking, setExpandedThinking] = useState({});
 
-  // 自动滚动到底部
+  // 自动滚动到底部（messages 变化时）
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
   }, [messages]);
+
+  // 流式更新时持续滚动（监听最后一条消息的 content 变化）
+  const lastMessageContent = messages.length > 0 ? messages[messages.length - 1].content : '';
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      // 任何消息有内容时都滚动（包括用户消息和AI回复）
+      if (lastMessage?.content) {
+        // 使用即时滚动（无动画），避免流式更新时的滚动延迟
+        scrollToBottom(false);
+      }
+    }
+  }, [lastMessageContent]); // 只监听 content 变化，不监听整个 messages
+
+  const scrollToBottom = (smooth = true) => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    } else {
+      // 降级方案：使用 scrollIntoView
+      messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    }
+  };
 
   const toggleThinking = (index) => {
     setExpandedThinking(prev => ({
@@ -21,7 +48,7 @@ function ChatArea({ messages, currentUser, waitingIndicator }) {
   };
 
   return (
-    <div className="messages">
+    <div className="messages" ref={messagesContainerRef}>
       {messages.map((msg, index) => (
         <div key={index} className={`message ${msg.role === 'user' ? 'user' : 'assistant'}`}>
           <div className={`avatar ${msg.role === 'user' ? 'user' : 'assistant'}`}>
