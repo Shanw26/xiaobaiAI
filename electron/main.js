@@ -52,7 +52,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.10.13';
+const APP_VERSION = '2.10.14';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -293,7 +293,34 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // 🔥 Windows 修复：使用 loadURL + file:// 协议
+    // loadFile 在 Windows 上可能有问题，使用 loadURL 更可靠
+    const distPath = path.join(__dirname, '../dist/index.html');
+    const absolutePath = path.resolve(distPath);
+
+    safeLog('加载页面路径:', distPath);
+    safeLog('绝对路径:', absolutePath);
+
+    // Windows 路径需要特殊处理：C:\path\to\file.html -> file:///C:/path/to/file.html
+    // Unix 路径：/path/to/file.html -> file:///path/to/file.html
+    let fileUrl;
+    if (process.platform === 'win32') {
+      // Windows: 需要三个斜杠 + 盘符 + 路径（反斜杠转正斜杠）
+      fileUrl = `file:///${absolutePath.replace(/\\/g, '/')}`;
+    } else {
+      // Unix/macOS: 需要三个斜杠 + 路径
+      fileUrl = `file://${absolutePath}`;
+    }
+
+    safeLog('File URL:', fileUrl);
+
+    // 使用 loadURL 而不是 loadFile（Windows 兼容性更好）
+    mainWindow.loadURL(fileUrl).catch(err => {
+      safeError('❌ 加载页面失败:', err);
+      // 降级：尝试 loadFile
+      safeLog('尝试降级方案：loadFile');
+      mainWindow.loadFile(distPath);
+    });
   }
 
   // 🔥 关键：页面加载完成后显示窗口，避免白屏
@@ -301,6 +328,42 @@ function createWindow() {
     safeLog('✅ 窗口准备完成，显示窗口');
     mainWindow.show();
     mainWindow.focus();
+  });
+
+  // 🔥 新增：监听页面加载失败，帮助诊断 Windows 白屏问题
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    safeError('❌ 页面加载失败:');
+    safeError('  错误码:', errorCode);
+    safeError('  错误描述:', errorDescription);
+    safeError('  URL:', validatedURL);
+
+    // 显示错误对话框
+    dialog.showErrorBox(
+      '页面加载失败',
+      `无法加载页面\n\n错误: ${errorDescription}\nURL: ${validatedURL}\n\n请查看控制台了解详情`
+    );
+  });
+
+  // 🔥 新增：监听渲染进程崩溃
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    safeError('❌ 渲染进程崩溃:');
+    safeError('  原因:', details.reason);
+    safeError('  退出码:', details.exitCode);
+
+    // 显示错误对话框
+    dialog.showErrorBox(
+      '渲染进程崩溃',
+      `应用渲染进程已崩溃\n\n原因: ${details.reason}\n退出码: ${details.exitCode}`
+    );
+  });
+
+  // 🔥 新增：监听控制台消息（帮助调试）
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const logLevel = level === 0 ? 'ERROR' : level === 1 ? 'WARN' : 'INFO';
+    safeLog(`[渲染进程 ${logLevel}] ${message}`);
+    if (sourceId) {
+      safeLog(`  来源: ${sourceId}:${line}`);
+    }
   });
 
   mainWindow.on('closed', () => {
