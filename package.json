@@ -22,6 +22,7 @@
     "config:load": "node scripts/load-from-key.js",
     "config:sync": "node scripts/sync-config.js",
     "security:check": "node scripts/security-check.js",
+    "security:check-imports": "node scripts/security-check-imports.js",
     "certs:check": "bash scripts/check-certs.sh",
     "signing:verify": "bash scripts/verify-signing.sh",
     "signing:build": "bash build-mac-signed.sh"
@@ -79,7 +80,6 @@
       "main": "electron/main.js"
     },
     "npmRebuild": true,
-    "buildDependenciesFromSource": true,
     "mac": {
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
