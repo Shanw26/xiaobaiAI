@@ -32,7 +32,6 @@ yarn-error.log*
 .env.backup.*
 
 # GitHub Actions (临时忽略，手动添加)
-.github/
 .env.development.local
 .env.test.local
 .env.production.local
