@@ -176,7 +176,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
       <div className="form-group">
         <label className="form-label">
           模型厂商
-          <span className="form-hint">选择 AI 提供商</span>
+        
         </label>
         <select
           className="form-input"
@@ -195,15 +195,12 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
             </option>
           ))}
         </select>
-        <div className="form-help">
-          💡 {currentProvider?.name || 'Anthropic'} 提供的 AI 服务
-        </div>
+
       </div>
 
       <div className="form-group">
         <label className="form-label">
           API Key
-          <span className="form-hint">配置你的 API Key</span>
         </label>
         <input
           type="password"
@@ -212,15 +209,12 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
           placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key' : 'sk-ant-...'}
         />
-        <div className="form-help">
-          💡 你的 API Key 将安全保存在本地，不会上传到我们的服务器
-        </div>
+    
       </div>
 
       <div className="form-group">
         <label className="form-label">
           应用数据目录
-          <span className="form-hint">所有数据存储位置</span>
         </label>
         <div className="directory-selector">
           <input
@@ -253,15 +247,13 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
             打开
           </button>
         </div>
-        <div className="form-help">
-          💡 小白AI的所有数据（配置、对话历史等）都保存在这个目录中
-        </div>
+  
       </div>
 
       <div className="form-group">
         <label className="form-label">
           Token 消耗统计
-          <span className="form-hint">AI 使用量记录</span>
+  
         </label>
         <div className="token-stats">
           {tokenUsage ? (
@@ -300,7 +292,6 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
       <div className="form-group">
         <label className="form-label">
           <span className="form-title">用户信息</span>
-          <span className="form-hint">AI 记住的个人信息</span>
           <button
             className="btn-edit"
             onClick={isEditingUserInfo ? () => setIsEditingUserInfo(false) : handleEditUserInfo}
@@ -362,15 +353,13 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           </div>
         )}
 
-        <div className="form-help">
-          当你告诉 AI 你的个人信息时，它会记录在这里
-        </div>
+    
       </div>
 
       <div className="form-group">
         <label className="form-label">
           <span className="form-title">AI记忆</span>
-          <span className="form-hint">自动记录对话历史</span>
+    
           <button
             className="btn-edit"
             onClick={isEditingAiMemory ? () => setIsEditingAiMemory(false) : handleEditAiMemory}
@@ -402,12 +391,22 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
                 onClick={async () => {
                   try {
                     const { saveAiMemory } = await import('../lib/cloudService');
-                    const result = await saveAiMemory(aiMemory);
-                    if (result.success) {
+
+                    // v2.9.8 - 同时保存到云端和本地文件
+                    // 1. 先保存到云端数据库（通过 cloudService）
+                    const cloudResult = await saveAiMemory(aiMemory);
+
+                    // 2. 再保存到本地文件（通过 Electron IPC）
+                    const localResult = await window.electronAPI.saveAiMemory(aiMemory);
+
+                    if (cloudResult.success && localResult.success) {
                       setIsEditingAiMemory(false);
-                      showAlert('✅ 已保存到云端', 'success');
+                      showAlert('✅ 已保存到云端和本地', 'success');
                     } else {
-                      showAlert('❌ 保存失败: ' + result.error, 'error');
+                      const errors = [];
+                      if (!cloudResult.success) errors.push('云端: ' + cloudResult.error);
+                      if (!localResult.success) errors.push('本地: ' + localResult.error);
+                      showAlert('❌ 部分保存失败: ' + errors.join(', '), 'error');
                     }
                   } catch (error) {
                     console.error('保存异常:', error);
@@ -432,9 +431,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
           </div>
         )}
 
-        <div className="form-help">
-          AI 可以根据历史记忆信息提供更个性化的回复
-        </div>
+     
       </div>
     </div>
   );
@@ -448,7 +445,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.9.5</span>
+          <span className="about-version">v2.9.9</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>

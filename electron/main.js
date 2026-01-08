@@ -25,7 +25,7 @@ function safeError(...args) {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.9.5';
+const APP_VERSION = '2.9.9';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -248,6 +248,7 @@ function createWindow() {
     height: 720,
     minWidth: 900,
     minHeight: 500,
+    show: false, // 🔥 关键：先隐藏窗口，等待页面加载完成
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -265,6 +266,13 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // 🔥 关键：页面加载完成后显示窗口，避免白屏
+  mainWindow.once('ready-to-show', () => {
+    safeLog('✅ 窗口准备完成，显示窗口');
+    mainWindow.show();
+    mainWindow.focus();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -334,6 +342,15 @@ app.on('window-all-closed', () => {
 });
 
 // ==================== IPC 通信处理 ====================
+
+// 🔥 优化启动体验：前端通知窗口可以显示了
+ipcMain.on('ready-to-show', () => {
+  if (mainWindow && !mainWindow.isVisible()) {
+    safeLog('✅ 收到前端就绪通知，显示窗口');
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
 
 // 选择目录
 ipcMain.handle('select-directory', async () => {
@@ -478,12 +495,25 @@ ipcMain.handle('get-ai-memory', async () => {
   }
 });
 
-// 保存AI记忆内容（到数据库）
+// 保存AI记忆内容（到数据库 + 本地文件）
 ipcMain.handle('save-ai-memory-content', async (event, content) => {
   try {
+    // v2.9.8 - 同时保存到数据库和本地文件
+
+    // 1. 保存到本地数据库（用于备份）
     db.saveAiMemory(content);
+
+    // 2. 保存到本地文件（用于 AI Agent 读取）
+    const os = require('os');
+    const path = require('path');
+    const fs = require('fs').promises;
+    const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+    await fs.writeFile(aiMemoryPath, content, 'utf-8');
+    safeLog('✓ AI记忆已保存到本地文件:', aiMemoryPath);
+
     return { success: true };
   } catch (error) {
+    safeError('保存AI记忆失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -877,17 +907,32 @@ ipcMain.handle('send-message', async (event, message, files) => {
     throw new Error('Agent 未初始化，请先配置 API Key');
   }
 
-  // 游客模式：增加使用次数
+  // 游客模式：先检查限制，再增加使用次数
   if (isGuestMode) {
     const deviceId = db.getDeviceId();
+
+    // 🔥 关键修复：先检查是否超过限制
+    const status = db.canGuestUse(deviceId);
+    if (!status.canUse) {
+      safeLog('❌ 游客免费次数已用完，拒绝发送消息');
+      return {
+        success: false,
+        error: '游客免费次数已用完（10次），请登录后继续使用',
+        needLogin: true,
+        usedCount: status.usedCount,
+        remaining: 0
+      };
+    }
+
+    // 检查通过，增加使用次数
     db.incrementGuestUsage(deviceId);
-    safeLog('游客使用次数已更新');
+    safeLog(`✅ 游客使用次数增加: ${status.usedCount + 1}/10`);
 
     // 通知前端更新剩余次数
-    const status = db.canGuestUse(deviceId);
+    const newStatus = db.canGuestUse(deviceId);
     mainWindow.webContents.send('guest-usage-updated', {
-      usedCount: status.usedCount,
-      remaining: status.remaining
+      usedCount: newStatus.usedCount,
+      remaining: newStatus.remaining
     });
   }
   // 登录用户：增加请求次数
