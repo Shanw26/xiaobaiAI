@@ -33,6 +33,576 @@
 
 ---
 
+## 📅 2026-01-08 (v2.9.9)
+
+### 智能用户信息记录优化 🧠✅
+
+**核心变更**: 修改系统提示词，从"强制询问"改为"智能判断"，让AI能够理解用户的明确意图
+
+**用户反馈**:
+- 用户说"你好，笑笑！很高兴认识你！😊 不需要询问，直接帮用户记下来"
+- AI仍然询问："我发现这些是关于你的个人信息，要不要我帮你记下来？"
+- 用户体验不流畅，明明已经表达了直接记录的意图
+
+**问题分析**:
+- 系统提示词中设置了强制规则："**必须先征得用户同意**"
+- 这个规则过于刚性，没有考虑用户已经明确表达意图的场景
+- AI无法区分"明确指令"和"隐式信息"
+
+**实施方案**:
+
+**1. 修改系统提示词**（`electron/agent.js` 第813-839行）:
+
+```javascript
+## 用户信息管理
+
+**判断逻辑** ⭐ 重要：
+1. **直接保存（无需询问）**：当用户明确说以下短语时，直接调用 save_user_info 工具：
+   - "不需要询问"、"直接记下来"、"帮我保存"、"帮我记下来"
+   - "直接记录"、"保存到记忆"、"记到记忆里"
+
+2. **先询问再保存**：当用户只提到信息，但没有明确指令时，先询问：
+   - 询问："我发现这是一个关于你的信息，要不要我帮你记下来？"
+   - 用户同意后，再调用 save_user_info 工具
+```
+
+**修改文件**:
+- `electron/agent.js` - 第813-839行：优化用户信息管理逻辑
+- `package.json` - 版本号: 2.9.8 → 2.9.9
+- `electron/main.js` - APP_VERSION: 2.9.8 → 2.9.9
+- `src/components/Sidebar.jsx` - 版本号: v2.9.8 → v2.9.9
+- `src/components/SettingsModal.jsx` - 版本号: v2.9.8 → v2.9.9
+
+**文档完善**:
+- `CHANGELOG.md` - 新增完整的版本更新日志（v2.9.6 - v2.9.9）
+- `docs/10-intent-detection.md` - 新增详细技术文档（273行）
+- `download.html` - 新增下载页面（265行，绿色主题，符合设计规范）
+
+**功能对比**:
+
+| 场景 | 用户输入 | v2.9.8（之前） | v2.9.9（现在）✅ |
+|------|---------|---------------|-----------------|
+| 明确指令 | "你好，我叫笑笑！😊 不需要询问，直接帮用户记下来" | ❌ 询问"要不要我帮你记下来？" | ✅ 直接保存"✅ 已记录" |
+| 隐式信息 | "我叫晓力，是个产品经理" | ⚠️ 询问"要不要我帮你记下来？" | ✅ 询问"要不要我帮你记下来？"（保持） |
+
+**技术亮点**:
+- 🎯 **关键词匹配**: 简单高效，易于维护
+- 📝 **示例驱动**: 通过示例对话帮助 AI 理解
+- 🔧 **向后兼容**: 不影响现有功能
+- 🚀 **零成本**: 仅修改提示词，无需改代码
+
+**Git 提交**:
+- Commit Hash: `0b6df0a`
+- 8 files changed, 975 insertions(+), 46 deletions(-)
+- 已推送到 GitHub: https://github.com/Shanw26/xiaobaiAI
+
+---
+
+## 📅 2026-01-08 (v2.9.6)
+
+### 系统命令直接执行功能优化 ⚡✅
+
+**核心变更**: 添加系统命令执行规则，让AI能够直接执行简单的系统操作
+
+**用户反馈**:
+- "为啥我的小白AI，不能直接执行 打开 微信 的操作，还需要说很比如：我无法直接打开微信..."
+- AI给出冗长的操作说明，而不是直接帮用户完成
+
+**问题分析**:
+- 小白AI有 `execute_command` 工具，完全有能力执行系统命令（包括 `open -a WeChat`）
+- 但系统提示词（systemPrompt）中没有明确告诉AI何时该直接执行命令
+- 过于强调"诚实优先"和"主动确认"，导致AI变得过度谨慎
+- AI不知道"打开微信"这种简单操作应该直接执行，而不是给出文字说明
+
+**实施方案**:
+
+**1. 在系统提示词中添加"系统命令执行规则"**（`electron/agent.js` 第579-608行）:
+
+```javascript
+## 系统命令执行规则 ⭐ 重要
+
+**何时执行命令**：
+- ✅ **直接执行**：简单、可逆的操作（如打开应用、查看信息）
+- ⚠️ **先询问**：危险、不可逆的操作（如删除、系统配置修改）
+- 💡 **说明后执行**：不确定时告诉用户要做什么，然后执行
+
+**可以直接执行的命令示例**：
+- 打开应用：`open -a WeChat`、`open -a Safari`、`open -a Chrome`
+- 查看信息：`ls -la`、`pwd`、`ps aux`、`date`
+- 查找文件：`find . -name "*.txt"`
+- 网络操作：`ping google.com`、`curl https://example.com`
+- 进程管理：`ps aux | grep WeChat`
+
+**需要先询问用户的操作**：
+- 删除文件或目录（但实际上 delete_file 工具已改为移到回收站）
+- 修改系统配置文件
+- 涉及 sudo 的命令（需要管理员权限）
+- 可能造成数据损失的操作
+
+**执行原则**：
+1. **用户明确要求** → 直接执行（如："打开微信" → 直接执行 `open -a WeChat`）
+2. **简单安全操作** → 直接执行并告诉结果（如：查看文件列表）
+3. **危险操作** → 先说明风险，询问确认后再执行
+4. **不确定时** → 简要说明要做什么，然后执行
+
+**回复格式**：
+- 直接执行后，简洁告知结果："✅ 已为你打开微信"
+- 不要给出冗长的操作说明，直接帮用户完成
+```
+
+**修改文件**:
+- `electron/agent.js` - 第579-608行：添加系统命令执行规则
+- `package.json` - 版本号: 2.9.5 → 2.9.6
+- `electron/main.js` - APP_VERSION: 2.9.5 → 2.9.6
+- `src/components/Sidebar.jsx` - 版本号: v2.9.5 → v2.9.6
+- `src/components/SettingsModal.jsx` - 版本号: v2.9.5 → v2.9.6
+
+**功能对比**:
+
+| 场景 | v2.9.5（之前） | v2.9.6（现在）✅ |
+|------|----------------|------------------|
+| 用户说"打开微信" | 给出一堆操作说明文字 | 直接执行 `open -a WeChat` |
+| 用户说"查看进程" | 解释如何查看 | 直接执行 `ps aux` 并展示结果 |
+| 用户说"删除文件" | 询问确认（正确） | 询问确认（保持不变） |
+| 危险操作 | 询问确认 | 询问确认（保持不变） |
+
+**重要经验**:
+1. **明确规则优于模糊指导**：系统提示词必须明确告诉AI何时该做什么
+2. **分类管理**：将操作分为"直接执行"、"先询问"、"说明后执行"三类
+3. **示例很重要**：提供具体命令示例，帮助AI理解
+4. **简洁优于冗长**：用户要的是结果，不是操作教程
+5. **安全性优先**：即使鼓励直接执行，也要明确哪些操作需要确认
+
+**技术亮点**:
+- 保持所有工具不变，只修改系统提示词
+- 不增加新的安全风险（危险操作仍需确认）
+- 提升用户体验（简单操作直接完成）
+- 符合产品哲学（简单、直接、高效）
+
+**测试结果**: ⏳ 待测试
+- 用户说"打开微信" → AI直接执行命令
+- 用户说"查看当前目录文件" → AI直接执行 `ls -la`
+- 用户说"删除系统文件" → AI仍然先询问确认
+
+---
+
+## 📅 2026-01-08 (v2.9.8)
+
+### AI记忆云端同步功能实现 ☁️✅
+
+**核心变更**: 实现AI记忆的云端同步，支持设置面板查看和设备间同步
+
+**用户需求**:
+- "xiaobai-ai-memory.md 这个文件的内容也同步更新到小白AI 设置中的记忆文件，方便用户查看"
+- "这个数据同步到数据库，方便切换设备后还可以同步"
+
+**问题分析**:
+- 设置面板从云端数据库读取AI记忆（cloudService.js）
+- AI Agent从本地文件读取AI记忆（~/xiaobai-ai-memory.md）
+- 两者不同步，导致：
+  1. 用户在设置中修改的记忆，AI Agent看不到
+  2. AI Agent保存的记忆，设置面板看不到
+  3. 切换设备后，记忆无法同步
+
+**实施方案**:
+
+**1. 修改设置面板保存逻辑** (`src/components/SettingsModal.jsx` 第400-427行):
+
+```javascript
+// v2.9.8 - 同时保存到云端和本地文件
+// 1. 先保存到云端数据库（通过 cloudService）
+const cloudResult = await saveAiMemory(aiMemory);
+
+// 2. 再保存到本地文件（通过 Electron IPC）
+const localResult = await window.electronAPI.saveAiMemory(aiMemory);
+
+if (cloudResult.success && localResult.success) {
+  setIsEditingAiMemory(false);
+  showAlert('✅ 已保存到云端和本地', 'success');
+} else {
+  // 部分失败处理
+}
+```
+
+**2. 修改 IPC 处理器** (`electron/main.js` 第498-519行):
+
+```javascript
+// 保存AI记忆内容（到数据库 + 本地文件）
+ipcMain.handle('save-ai-memory-content', async (event, content) => {
+  try {
+    // v2.9.8 - 同时保存到数据库和本地文件
+
+    // 1. 保存到本地数据库（用于备份）
+    db.saveAiMemory(content);
+
+    // 2. 保存到本地文件（用于 AI Agent 读取）
+    const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+    await fs.writeFile(aiMemoryPath, content, 'utf-8');
+    safeLog('✓ AI记忆已保存到本地文件:', aiMemoryPath);
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+```
+
+**3. 修改 AI Agent 工具处理器** (`electron/agent.js`):
+
+**3.1 添加 Supabase 导入**（第8-23行）:
+```javascript
+// v2.9.8 - 导入 Supabase 客户端用于读取云端记忆
+let supabaseAdmin = null;
+try {
+  const { createClient } = require('@supabase/supabase-js');
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://cnszooaxwxatezodbbxq.supabase.co';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+
+  if (supabaseKey) {
+    supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false }
+    });
+  }
+} catch (error) {
+  // Supabase 不可用时，只使用本地文件
+}
+```
+
+**3.2 修改 get_ai_memory 工具处理器**（第487-561行）:
+```javascript
+case 'get_ai_memory': {
+  // v2.9.8 - 优先从云端读取记忆，如果没有再从本地文件读取
+  try {
+    // 先尝试从云端读取（如果 Supabase 可用）
+    if (supabaseAdmin) {
+      try {
+        let query = supabaseAdmin.from('ai_memory').select('content');
+        const { data, error } = await query.maybeSingle();
+
+        if (data && data.content) {
+          safeLog('✓ AI记忆已从云端读取');
+          return data.content;
+        }
+      } catch (cloudError) {
+        safeLog('云端记忆读取失败，尝试本地文件:', cloudError.message);
+      }
+    }
+
+    // 从本地文件读取（备用方案）
+    const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+    const content = await fs.readFile(aiMemoryPath, 'utf-8');
+    safeLog('✓ AI记忆已从本地文件读取');
+    return content;
+  } catch (error) {
+    // 文件不存在，返回默认模板
+    return defaultMemory;
+  }
+}
+```
+
+**修改文件**:
+- `electron/agent.js`
+  - 第8-23行：添加 Supabase 客户端导入
+  - 第487-561行：修改 get_ai_memory 工具处理器，优先从云端读取
+- `electron/main.js`
+  - 第498-519行：修改 save-ai-memory-content IPC 处理器，同时保存到数据库和本地文件
+- `src/components/SettingsModal.jsx`
+  - 第400-427行：修改保存按钮逻辑，同时保存到云端和本地
+- `package.json` - 版本号: 2.9.7 → 2.9.8
+- `electron/main.js` - APP_VERSION: 2.9.7 → 2.9.8
+- `src/components/Sidebar.jsx` - 版本号: v2.9.7 → v2.9.8
+- `src/components/SettingsModal.jsx` - 版本号: v2.9.7 → v2.9.8
+
+**数据流程**:
+
+```
+【用户在设置中编辑AI记忆】
+  ↓
+点击保存按钮
+  ↓
+1. 保存到云端数据库（Supabase）
+  ↓
+2. 保存到本地文件（~/xiaobai-ai-memory.md）
+  ↓
+3. 保存到本地数据库（SQLite，备份）
+  ↓
+✅ 三重保存，确保数据不丢失
+
+【AI Agent 回答问题时】
+  ↓
+调用 get_ai_memory 工具
+  ↓
+1. 尝试从云端读取（优先）
+  ↓
+2. 云端没有或失败 → 从本地文件读取
+  ↓
+3. 本地文件没有 → 返回默认模板
+  ↓
+✅ 优先使用云端数据，支持设备间同步
+```
+
+**功能对比**:
+
+| 场景 | v2.9.7（之前） | v2.9.8（现在）✅ |
+|------|----------------|------------------|
+| 设置面板查看 | 只显示云端数据 | 显示云端数据 |
+| 设置面板保存 | 只保存到云端 | 同时保存到云端+本地+数据库 |
+| AI Agent读取 | 只读取本地文件 | 优先读取云端，备用本地 |
+| 切换设备 | 记忆无法同步 | ✅ 记忆自动同步 |
+| 数据丢失风险 | 中等 | 低（三重备份） |
+
+**数据存储位置**:
+
+1. **云端数据库**（Supabase）- 主存储
+   - 表：`ai_memory`
+   - 用途：设备间同步
+   - 优先级：最高
+
+2. **本地文件**（~/xiaobai-ai-memory.md）- AI Agent读取
+   - 路径：`/Users/xiaolin/xiaobai-ai-memory.md`
+   - 用途：AI Agent 快速读取
+   - 优先级：高（云端备用）
+
+3. **本地数据库**（SQLite）- 备份
+   - 表：`ai_memory`
+   - 用途：数据备份
+   - 优先级：中
+
+**重要经验**:
+1. **三重保存策略**：云端+本地文件+本地数据库，确保数据不丢失
+2. **优先级读取**：AI Agent优先从云端读取，确保使用最新数据
+3. **降级策略**：云端不可用时，自动降级到本地文件
+4. **用户体验**：设置面板显示云端数据，确保跨设备一致性
+5. **同步透明**：用户无需手动同步，自动在后台完成
+
+**技术亮点**:
+- 多层存储架构，数据可靠性高
+- 自动降级策略，离线也能工作
+- 跨设备同步，切换设备无缝体验
+- 设置面板可直接查看和编辑AI记忆
+- 保存时提供详细的状态反馈
+
+**测试结果**: ⏳ 待测试
+- 测试1：设置面板编辑记忆 → 保存到云端+本地
+- 测试2：AI Agent读取记忆 → 优先从云端读取
+- 测试3：切换设备 → 记忆自动同步
+
+---
+
+## 📅 2026-01-08 (v2.9.7)
+
+### AI对话记忆功能实现 🧠✅
+
+**核心变更**: 添加AI对话记忆工具，让AI能够读取和保存用户偏好、重要对话记录
+
+**用户反馈**:
+- "用户和小白AI对话的记忆，目前小白有保存，但小白在回答问题前没有先读一下记忆"
+- "对话的记忆文档，建议参考 claude code 的 memory 格式"
+
+**问题分析**:
+- 小白AI有 `getAiMemory()` 和 `saveAiMemory()` 函数（在 cloudService.js 中）
+- 但这些是前端函数，AI Agent无法调用
+- AI Agent缺少读取记忆的工具
+- 系统提示词中没有要求AI在回答问题前先读取记忆
+- 导致AI无法利用历史对话提供个性化服务
+
+**实施方案**:
+
+**1. 添加AI记忆工具** (`electron/agent.js` 第229-251行):
+
+**工具1: get_ai_memory** - 读取AI对话记忆
+```javascript
+{
+  name: 'get_ai_memory',
+  description: '获取AI对话记忆，包括用户偏好、重要对话记录、常用操作等。
+  ⭐ 重要：每次回答问题前都应该先读取记忆！
+
+  返回内容：
+  - 用户偏好和习惯
+  - 重要对话记录
+  - 常用操作和命令
+  - 技术栈和项目信息',
+  input_schema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+}
+```
+
+**工具2: save_ai_memory** - 保存AI对话记忆
+```javascript
+{
+  name: 'save_ai_memory',
+  description: '保存AI对话记忆，记录用户偏好、重要对话、常用操作等。
+
+  重要：必须先征得用户同意才能保存！
+
+  格式要求：
+  - 使用 Markdown 格式
+  - 按类别组织（用户偏好、重要对话、常用操作）
+  - 简洁明了，便于快速查阅',
+  input_schema: {
+    type: 'object',
+    properties: {
+      content: {
+        type: 'string',
+        description: 'AI记忆内容（Markdown格式，按类别组织）',
+      },
+    },
+    required: ['content'],
+  },
+}
+```
+
+**2. 添加工具处理器** (`electron/agent.js` 第470-539行):
+
+**get_ai_memory 处理器**:
+- 从用户主目录读取 `~/xiaobai-ai-memory.md`
+- 文件不存在时返回默认模板
+- 默认模板包含：
+  - 🤖 AI指令区
+  - 用户偏好（工作习惯、沟通风格、技术偏好）
+  - 重要对话记录（技术讨论、产品决策）
+  - 常用操作（日常任务、常用命令）
+
+**save_ai_memory 处理器**:
+- 将记忆内容保存到 `~/xiaobai-ai-memory.md`
+- 返回保存成功提示
+
+**3. 修改系统提示词** (`electron/agent.js` 第628-684行):
+
+在系统提示词开头添加"🤖 AI对话记忆管理"章节：
+
+```markdown
+## 🤖 AI对话记忆管理 ⭐ 最重要！
+
+**每次回答问题前，必须先读取AI记忆！**
+
+### 记忆读取规则
+- ✅ **必须执行**：每次对话开始时，先调用 get_ai_memory 工具
+- ✅ **了解用户**：通过记忆了解用户偏好、习惯、常用操作
+- ✅ **个性化服务**：根据记忆提供定制化的回答
+
+### 记忆保存规则
+- ⚠️ **先询问**：发现重要信息时，先问用户"要不要我记下来？"
+- ✅ **用户同意后**：调用 save_ai_memory 工具保存
+
+### 应该记录的内容
+1. **用户偏好**：
+   - 工作习惯："我喜欢用简短的命令"
+   - 沟通风格："直接给结果，不要啰嗦"
+   - 技术偏好："我常用的是 Node.js"
+
+2. **重要对话**：
+   - 技术方案和决策过程
+   - 重要的配置信息
+   - 解决过的问题
+
+3. **常用操作**：
+   - 经常执行的命令："每天检查日志：tail -f logs/app.log"
+   - 常用的工作流程
+```
+
+**修改文件**:
+- `electron/agent.js`
+  - 第229-251行：添加 get_ai_memory 和 save_ai_memory 工具定义
+  - 第470-539行：添加工具处理器
+  - 第628-684行：在系统提示词中添加记忆管理规则
+- `package.json` - 版本号: 2.9.6 → 2.9.7
+- `electron/main.js` - APP_VERSION: 2.9.6 → 2.9.7
+- `src/components/Sidebar.jsx` - 版本号: v2.9.6 → v2.9.7
+- `src/components/SettingsModal.jsx` - 版本号: v2.9.6 → v2.9.7
+
+**记忆文件格式**（参考 Claude Code 的 memory.md）:
+
+```markdown
+# AI对话记忆
+
+## 🤖 AI指令区
+
+**每次对话开始时，请先阅读此记忆文件！**
+
+---
+
+## 用户偏好
+
+### 工作习惯
+- 喜欢用简短的命令
+- 每天早上检查日志
+
+### 沟通风格
+- 直接给结果，不要啰嗦
+
+### 技术偏好
+- 常用技术栈：Node.js、React
+
+---
+
+## 重要对话记录
+
+### 2026-01-08
+- 决定使用 x 方案实现 y 功能
+- 配置文件路径：/path/to/config
+
+---
+
+## 常用操作
+
+### 日常任务
+- 检查日志：tail -f logs/app.log
+- 重启服务：npm run restart
+
+---
+
+**最后更新**：2026-01-08 11:06
+```
+
+**功能对比**:
+
+| 场景 | v2.9.6（之前） | v2.9.7（现在）✅ |
+|------|----------------|------------------|
+| 回答问题前 | 不知道用户偏好 | 先读取记忆，了解用户 |
+| 用户说"我喜欢简洁风格" | 只是临时记住 | 询问后保存到记忆 |
+| 下次对话 | 不会记住偏好 | 从记忆中读取偏好 |
+| 个性化回答 | ❌ 无法实现 | ✅ 根据记忆定制回答 |
+
+**使用流程**:
+
+```
+用户发送问题
+  ↓
+AI 调用 get_ai_memory 工具
+  ↓
+读取 ~/xiaobai-ai-memory.md
+  ↓
+了解用户偏好、习惯、常用操作
+  ↓
+根据记忆提供个性化回答
+  ↓
+发现重要信息 → 询问用户 → 保存到记忆
+```
+
+**重要经验**:
+1. **工具化思维**：AI必须通过工具来读取/保存数据
+2. **系统提示词优先**：明确规则比模糊指导更有效
+3. **参考优秀案例**：Claude Code 的 memory 格式很好用
+4. **用户同意原则**：保存记忆前必须询问用户
+5. **本地存储**：记忆文件保存在用户主目录，便于访问
+
+**技术亮点**:
+- 记忆文件使用 Markdown 格式，便于阅读和编辑
+- 默认模板包含完整的结构，方便开始使用
+- 工具处理器有完善的错误处理
+- 记忆文件位置：`~/xiaobai-ai-memory.md`
+
+**测试结果**: ⏳ 待测试
+- 测试1：用户提问 → AI先读取记忆
+- 测试2：用户说偏好 → AI询问并保存
+- 测试3：下次对话 → AI记住偏好
+
+---
+
 ## 📅 2026-01-07 (v2.7.3)
 
 ### 登录系统完整修复 🔐✅
