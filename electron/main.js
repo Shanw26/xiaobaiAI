@@ -1,7 +1,7 @@
 // 加载环境变量（必须在最前面）
 require('dotenv').config();
 
-const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, Menu, globalShortcut } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { exec } = require('child_process');
 const util = require('util');
@@ -52,7 +52,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.10.15';
+const APP_VERSION = '2.10.16';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -426,6 +426,38 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+
+  // 🔥 v2.10.15 新增：添加全局快捷键打开开发者工具（用于调试 Windows 白屏问题）
+  // Windows/Linux: F12 或 Ctrl+Shift+I
+  // macOS: Cmd+Option+I
+  app.on('ready', () => {
+    const { globalShortcut } = require('electron');
+
+    // 注册 F12 快捷键
+    globalShortcut.register('F12', () => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        const win = windows[0];
+        if (win.webContents.isDevToolsOpened()) {
+          win.webContents.closeDevTools();
+        } else {
+          win.webContents.openDevTools();
+          safeLog('✅ 开发者工具已打开（F12）');
+        }
+      }
+    });
+
+    // 注册 Ctrl+Shift+I (Windows/Linux) 或 Cmd+Option+I (macOS)
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].webContents.toggleDevTools();
+        safeLog('✅ 开发者工具已切换（Ctrl+Shift+I）');
+      }
+    });
+
+    safeLog('[调试] 已注册开发者工具快捷键：F12, Ctrl+Shift+I');
+  });
 
   // 配置自动更新
   // 生产环境：使用阿里云 OSS（国内速度快）
