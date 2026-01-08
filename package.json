@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.10.21",
+  "version": "2.10.22",
   "description": "小白AI - 操作系统级AI助手",
   "main": "electron/main.js",
   "scripts": {
@@ -74,7 +74,8 @@
     "files": [
       "electron/**/*",
       "dist/**/*",
-      "package.json"
+      "package.json",
+      ".env"
     ],
     "extraMetadata": {
       "main": "electron/main.js"
