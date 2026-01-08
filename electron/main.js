@@ -52,7 +52,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.10.19';
+const APP_VERSION = '2.10.20';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;

@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.10.19",
+  "version": "2.10.20",
   "description": "小白AI - 操作系统级AI助手",
   "main": "electron/main.js",
   "scripts": {
