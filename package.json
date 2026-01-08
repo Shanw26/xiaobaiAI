@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.10.14",
+  "version": "2.10.15",
   "description": "小白AI - 操作系统级AI助手",
   "main": "electron/main.js",
   "scripts": {
@@ -127,13 +127,6 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "portable",
           "arch": [
             "x64",
             "arm64"
