@@ -30,7 +30,7 @@ jobs:
         run: npm run build
 
       - name: Build Windows
-        run: npm run dist:win
+        run: npx electron-builder --win --publish never
         env:
           # 可以在这里添加环境变量
           ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
