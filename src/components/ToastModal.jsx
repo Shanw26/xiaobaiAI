@@ -1,25 +1,35 @@
+import { useEffect } from 'react';
 import './ToastModal.css';
 
-function ToastModal({ message, onClose, type = 'info' }) {
+function ToastModal({ message, type = 'info', onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const getIcon = () => {
+    switch (type) {
+      case 'success':
+        return '✓';
+      case 'error':
+        return '✕';
+      case 'warning':
+        return '⚠';
+      default:
+        return 'ℹ';
+    }
+  };
+
   return (
-    <div className="modal-overlay priority-high" onClick={onClose}>
-      <div className="modal xsmall" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-icon">
-          {type === 'error' && '⚠️'}
-          {type === 'success' && '✅'}
-          {type === 'info' && 'ℹ️'}
-        </div>
-
-        <div className="modal-body">
-          <p className="modal-description">{message}</p>
-        </div>
-
-        <div className="modal-actions">
-          <button className="btn-modal primary" onClick={onClose}>
-            我知道了
-          </button>
-        </div>
-      </div>
+    <div className={`toast-modal toast-${type}`}>
+      <span className="toast-icon">{getIcon()}</span>
+      <span className="toast-message">{message}</span>
+      <button className="toast-close" onClick={onClose}>
+        ✕
+      </button>
     </div>
   );
 }

@@ -164,8 +164,8 @@ async function uploadWinVersion(version, releaseDir) {
   console.log(`\n🪟 开始上传 Windows 版本 ${version}`);
 
   const winFiles = [
-    `xiaobai-ai Setup ${version}.exe`,
-    `xiaobai-ai-${version}-portable.exe`
+    `小白AI Setup ${version}.exe`,
+    `小白AI ${version}.exe`
   ];
 
   const uploadedFiles = [];

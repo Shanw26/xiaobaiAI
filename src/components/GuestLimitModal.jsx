@@ -1,8 +1,9 @@
 import './GuestLimitModal.css';
+import { getPlatformClassNames } from '../lib/platformUtil';
 
 function GuestLimitModal({ onClose, onLogin }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
       <div className="modal-content guest-limit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="guest-limit-icon">⚠️</div>
 

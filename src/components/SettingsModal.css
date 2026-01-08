@@ -875,8 +875,8 @@ select.form-input {
 /* 文本区域 - 极简 */
 .form-textarea {
   width: 100%;
-  min-height: 180px;
-  max-height: 400px;
+  min-height: 120px;
+  max-height: 250px;
   padding: 12px;
   background: white;
   border: 1px solid rgba(0, 0, 0, 0.15);
@@ -919,7 +919,7 @@ select.form-input {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   min-height: 100px;
-  max-height: 400px;
+  max-height: 250px;
   overflow-y: auto;
   font-size: 14px;
   line-height: 1.6;

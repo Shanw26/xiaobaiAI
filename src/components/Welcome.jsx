@@ -37,8 +37,9 @@ function Welcome({ currentUser, guestStatus, onLoginClick }) {
       )}
 
       <p className="welcome-description">
-        一款系统级别的AI助手，可以帮你操作电脑，比如删除或创建文档，
-        创建日程或清空回收站，更多功能，等你探索
+        一款系统级 AI 助手，可以帮你操作电脑完成工作，<br />
+
+        试试打开微信、搜索 XX、清空回收站等等，更多功能等你探索。
       </p>
     </div>
   );

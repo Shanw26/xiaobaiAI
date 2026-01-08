@@ -255,15 +255,36 @@ export async function getUserUsageCount() {
     console.log('📊 [云端服务] 获取用户使用次数');
 
     const user = getCurrentUserSync();
-
-    if (!user) {
-      console.log('ℹ️  [云端服务] 未登录，使用次数为 0');
-      return { success: true, usedCount: 0 };
-    }
-
     const deviceId = await getDeviceId();
 
-    // 从 guest_usage 表查询使用次数
+    // 🔥 关键修复：游客模式下也要查询使用次数
+    if (!user) {
+      console.log('ℹ️  [云端服务] 游客模式，查询设备使用次数');
+
+      const { data, error } = await supabaseAdmin
+        .from('guest_usage')
+        .select('used_count')
+        .eq('device_id', deviceId)
+        .is('user_id', null)  // 游客记录 user_id 为 NULL
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ [云端服务] 获取游客使用次数失败:', error);
+        // 如果记录不存在，返回 0
+        if (error.code === 'PGRST116') {
+          return { success: true, usedCount: 0 };
+        }
+        return { success: false, error: error.message };
+      }
+
+      const usedCount = data?.used_count || 0;
+      console.log(`✅ [云端服务] 游客已使用 ${usedCount} 次`);
+      return { success: true, usedCount };
+    }
+
+    // 登录用户：查询 user_id 的使用次数
+    console.log('ℹ️  [云端服务] 登录用户，查询用户使用次数');
+
     const { data, error } = await supabaseAdmin
       .from('guest_usage')
       .select('used_count')
@@ -297,13 +318,70 @@ export async function incrementUserUsage() {
     console.log('📊 [云端服务] 增加用户使用次数');
 
     const user = getCurrentUserSync();
+    const deviceId = await getDeviceId();
 
+    // 🔥 关键修复：游客模式下也要记录使用次数
     if (!user) {
-      console.log('ℹ️  [云端服务] 未登录，不记录使用次数');
-      return { success: true, usedCount: 0, remaining: 10 };
+      console.log('ℹ️  [云端服务] 游客模式，记录设备使用次数');
+
+      // 查询或创建游客使用记录（基于 device_id）
+      const { data: existing } = await supabaseAdmin
+        .from('guest_usage')
+        .select('used_count, remaining')
+        .eq('device_id', deviceId)
+        .is('user_id', null)  // 游客记录 user_id 为 NULL
+        .maybeSingle();
+
+      if (existing) {
+        // 更新现有记录
+        const newUsedCount = existing.used_count + 1;
+        const newRemaining = Math.max(0, existing.remaining - 1);
+
+        const { data: updated, error: updateError } = await supabaseAdmin
+          .from('guest_usage')
+          .update({
+            used_count: newUsedCount,
+            remaining: newRemaining,
+            last_used_at: new Date().toISOString()
+          })
+          .eq('device_id', deviceId)
+          .is('user_id', null)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('❌ [云端服务] 更新游客使用次数失败:', updateError);
+          return { success: false, error: updateError.message };
+        }
+
+        console.log(`✅ [云端服务] 游客使用次数更新: ${newUsedCount}, 剩余: ${newRemaining}`);
+        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
+      } else {
+        // 创建新记录（游客模式：user_id = NULL, device_id 有值）
+        const { data: created, error: createError } = await supabaseAdmin
+          .from('guest_usage')
+          .insert({
+            user_id: null,  // 🔥 游客模式：user_id 为 NULL
+            device_id: deviceId,
+            used_count: 1,
+            remaining: 9,
+            last_used_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('❌ [云端服务] 创建游客使用记录失败:', createError);
+          return { success: false, error: createError.message };
+        }
+
+        console.log(`✅ [云端服务] 创建游客使用记录: 1, 剩余: 9`);
+        return { success: true, usedCount: 1, remaining: 9 };
+      }
     }
 
-    const deviceId = await getDeviceId();
+    // 登录用户：使用 user_id 记录使用次数
+    console.log('ℹ️  [云端服务] 登录用户，记录用户使用次数');
 
     // 使用数据库函数来增加使用次数
     const { data, error } = await supabaseAdmin.rpc('increment_user_usage', {
@@ -398,13 +476,15 @@ export async function loadConversations() {
     let conversationsError = null;
 
     if (user) {
-      // 登录用户：获取 user_id 或 device_id 匹配的对话
+      // 🔥 关键修复：登录用户只查询 user_id 匹配的对话
+      // 合并后的游客对话已经设置了 user_id，会被查询到
+      // 不应该查询 device_id，否则会包含其他用户在该设备上的对话
       console.log('✅ [云端服务] 当前用户ID:', user.id);
 
       const { data: userConvs, error: error1 } = await supabaseAdmin
         .from('conversations')
         .select('*')
-        .or(`user_id.eq.${user.id},device_id.eq.${deviceId}`)
+        .eq('user_id', user.id)  // 只查询 user_id 匹配的对话
         .eq('is_deleted', false)
         .order('created_at', { ascending: false });
 

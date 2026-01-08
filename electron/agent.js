@@ -5,6 +5,9 @@ const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// 引入数据库模块用于获取 device_id
+const db = require('./database');
+
 // v2.9.8 - 导入 Supabase 客户端用于读取云端记忆
 let supabaseAdmin = null;
 try {
@@ -62,8 +65,18 @@ async function moveToTrash(filePath) {
     await execPromise(`osascript -e '${script}'`);
   } else if (platform === 'win32') {
     // Windows: 使用 PowerShell
-    const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${filePath.replace(/\\/g, '\\\\')}', 'OnlyErrorDialogs', 'SendToRecycleBin')`;
-    await execPromise(`powershell -Command "${script}"`, { shell: 'powershell.exe' });
+    // 🔥 关键修复：Windows 路径需要正确转义，使用 .NET 方法避免路径问题
+    const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    const script = `
+      $shell = New-Object -ComObject Shell.Application
+      $folder = $shell.Namespace('${escapedPath.substring(0, escapedPath.lastIndexOf('\\'))}')
+      $item = $folder.ParseName('${escapedPath.substring(escapedPath.lastIndexOf('\\') + 1)}')
+      $item.InvokeVerb('Delete')
+    `;
+    await execPromise(`powershell -NoProfile -Command "${script.replace(/\n/g, '').replace(/\s+/g, ' ')}"`, {
+      shell: 'powershell.exe',
+      windowsHide: true
+    });
   } else {
     // Linux: 使用 gvfs-trash 或 trash-cli
     try {
@@ -120,13 +133,13 @@ function getWorkDirectory() {
 const FILE_TOOLS = [
   {
     name: 'write_file',
-    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。\\n\\n重要说明：\\n- 必须使用绝对路径（以 / 开头）或用户主目录路径（以 ~/ 开头）\\n- 不支持相对路径\\n- 文件路径必须由用户明确指定\\n\\n返回格式要求：\\n- 创建成功后，使用格式：✅ 文件已创建：`/完整/文件/路径`\\n- 文件路径必须用反引号包裹，这样用户可以点击打开',
+    description: '向文件写入内容。如果文件存在则覆盖，如果不存在则创建新文件。\\n\\n重要说明：\\n- 必须使用绝对路径（Windows: C:\\\\Users\\\\xxx, macOS/Linux: /Users/xxx）或用户主目录路径（以 ~/ 开头）\\n- 不支持相对路径\\n- 文件路径必须由用户明确指定\\n\\n返回格式要求：\\n- 创建成功后，使用格式：✅ 文件已创建：`/完整/文件/路径`\\n- 文件路径必须用反引号包裹，这样用户可以点击打开',
     input_schema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: '文件的绝对路径（以 / 或 ~/ 开头）',
+          description: '文件的绝对路径（Windows: C:\\\\Users\\\\xxx.txt, macOS/Linux: /Users/xxx.txt, 或 ~/xxx.txt）',
         },
         content: {
           type: 'string',
@@ -138,13 +151,13 @@ const FILE_TOOLS = [
   },
   {
     name: 'read_file',
-    description: '读取文件内容。必须使用绝对路径（以 / 或 ~/ 开头）',
+    description: '读取文件内容。必须使用绝对路径（Windows: C:\\\\Users\\\\xxx, macOS/Linux: /Users/xxx, 或 ~/xxx）',
     input_schema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: '文件的绝对路径（以 / 或 ~/ 开头）',
+          description: '文件的绝对路径（Windows: C:\\\\Users\\\\xxx.txt, macOS/Linux: /Users/xxx.txt, 或 ~/xxx.txt）',
         },
       },
       required: ['filePath'],
@@ -152,13 +165,13 @@ const FILE_TOOLS = [
   },
   {
     name: 'list_directory',
-    description: '列出目录中的文件和子目录。必须使用绝对路径（以 / 或 ~/ 开头）',
+    description: '列出目录中的文件和子目录。必须使用绝对路径（Windows: C:\\\\Users\\\\xxx, macOS/Linux: /Users/xxx, 或 ~/xxx）',
     input_schema: {
       type: 'object',
       properties: {
         dirPath: {
           type: 'string',
-          description: '目录的绝对路径（以 / 或 ~/ 开头）',
+          description: '目录的绝对路径（Windows: C:\\\\Users\\\\xxx, macOS/Linux: /Users/xxx, 或 ~/xxx）',
         },
       },
       required: [],
@@ -278,9 +291,11 @@ async function handleToolUse(toolName, input) {
     switch (toolName) {
       case 'write_file': {
         let filePath = input.filePath;
-        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
-        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
-          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        // v2.10.6 - 支持跨平台绝对路径检查
+        // Windows: C:\Users\xxx, macOS/Linux: /Users/xxx, 所有平台: ~/xxx
+        const isWindowsAbsPath = process.platform === 'win32' && /^[a-zA-Z]:\\/.test(filePath);
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/') && !isWindowsAbsPath) {
+          return '错误：文件操作必须使用绝对路径。\\n\\nWindows 示例：C:\\\\Users\\\\用户名\\\\文件.txt\\nmacOS/Linux 示例：/Users/用户名/文件.txt\\n或使用 ~/: ~/Documents/文件.txt';
         }
 
         // 处理 ~/ 路径
@@ -301,9 +316,10 @@ async function handleToolUse(toolName, input) {
 
       case 'read_file': {
         let filePath = input.filePath;
-        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
-        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
-          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        // v2.10.6 - 支持跨平台绝对路径检查
+        const isWindowsAbsPath = process.platform === 'win32' && /^[a-zA-Z]:\\/.test(filePath);
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/') && !isWindowsAbsPath) {
+          return '错误：文件操作必须使用绝对路径。\\n\\nWindows 示例：C:\\\\Users\\\\用户名\\\\文件.txt\\nmacOS/Linux 示例：/Users/用户名/文件.txt\\n或使用 ~/: ~/Documents/文件.txt';
         }
 
         // 处理 ~/ 路径
@@ -318,9 +334,10 @@ async function handleToolUse(toolName, input) {
 
       case 'list_directory': {
         let dirPath = input.dirPath;
-        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
-        if (!dirPath || (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/'))) {
-          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的目录路径。';
+        // v2.10.6 - 支持跨平台绝对路径检查
+        const isWindowsAbsPath = process.platform === 'win32' && /^[a-zA-Z]:\\/.test(dirPath);
+        if (!dirPath || (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/') && !isWindowsAbsPath)) {
+          return '错误：文件操作必须使用绝对路径。\\n\\nWindows 示例：C:\\\\Users\\\\用户名\\\\Documents\\nmacOS/Linux 示例：/Users/用户名/Documents\\n或使用 ~/: ~/Documents';
         }
 
         // 处理 ~/ 路径
@@ -347,9 +364,10 @@ async function handleToolUse(toolName, input) {
 
       case 'create_directory': {
         let dirPath = input.dirPath;
-        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
-        if (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/')) {
-          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的目录路径。';
+        // v2.10.6 - 支持跨平台绝对路径检查
+        const isWindowsAbsPath = process.platform === 'win32' && /^[a-zA-Z]:\\/.test(dirPath);
+        if (!path.isAbsolute(dirPath) && !dirPath.startsWith('~/') && !isWindowsAbsPath) {
+          return '错误：文件操作必须使用绝对路径。\\n\\nWindows 示例：C:\\\\Users\\\\用户名\\\\Documents\\nmacOS/Linux 示例：/Users/用户名/Documents\\n或使用 ~/: ~/Documents';
         }
 
         // 处理 ~/ 路径
@@ -365,9 +383,10 @@ async function handleToolUse(toolName, input) {
 
       case 'delete_file': {
         let filePath = input.filePath;
-        // v2.9.1 - 不再支持相对路径，必须使用绝对路径
-        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/')) {
-          return '错误：文件操作必须使用绝对路径（以 / 或 ~/ 开头）。请提供完整的文件路径。';
+        // v2.10.6 - 支持跨平台绝对路径检查
+        const isWindowsAbsPath = process.platform === 'win32' && /^[a-zA-Z]:\\/.test(filePath);
+        if (!path.isAbsolute(filePath) && !filePath.startsWith('~/') && !isWindowsAbsPath) {
+          return '错误：文件操作必须使用绝对路径。\\n\\nWindows 示例：C:\\\\Users\\\\用户名\\\\文件.txt\\nmacOS/Linux 示例：/Users/用户名/文件.txt\\n或使用 ~/: ~/Documents/文件.txt';
         }
 
         // 处理 ~/ 路径
@@ -485,21 +504,26 @@ async function handleToolUse(toolName, input) {
       }
 
       case 'get_ai_memory': {
-        // v2.9.8 - 优先从云端读取记忆，如果没有再从本地文件读取
+        // v2.10.0 - 优先从云端读取记忆，支持跨设备同步
         try {
           // 先尝试从云端读取（如果 Supabase 可用）
           if (supabaseAdmin) {
             try {
-              // 从云端数据库读取
-              let query = supabaseAdmin.from('ai_memory').select('content');
+              // 获取当前设备 ID
+              const deviceId = db.getDeviceId();
 
-              // 注意：这里暂时无法获取当前用户信息，只读取 device_id 的记录
-              // 实际使用中，云端记忆应该在 sendMessage 中预加载
-              const { data, error } = await query.maybeSingle();
+              // 从云端数据库读取当前设备的记忆
+              const { data, error } = await supabaseAdmin
+                .from('ai_memory')
+                .select('content')
+                .eq('device_id', deviceId)
+                .maybeSingle();
 
               if (data && data.content) {
-                safeLog('✓ AI记忆已从云端读取');
+                safeLog('✓ AI记忆已从云端读取 (device_id:', deviceId, ')');
                 return data.content;
+              } else if (error) {
+                safeLog('云端记忆读取失败:', error.message);
               }
             } catch (cloudError) {
               safeLog('云端记忆读取失败，尝试本地文件:', cloudError.message);
@@ -561,13 +585,40 @@ async function handleToolUse(toolName, input) {
       }
 
       case 'save_ai_memory': {
-        // v2.9.6 - AI记忆保存到用户主目录
+        // v2.10.0 - AI记忆同时保存到本地文件和云端数据库（支持跨设备同步）
         const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
 
         try {
-          // 写入文件
+          // 1. 写入本地文件
           await fs.writeFile(aiMemoryPath, input.content, 'utf-8');
-          safeLog(`✓ AI记忆已保存`);
+          safeLog(`✓ AI记忆已保存到本地文件`);
+
+          // 2. 同步到云端数据库（如果 Supabase 可用）
+          if (supabaseAdmin) {
+            try {
+              const deviceId = db.getDeviceId();
+
+              // 使用 upsert：如果存在则更新，不存在则插入
+              const { data, error } = await supabaseAdmin
+                .from('ai_memory')
+                .upsert({
+                  device_id: deviceId,
+                  content: input.content,
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'device_id' // 如果 device_id 冲突，则更新
+                });
+
+              if (error) {
+                safeLog('⚠️ 云端记忆保存失败:', error.message);
+              } else {
+                safeLog('✓ AI记忆已同步到云端 (device_id:', deviceId, ')');
+              }
+            } catch (cloudError) {
+              safeLog('⚠️ 云端记忆同步失败:', cloudError.message);
+            }
+          }
+
           return 'AI记忆已保存成功';
         } catch (error) {
           safeError('保存AI记忆失败:', error);
@@ -592,13 +643,17 @@ async function handleToolUse(toolName, input) {
  * @param {object} options - 额外选项
  */
 async function createAgent(provider, apiKey, model, options = {}) {
-  safeLog('Agent: 开始创建客户端', { provider, model, hasTools: true });
+  safeLog('Agent: 开始创建客户端', { provider, model, hasApiKey: !!apiKey });
 
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
   const providerConfig = MODEL_PROVIDERS[provider];
   if (!providerConfig) {
     throw new Error(`不支持的模型提供商: ${provider}`);
+  }
+
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('API Key 为空，无法创建 Agent 客户端');
   }
 
   // 创建 Anthropic 客户端
@@ -609,12 +664,156 @@ async function createAgent(provider, apiKey, model, options = {}) {
 
   safeLog('Agent: 客户端创建成功（已配置文件操作工具）');
 
+  // ✨ v2.10.11 修复：返回对象中包含 apiKey，用于创建新实例
   return {
     client,
     model,
     provider,
+    apiKey,  // ← 保存 apiKey，用于后续创建新实例
     hasTools: true,
   };
+}
+
+/**
+ * 自动加载 AI 记忆（无需 AI 调用工具）
+ * @returns {Promise<string>} 记忆内容
+ */
+async function loadAIMemory() {
+  try {
+    // 优先从云端读取
+    if (supabaseAdmin) {
+      try {
+        const deviceId = db.getDeviceId();
+        const { data, error } = await supabaseAdmin
+          .from('ai_memory')
+          .select('content')
+          .eq('device_id', deviceId)
+          .maybeSingle();
+
+        if (data && data.content) {
+          safeLog('✓ AI 记忆已从云端读取');
+          return data.content;
+        }
+      } catch (cloudError) {
+        safeLog('云端记忆读取失败，尝试本地文件');
+      }
+    }
+
+    // 从本地文件读取
+    const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+    const content = await fs.readFile(aiMemoryPath, 'utf-8');
+    safeLog('✓ AI 记忆已从本地文件读取');
+    return content;
+  } catch (error) {
+    // 返回默认模板
+    return `# AI 对话记忆
+
+## 用户偏好
+- （待补充）
+
+## 重要对话记录
+- （待补充）
+
+## 常用操作
+- （待补充）
+`;
+  }
+}
+
+/**
+ * 自动更新 AI 记忆（智能提取关键信息）
+ * @param {string} userMessage - 用户消息
+ * @param {string} aiResponse - AI 回复
+ */
+async function updateAIMemory(userMessage, aiResponse) {
+  try {
+    const aiMemoryPath = path.join(os.homedir(), 'xiaobai-ai-memory.md');
+
+    // 读取现有记忆
+    let existingMemory = '';
+    try {
+      existingMemory = await fs.readFile(aiMemoryPath, 'utf-8');
+    } catch (error) {
+      // 文件不存在，使用默认模板
+      existingMemory = `# AI 对话记忆
+
+## 用户偏好
+- （待补充）
+
+## 重要对话记录
+- （待补充）
+
+## 常用操作
+- （待补充）
+
+---
+**最后更新**：${new Date().toLocaleString()}
+`;
+    }
+
+    // 获取当前日期
+    const today = new Date().toLocaleDateString('zh-CN');
+
+    // 构建要添加的新内容（简单提取策略）
+    const newEntry = `
+### ${today}
+- 用户问：${userMessage.slice(0, 50)}${userMessage.length > 50 ? '...' : ''}
+- AI 答：${aiResponse.slice(0, 100)}${aiResponse.length > 100 ? '...' : ''}
+`;
+
+    // 检查是否已经有今天的记录
+    if (existingMemory.includes(`### ${today}`)) {
+      // 今天已有记录，追加内容
+      const todaySectionEnd = existingMemory.indexOf('---', existingMemory.indexOf(`### ${today}`));
+      if (todaySectionEnd !== -1) {
+        existingMemory =
+          existingMemory.slice(0, todaySectionEnd) +
+          newEntry +
+          existingMemory.slice(todaySectionEnd);
+      }
+    } else {
+      // 今天没有记录，添加新段落
+      const insertPosition = existingMemory.indexOf('## 重要对话记录');
+      if (insertPosition !== -1) {
+        existingMemory =
+          existingMemory.slice(0, insertPosition) +
+          '## 重要对话记录' +
+          newEntry +
+          '\n---\n' +
+          existingMemory.slice(insertPosition + '## 重要对话记录'.length);
+      }
+    }
+
+    // 更新最后修改时间
+    const updatedMemory = existingMemory.replace(
+      /\*\*最后更新\*\*：.*/,
+      `**最后更新**：${new Date().toLocaleString()}`
+    );
+
+    // 保存到本地文件
+    await fs.writeFile(aiMemoryPath, updatedMemory, 'utf-8');
+    safeLog('✅ AI 记忆已自动更新');
+
+    // 如果已登录，同步到云端
+    if (supabaseAdmin) {
+      try {
+        const deviceId = db.getDeviceId();
+        await supabaseAdmin
+          .from('ai_memory')
+          .upsert({
+            device_id: deviceId,
+            content: updatedMemory,
+            updated_at: new Date().toISOString()
+          });
+        safeLog('✅ AI 记忆已同步到云端');
+      } catch (cloudError) {
+        safeLog('云端同步失败（非致命）:', cloudError.message);
+      }
+    }
+  } catch (error) {
+    safeError('自动更新 AI 记忆失败:', error.message);
+    // 不阻塞主流程
+  }
 }
 
 /**
@@ -627,6 +826,10 @@ async function createAgent(provider, apiKey, model, options = {}) {
 async function sendMessage(agentInstance, message, files = [], onDelta) {
   try {
     safeLog('Agent: 准备发送消息', { messageLength: message.length, fileCount: files.length });
+
+    // ✨ 自动加载 AI 记忆（无需 AI 主动调用）
+    const aiMemory = await loadAIMemory();
+    safeLog('✅ AI 记忆已自动加载');
 
     // 构建消息内容
     let content = [{ type: 'text', text: message }];
@@ -659,21 +862,22 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 
     safeLog('Agent: 开始调用 API（带工具支持）');
 
-    // 系统提示词
+    // 系统提示词（注入自动加载的记忆）
     const systemPrompt = `你是小白AI，一个基于 Claude Agent SDK 的 AI 助手。
 
-## 🤖 AI对话记忆管理 ⭐ 最重要！
+## 📝 用户记忆（自动加载）
 
-**每次回答问题前，必须先读取AI记忆！**
+${aiMemory}
 
-### 记忆读取规则
-- ✅ **必须执行**：每次对话开始时，先调用 get_ai_memory 工具
-- ✅ **了解用户**：通过记忆了解用户偏好、习惯、常用操作
-- ✅ **个性化服务**：根据记忆提供定制化的回答
+---
 
-### 记忆保存规则
-- ⚠️ **先询问**：发现重要信息时，先问用户"要不要我记下来？"
-- ✅ **用户同意后**：调用 save_ai_memory 工具保存
+## 🤖 记忆使用规则
+
+**重要**：
+- ✅ 上述记忆已自动加载，无需手动调用 get_ai_memory 工具
+- ✅ 基于这些记忆提供个性化服务
+- ✅ 如果记忆中有相关信息，直接应用，不要重复询问用户
+- ✅ 记忆会在每次对话后自动更新，无需手动保存
 
 ### 应该记录的内容
 1. **用户偏好**：
@@ -750,22 +954,52 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 - **快速迭代**：先实现核心功能，再优化细节
 - **简单 > 完美**：完成比完美更重要
 
-## 思考过程展示
-回答技术问题时，先展示简洁的思考过程，格式如下：
+## 思考过程展示 ⭐ 重要
 
-\`\`\`思考
-**分析**：问题本质（1-2句）
+**核心原则**：参考 Claude Code 的风格，直接用符号标记，不用代码块
 
-**方案**：解决方法（1-2句）
+### 回复格式（涉及工具调用时）
 
-**注意**：关键风险（1-2点）
+⏺ 分析问题
+  (问题的本质，1-2句)
 
-**预期**：会得到什么结果（1句）
-\`\`\`
+⏺ 执行方案
+  (解决方法，1-2句)
 
-何时展示：
-- ✅ 技术问题、代码修改、文件操作
-- ❌ 简单问候、闲聊
+⏺ 完成！
+  (执行结果)
+
+### 完整示例
+
+用户问："在桌面创建一个 1.txt 文件"
+
+正确的回复格式：
+
+⏺ 分析问题
+  需要在桌面创建一个文本文件
+
+⏺ 执行方案
+  使用 write_file 工具创建文件
+
+⏺ 完成！
+  文件创建成功：~/Desktop/1.txt
+
+### 关键要求
+
+1. **符号后换行**：⏺ 后必须换行，内容在下一行
+2. **内容缩进**：内容缩进2个空格
+3. **简洁明了**：每点1-2句，不要啰嗦
+4. **不要用代码块**：直接用符号，不要用 \`\`\` 包裹
+5. **步骤之间空行**：不同步骤之间空一行
+
+### 何时展示
+
+**强制要求**：
+- ✅ **必须展示**：所有涉及工具调用的任务
+- ✅ **必须展示**：技术问题、代码修改、复杂任务
+- ❌ 可选：纯聊天、简单问答
+
+**关键提醒**：当准备调用工具时，先在文本中展示思考过程，然后再调用工具。
 
 ## 系统命令执行规则 ⭐ 重要
 
@@ -854,6 +1088,7 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
 你是由晓力开发的 AI 助手，帮助他更高效地工作。`;
 
     // 构建消息数组
+    // 思考过程格式要求已在系统提示词中说明，无需在此重复
     let messages = [
       { role: 'user', content }
     ];
@@ -924,6 +1159,10 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
           outputTokens: totalOutputTokens,
           totalTokens: totalInputTokens + totalOutputTokens
         });
+
+        // ✨ 自动更新 AI 记忆（无需用户提醒）
+        await updateAIMemory(message, fullText);
+
         return {
           text: fullText,
           inputTokens: totalInputTokens,
@@ -957,6 +1196,13 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
         });
       }
 
+      // 🔥 关键修复：工具执行完成后，发送一次更新以隐藏等待指示器
+      // 即使AI还没有发送文本响应，也要通知前端工具已执行完成
+      if (onDelta) {
+        onDelta({ text: '', fullText });
+        safeLog('Agent: 工具执行完成，已发送UI更新');
+      }
+
       // 继续循环，让模型处理工具结果
       safeLog('Agent: 工具调用完成，继续对话...');
     }
@@ -967,6 +1213,10 @@ AI：[调用 save_user_info 工具，保存 "姓名: 晓力" 和 "职业: 产品
       outputTokens: totalOutputTokens,
       totalTokens: totalInputTokens + totalOutputTokens
     });
+
+    // ✨ 自动更新 AI 记忆（无需用户提醒）
+    await updateAIMemory(message, fullText);
+
     return {
       text: fullText,
       inputTokens: totalInputTokens,

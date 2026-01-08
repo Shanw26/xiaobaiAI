@@ -45,6 +45,33 @@
   padding: 24px 24px 20px;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
+  position: relative;
+}
+
+/* 🔥 新增：关闭按钮样式 */
+.btn-close-toast {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.btn-close-toast:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-50%) rotate(90deg);
 }
 
 .update-downloaded-icon {

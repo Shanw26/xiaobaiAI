@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { sendVerificationCode, signInWithPhone } from '../lib/cloudService';
 import './LoginModal.css';
+import { getPlatformClassNames } from '../lib/platformUtil';
 
 function LoginModal({ onClose, onLoginSuccess }) {
   const [phone, setPhone] = useState('');
@@ -80,7 +81,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
       <div className="modal small" onClick={(e) => e.stopPropagation()}>
         {/* 关闭按钮 */}
         <button className="btn-close" onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px' }}>
@@ -93,7 +94,6 @@ function LoginModal({ onClose, onLoginSuccess }) {
         {/* 标题 */}
         <div className="modal-header" style={{ border: 'none', paddingBottom: '12px', textAlign: 'center' }}>
           <h2 className="modal-title" style={{ fontSize: '24px', margin: '0 0 8px 0' }}>📱 手机号登录</h2>
-          <p className="modal-description" style={{ margin: 0 }}>登录后可配置自己的API Key</p>
         </div>
 
         {/* 表单内容 */}
@@ -152,16 +152,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
                   {loading ? '登录中...' : '登录'}
                 </button>
 
-                <button
-                  className="btn-modal secondary"
-                  onClick={() => {
-                    setStep('phone');
-                    setCode('');
-                    setError('');
-                  }}
-                >
-                  返回修改手机号
-                </button>
+            
               </div>
             </>
           )}

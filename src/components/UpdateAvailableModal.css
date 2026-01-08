@@ -285,6 +285,117 @@
   margin: 16px 0;
 }
 
+/* ✨ v2.10.1 新增：Markdown 渲染样式 */
+.markdown-content {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  font-weight: 600;
+  color: var(--primary);
+  margin: 16px 0 8px 0;
+}
+
+.markdown-content h1 {
+  font-size: 18px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.markdown-content h2 {
+  font-size: 16px;
+}
+
+.markdown-content h3 {
+  font-size: 15px;
+  color: var(--primary-hover);
+}
+
+.markdown-content p {
+  margin: 8px 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-content li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.markdown-content code {
+  background: #fef3c7;
+  color: #d97706;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.markdown-content pre {
+  background: var(--text);
+  color: var(--bg);
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  color: var(--bg);
+  padding: 0;
+}
+
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.markdown-content a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.markdown-content strong,
+.markdown-content b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.markdown-content em,
+.markdown-content i {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.markdown-content blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
 .no-notes {
   color: var(--text-secondary);
   text-align: center;
