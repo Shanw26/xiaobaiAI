@@ -6,16 +6,19 @@ import { getPlatformClassNames } from '../lib/platformUtil';
 function ForceUpdateModal({ version, releaseNotes }) {
   const [progress, setProgress] = useState(null);
   const [downloaded, setDownloaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     // 监听下载进度
     window.electronAPI.onUpdateProgress((data) => {
       setProgress(data);
+      setDownloading(true);
     });
 
     // 监听下载完成
     window.electronAPI.onUpdateDownloaded(() => {
       setDownloaded(true);
+      setDownloading(false);
       setProgress({ percent: 100, transferred: 0, total: 0 });
     });
 
@@ -23,6 +26,11 @@ function ForceUpdateModal({ version, releaseNotes }) {
       window.electronAPI.removeUpdateListeners();
     };
   }, []);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    await window.electronAPI.downloadUpdate();
+  };
 
   const handleRestart = () => {
     window.electronAPI.installUpdate();
@@ -38,14 +46,14 @@ function ForceUpdateModal({ version, releaseNotes }) {
         </p>
 
         {/* 下载中或下载完成 */}
-        {progress ? (
+        {(downloading || downloaded) ? (
           <div className="update-progress">
             <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress.percent}%` }} />
+              <div className="progress-fill" style={{ width: `${progress?.percent || 0}%` }} />
             </div>
             <div className="progress-info">
-              {progress.percent < 100
-                ? `下载中: ${progress.percent}% (${progress.transferred}MB/${progress.total}MB)`
+              {progress?.percent < 100
+                ? `下载中: ${progress?.percent || 0}% (${progress?.transferred || 0}MB/${progress?.total || 0}MB)`
                 : '✓ 下载完成！'
               }
             </div>
@@ -62,7 +70,14 @@ function ForceUpdateModal({ version, releaseNotes }) {
           </div>
         )}
 
-        {/* 🔥 修改：下载完成后显示按钮，而不是自动重启 */}
+        {/* 立即更新按钮 */}
+        {!downloading && !downloaded && (
+          <button className="btn-update primary force-update-btn" onClick={handleDownload}>
+            立即更新
+          </button>
+        )}
+
+        {/* 下载完成后显示重启按钮 */}
         {downloaded && (
           <button className="btn-update primary force-update-btn" onClick={handleRestart}>
             立即重启并安装
