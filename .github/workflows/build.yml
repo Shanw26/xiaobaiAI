@@ -36,6 +36,8 @@ jobs:
           ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
 
       - name: Upload Windows artifacts
+                if: always()  # ← 添加这一行
+
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
@@ -84,6 +86,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifacts
+                if: always()  # ← 添加这一行
+
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
@@ -120,6 +124,8 @@ jobs:
           ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
 
       - name: Upload Linux artifacts
+                if: always()  # ← 添加这一行
+
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
