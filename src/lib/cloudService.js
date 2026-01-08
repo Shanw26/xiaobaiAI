@@ -9,6 +9,18 @@ const SUPABASE_ANON_KEY = 'REMOVED';
 // ==================== 辅助函数 ====================
 
 /**
+ * 检查 Supabase 是否可用
+ * @returns {boolean}
+ */
+function isSupabaseAvailable() {
+  const available = !!(supabase && supabaseAdmin);
+  if (!available) {
+    console.warn('⚠️ [云端服务] Supabase 未配置，云功能将不可用');
+  }
+  return available;
+}
+
+/**
  * 获取当前登录用户（从 localStorage）
  * @returns {object|null}
  */
@@ -316,6 +328,11 @@ export async function getUserUsageCount() {
 export async function incrementUserUsage() {
   try {
     console.log('📊 [云端服务] 增加用户使用次数');
+
+    // 🔥 v2.10.18 修复：检查 Supabase 是否可用
+    if (!isSupabaseAvailable()) {
+      return { success: false, error: 'Supabase 未配置' };
+    }
 
     const user = getCurrentUserSync();
     const deviceId = await getDeviceId();
@@ -736,6 +753,11 @@ export async function mergeGuestConversations(userId) {
   try {
     console.log('🔄 [云端服务] 合并游客对话到用户:', userId);
 
+    // 🔥 v2.10.18 修复：检查 Supabase 是否可用
+    if (!isSupabaseAvailable()) {
+      return { success: false, error: 'Supabase 未配置', count: 0 };
+    }
+
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
@@ -768,6 +790,11 @@ export async function mergeGuestConversations(userId) {
 export async function getUserInfo() {
   try {
     console.log('📖 [云端服务] 获取用户信息');
+
+    // 🔥 v2.10.18 修复：检查 Supabase 是否可用
+    if (!isSupabaseAvailable()) {
+      return { success: false, error: 'Supabase 未配置', content: '' };
+    }
 
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
@@ -883,6 +910,11 @@ export async function saveUserInfo(content) {
 export async function getAiMemory() {
   try {
     console.log('📖 [云端服务] 获取AI记忆');
+
+    // 🔥 v2.10.18 修复：检查 Supabase 是否可用
+    if (!isSupabaseAvailable()) {
+      return { success: false, error: 'Supabase 未配置', content: '' };
+    }
 
     const deviceId = await getDeviceId();
 
