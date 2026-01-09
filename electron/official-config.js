@@ -3,7 +3,7 @@
 
 const db = require('./database');
 
-// v2.10.26 - 容错机制：防止重复从 Supabase 获取
+// v2.10.27 - 容错机制：防止重复从 Supabase 获取
 let isFetchingFromSupabase = false;
 let cachedApiKey = null;
 
@@ -11,7 +11,7 @@ module.exports = {
   // 模型提供商：'anthropic' (Claude) 或 'zhipu' (智谱GLM)
   provider: 'zhipu',
 
-  // ✨ v2.10.26 容错机制：如果数据库中没有 API Key，自动从 Supabase 重新获取
+  // ✨ v2.10.27 容错机制：如果数据库中没有 API Key，自动从 Supabase 重新获取
   // 官方 API Key 在首次启动时写入数据库（database.js: initOfficialConfig）
   // 之后所有请求都从数据库读取，确保安全性
   get apiKey() {

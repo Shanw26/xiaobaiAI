@@ -803,8 +803,9 @@ export async function getUserInfo() {
     const user = getCurrentUserSync();
     let userId = user?.id;
 
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
     // 从 Supabase 查询
-    let query = supabaseAdmin.from('user_info').select('content');
+    let query = supabase.from('user_info').select('content');
 
     if (userId) {
       // 登录用户：查询用户的数据
@@ -856,16 +857,17 @@ export async function saveUserInfo(content) {
 
     console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
     // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
     if (userId) {
       // 登录用户：删除该用户的所有记录
-      await supabaseAdmin
+      await supabase
         .from('user_info')
         .delete()
         .eq('user_id', userId);
     } else {
       // 游客：删除该设备的所有记录
-      await supabaseAdmin
+      await supabase
         .from('user_info')
         .delete()
         .eq('device_id', deviceId);
@@ -881,7 +883,7 @@ export async function saveUserInfo(content) {
 
     console.log('📊 [云端服务] 插入数据:', insertData);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('user_info')
       .insert(insertData)
       .select();
@@ -922,8 +924,9 @@ export async function getAiMemory() {
     const user = getCurrentUserSync();
     const userId = user?.id;
 
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
     // 从 Supabase 查询
-    let query = supabaseAdmin.from('ai_memory').select('content');
+    let query = supabase.from('ai_memory').select('content');
 
     if (userId) {
       query = query.eq('user_id', userId);
@@ -973,16 +976,17 @@ export async function saveAiMemory(content) {
 
     console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
     // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
     if (userId) {
       // 登录用户：删除该用户的所有记录
-      await supabaseAdmin
+      await supabase
         .from('ai_memory')
         .delete()
         .eq('user_id', userId);
     } else {
       // 游客：删除该设备的所有记录
-      await supabaseAdmin
+      await supabase
         .from('ai_memory')
         .delete()
         .eq('device_id', deviceId);
@@ -998,7 +1002,7 @@ export async function saveAiMemory(content) {
 
     console.log('📊 [云端服务] 插入 AI 记忆数据:', insertData);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('ai_memory')
       .insert(insertData)
       .select();
