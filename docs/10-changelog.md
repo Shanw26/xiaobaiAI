@@ -2,7 +2,116 @@
 
 > **说明**: 本文档记录小白AI的所有版本更新和重要变更
 > **更新频率**: 每次发布新版本后立即更新
-> **当前版本**: v2.8.0
+> **当前版本**: v2.10.27
+
+---
+
+## 📅 2026-01-09 - v2.10.27 (系统提示词优化)
+
+### ✨ 新功能
+
+**系统提示词优化：工具优先级规则** ⭐
+- **问题**: AI 使用 shell 命令而非专用工具（如 `rm -rf ~/.Trash/*` 清空回收站）
+- **解决方案**:
+  - ✅ 添加 `empty_trash` 专用工具
+  - ✅ 新增"工具使用规则"章节到系统提示词
+  - ✅ 明确要求 AI 优先使用专用工具
+  - ✅ 提供错误示例对比（❌ 错误 vs ✅ 正确）
+  - ✅ 支持跨平台（macOS、Windows、Linux）
+
+**技术实现**:
+```javascript
+// 新增 empty_trash 工具
+{
+  name: 'empty_trash',
+  description: '清空回收站（删除所有已删除的文件）...',
+  input_schema: { type: 'object', properties: {} }
+}
+
+// 跨平台实现
+async function emptyTrash() {
+  if (platform === 'darwin') {
+    // macOS: 使用 AppleScript
+    await execPromise(`osascript -e 'tell application "Finder" to empty trash'`);
+  } else if (platform === 'win32') {
+    // Windows: 使用 PowerShell
+    await execPromise(`powershell ...`);
+  } else {
+    // Linux: 清空 ~/.local/share/Trash/
+    await execPromise('rm -rf ~/.local/share/Trash/*');
+  }
+}
+```
+
+**系统提示词改进**:
+```markdown
+## 🛠️ 工具使用规则（重要）
+
+你必须优先使用专用工具，而不是执行 shell 命令：
+
+### 1. 文件系统操作
+- **清空回收站** → 调用 `empty_trash` 工具（不要用 rm 命令）
+- **删除文件** → 调用 `delete_file` 工具
+- **移到回收站** → 调用 `move_to_trash_file` 工具
+- **创建目录** → 调用 `create_directory` 工具
+- **列出目录** → 调用 `list_directory` 工具
+- **读取文件** → 调用 `read_file` 工具
+- **写入文件** → 调用 `write_file` 工具
+
+### 2. 何时使用 execute_command
+只有在以下情况才使用 `execute_command` 工具：
+- 查看系统信息（如：ps aux, top, df -h）
+- 查看进程列表
+- 查看网络状态
+- 执行 git 命令
+- 其他无法用专用工具完成的操作
+
+### 3. 常见错误示例
+❌ 用户说"清空回收站"，你执行：rm -rf ~/.Trash/*
+✅ 用户说"清空回收站"，你调用：empty_trash 工具
+```
+
+**优势**:
+- 🛡️ **跨平台兼容**：工具自动适配不同操作系统
+- ⚡ **操作准确**：避免执行错误的命令
+- 📊 **结果可追踪**：结构化的返回结果
+- 🎯 **用户体验**：操作更安全、可逆
+
+**修改文件**:
+- `electron/agent.js` - 添加 `empty_trash` 工具和优化提示词
+- `package.json` - 版本号: 2.10.27
+- `electron/main.js` - APP_VERSION: 2.10.27
+- `src/components/Sidebar.jsx` - 版本号: v2.10.27
+- `src/components/SettingsModal.jsx` - 版本号: v2.10.27
+
+**相关文档**:
+- [系统提示词与工具优先级](./v2.10.27-系统提示词与工具优先级.md) - 完整实现说明
+- [AI 回复规则](./12-ai-reply-rules.md) - AI 行为准则
+
+---
+
+## 📅 2026-01-09 - v2.10.26 (容错机制版本)
+
+### ✨ 新功能
+
+**官方API Key容错机制** ⭐
+- **问题**: 如果数据库中官方API Key丢失或未初始化，游客模式无法使用
+- **解决方案**:
+  - ✅ 添加三级缓存机制：内存缓存 → 数据库 → Supabase
+  - ✅ 自动从Supabase重新获取：当数据库中没有API Key时，自动从云端获取
+  - ✅ 自动写入数据库：获取成功后自动保存到本地数据库
+  - ✅ 防止重复获取：使用 `isFetchingFromSupabase` 标志避免并发请求
+  - ✅ 提供重置方法：`resetCache()` 用于强制刷新缓存
+
+**修改文件**:
+- `electron/official-config.js` - 添加容错机制
+- `package.json` - 版本号: 2.10.26
+- `electron/main.js` - APP_VERSION: 2.10.26
+- `src/components/Sidebar.jsx` - 版本号: v2.10.26
+- `src/components/SettingsModal.jsx` - 版本号: v2.10.26
+
+**相关文档**:
+- [官方API Key容错机制详细说明](./v2.10.26-官方API Key容错机制.md)
 
 ---
 

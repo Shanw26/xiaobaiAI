@@ -1,10 +1,41 @@
 import { supabase, supabaseAdmin } from './supabaseClient';
 
-// Edge Function URL（从环境变量读取）
-const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`;
+// Edge Function URL 基础路径
+const EDGE_FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 // Supabase Anon Key（从环境变量读取）
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+/**
+ * 调用 Edge Function 的辅助函数
+ * @param {string} functionName - Edge Function 名称
+ * @param {object} data - 请求数据
+ * @returns {Promise<{success: boolean, data?: any, error?: string}>}
+ */
+async function callEdgeFunction(functionName, data) {
+  try {
+    const response = await fetch(`${EDGE_FUNCTIONS_BASE}/${functionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || `HTTP ${response.status}` };
+    }
+
+    return { success: true, data: result.data };
+  } catch (error) {
+    console.error(`❌ [Edge Function] ${functionName} 调用失败:`, error);
+    return { success: false, error: error.message };
+  }
+}
 
 // ==================== 辅助函数 ====================
 
@@ -60,59 +91,24 @@ async function getDeviceId() {
 }
 
 /**
- * 发送验证码
+ * 发送验证码（Edge Function 版本）
  * @param {string} phone - 手机号
- * @returns {Promise<{success: boolean, code?: string, error?: string}>}
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function sendVerificationCode(phone) {
   try {
     console.log('📱 [云端服务] 开始发送验证码:', phone);
 
-    // 生成6位随机验证码
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log('✅ [云端服务] 验证码生成成功:', code);
-
-    // 调用 Supabase Edge Function 发送短信
-    console.log('📤 [云端服务] 调用阿里云短信服务...');
-
-    const response = await fetch(EDGE_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify({ phone, code })
-    });
-
-    const result = await response.json();
-    console.log('📥 [云端服务] 短信服务响应:', result);
+    // 🔥 v2.10.27 Edge Function：调用 send-verification-code
+    const result = await callEdgeFunction('send-verification-code', { phone });
 
     if (!result.success) {
-      console.error('❌ [云端服务] 发送短信失败:', result.error);
-      return { success: false, error: result.error || '发送短信失败' };
-    }
-
-    // 保存验证码到数据库（验证码表）
-    console.log('💾 [云端服务] 保存验证码到数据库...');
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    const { error: dbError } = await supabase
-      .from('verification_codes')
-      .insert({
-        phone,
-        code,
-        created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5分钟后过期
-        used: false
-      });
-
-    if (dbError) {
-      console.error('❌ [云端服务] 保存验证码失败:', dbError);
-      return { success: false, error: '保存验证码失败' };
+      console.error('❌ [云端服务] 发送验证码失败:', result.error);
+      return { success: false, error: result.error };
     }
 
     console.log('✅ [云端服务] 验证码发送成功');
-    return { success: true }; // 生产环境不返回验证码
+    return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 发送验证码异常:', error);
     return { success: false, error: error.message };
@@ -120,7 +116,7 @@ export async function sendVerificationCode(phone) {
 }
 
 /**
- * 手机号登录
+ * 手机号登录（Edge Function 版本）
  * @param {string} phone - 手机号
  * @param {string} code - 验证码
  * @returns {Promise<{success: boolean, user?: object, error?: string}>}
@@ -131,92 +127,21 @@ export async function signInWithPhone(phone, code) {
     console.log('  - 手机号:', phone);
     console.log('  - 验证码:', code);
 
-    // 1. 验证验证码（使用 admin 客户端绕过 RLS）
-    console.log('\n📋 [云端服务] 步骤1: 验证验证码...');
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    const { data: codeRecord, error: codeError } = await supabase
-      .from('verification_codes')
-      .select('*')
-      .eq('phone', phone)
-      .eq('code', code)
-      .eq('used', false)
-      .gte('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // 🔥 v2.10.27 Edge Function：调用 sign-in-phone
+    const result = await callEdgeFunction('sign-in-phone', { phone, code });
 
-    if (codeError || !codeRecord) {
-      console.error('❌ [云端服务] 验证码验证失败');
-      console.error('  - 错误:', codeError?.message || '验证码无效或已过期');
-      return { success: false, error: '验证码无效或已过期' };
+    if (!result.success) {
+      console.error('❌ [云端服务] 登录失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log('✅ [云端服务] 验证码验证通过');
-
-    // 2. 查询或创建用户（使用 admin 客户端绕过 RLS）
-    console.log('\n👤 [云端服务] 步骤2: 查询或创建用户...');
-
-    // 先查询用户资料
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('phone', phone)
-      .single();
-
-    let user;
-
-    if (profileError || !profile) {
-      console.log('⚠️  [云端服务] 用户不存在，创建新用户...');
-
-      // 生成用户ID（使用 UUID）
-      const userId = crypto.randomUUID();
-
-      // 创建新用户（使用 admin 客户端）
-      // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-      const { data: newProfile, error: createError } = await supabase
-        .from('user_profiles')
-        .insert([{
-          id: userId,
-          user_id: userId,
-          phone: phone,
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('❌ [云端服务] 创建用户失败:', createError.message);
-        return { success: false, error: '创建用户失败: ' + createError.message };
-      }
-
-      user = newProfile;
-      console.log('✅ [云端服务] 用户创建成功:', user.id);
-    } else {
-      user = profile;
-      console.log('✅ [云端服务] 用户已存在:', user.id);
-    }
-
-    // 3. 标记验证码已使用（使用 admin 客户端）
-    console.log('\n✅ [云端服务] 步骤3: 标记验证码已使用...');
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    await supabase
-      .from('verification_codes')
-      .update({ used: true })
-      .eq('id', codeRecord.id);
-
-    // 4. 返回用户信息
-    console.log('\n🎉 [云端服务] 登录成功！');
-    console.log('  - User ID:', user.id);
-    console.log('  - Phone:', user.phone);
+    console.log('🎉 [云端服务] 登录成功！');
+    console.log('  - User ID:', result.data.id);
+    console.log('  - Phone:', result.data.phone);
 
     return {
       success: true,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        hasApiKey: user.has_api_key || false
-      }
+      user: result.data
     };
   } catch (error) {
     console.error('❌ [云端服务] 登录异常:', error);
@@ -264,7 +189,7 @@ export async function signOut() {
 // ==================== 用户使用次数管理 ====================
 
 /**
- * 获取用户使用次数（从云端）
+ * 获取用户使用次数（Edge Function 版本）
  * @returns {Promise<{success: boolean, usedCount?: number, error?: string}>}
  */
 export async function getUserUsageCount() {
@@ -274,51 +199,19 @@ export async function getUserUsageCount() {
     const user = getCurrentUserSync();
     const deviceId = await getDeviceId();
 
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    if (!user) {
-      console.log('ℹ️  [云端服务] 游客模式，查询设备使用次数');
+    // 🔥 v2.10.27 Edge Function：调用 get-user-usage
+    const result = await callEdgeFunction('get-user-usage', {
+      user_id: user?.id,
+      device_id: deviceId
+    });
 
-      const { data, error } = await supabase
-        .from('guest_usage')
-        .select('used_count')
-        .eq('device_id', deviceId)
-        .is('user_id', null)  // 游客记录 user_id 为 NULL
-        .maybeSingle();
-
-      if (error) {
-        console.error('❌ [云端服务] 获取游客使用次数失败:', error);
-        // 如果记录不存在，返回 0
-        if (error.code === 'PGRST116') {
-          return { success: true, usedCount: 0 };
-        }
-        return { success: false, error: error.message };
-      }
-
-      const usedCount = data?.used_count || 0;
-      console.log(`✅ [云端服务] 游客已使用 ${usedCount} 次`);
-      return { success: true, usedCount };
+    if (!result.success) {
+      console.error('❌ [云端服务] 获取使用次数失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    // 登录用户：查询 user_id 的使用次数
-    console.log('ℹ️  [云端服务] 登录用户，查询用户使用次数');
-
-    const { data, error } = await supabase
-      .from('guest_usage')
-      .select('used_count')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ [云端服务] 获取使用次数失败:', error);
-      // 如果记录不存在，返回 0
-      if (error.code === 'PGRST116') {
-        return { success: true, usedCount: 0 };
-      }
-      return { success: false, error: error.message };
-    }
-
-    const usedCount = data?.used_count || 0;
-    console.log(`✅ [云端服务] 用户已使用 ${usedCount} 次`);
+    const usedCount = result.data.used_count || 0;
+    console.log(`✅ [云端服务] 已使用 ${usedCount} 次`);
     return { success: true, usedCount };
   } catch (error) {
     console.error('❌ [云端服务] 获取使用次数异常:', error);
@@ -327,149 +220,33 @@ export async function getUserUsageCount() {
 }
 
 /**
- * 增加用户使用次数（云端）
+ * 增加用户使用次数（Edge Function 版本）
  * @returns {Promise<{success: boolean, usedCount?: number, remaining?: number, error?: string}>}
  */
 export async function incrementUserUsage() {
   try {
     console.log('📊 [云端服务] 增加用户使用次数');
 
-    // 🔥 v2.10.18 修复：检查 Supabase 是否可用
-    if (!isSupabaseAvailable()) {
-      return { success: false, error: 'Supabase 未配置' };
-    }
-
     const user = getCurrentUserSync();
     const deviceId = await getDeviceId();
 
-    // 🔥 关键修复：游客模式下也要记录使用次数
-    if (!user) {
-      console.log('ℹ️  [云端服务] 游客模式，记录设备使用次数');
-
-      // 查询或创建游客使用记录（基于 device_id）
-      const { data: existing } = await supabase
-        .from('guest_usage')
-        .select('used_count, remaining')
-        .eq('device_id', deviceId)
-        .is('user_id', null)  // 游客记录 user_id 为 NULL
-        .maybeSingle();
-
-      if (existing) {
-        // 更新现有记录
-        const newUsedCount = existing.used_count + 1;
-        const newRemaining = Math.max(0, existing.remaining - 1);
-
-        const { data: updated, error: updateError } = await supabase
-          .from('guest_usage')
-          .update({
-            used_count: newUsedCount,
-            remaining: newRemaining,
-            last_used_at: new Date().toISOString()
-          })
-          .eq('device_id', deviceId)
-          .is('user_id', null)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error('❌ [云端服务] 更新游客使用次数失败:', updateError);
-          return { success: false, error: updateError.message };
-        }
-
-        console.log(`✅ [云端服务] 游客使用次数更新: ${newUsedCount}, 剩余: ${newRemaining}`);
-        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
-      } else {
-        // 创建新记录（游客模式：user_id = NULL, device_id 有值）
-        const { data: created, error: createError } = await supabase
-          .from('guest_usage')
-          .insert({
-            user_id: null,  // 🔥 游客模式：user_id 为 NULL
-            device_id: deviceId,
-            used_count: 1,
-            remaining: 9,
-            last_used_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error('❌ [云端服务] 创建游客使用记录失败:', createError);
-          return { success: false, error: createError.message };
-        }
-
-        console.log(`✅ [云端服务] 创建游客使用记录: 1, 剩余: 9`);
-        return { success: true, usedCount: 1, remaining: 9 };
-      }
-    }
-
-    // 登录用户：使用 user_id 记录使用次数
-    console.log('ℹ️  [云端服务] 登录用户，记录用户使用次数');
-
-    // 使用数据库函数来增加使用次数
-    const { data, error } = await supabase.rpc('increment_user_usage', {
-      p_user_id: user.id,
-      p_device_id: deviceId
+    // 🔥 v2.10.27 Edge Function：调用 increment-usage
+    const result = await callEdgeFunction('increment-usage', {
+      user_id: user?.id,
+      device_id: deviceId
     });
 
-    if (error) {
-      console.error('❌ [云端服务] 增加使用次数失败:', error);
-
-      // 如果函数不存在，手动实现
-      const { data: existing } = await supabase
-        .from('guest_usage')
-        .select('used_count, remaining')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existing) {
-        const newUsedCount = existing.used_count + 1;
-        const newRemaining = Math.max(0, existing.remaining - 1);
-
-        const { data: updated, error: updateError } = await supabase
-          .from('guest_usage')
-          .update({
-            used_count: newUsedCount,
-            remaining: newRemaining,
-            last_used_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .select()
-          .single();
-
-        if (updateError) {
-          return { success: false, error: updateError.message };
-        }
-
-        console.log(`✅ [云端服务] 使用次数更新: ${newUsedCount}, 剩余: ${newRemaining}`);
-        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
-      } else {
-        // 创建新记录
-        const newUsedCount = 1;
-        const newRemaining = 9;
-
-        const { data: created, error: createError } = await supabase
-          .from('guest_usage')
-          .insert({
-            user_id: user.id,
-            device_id: deviceId,
-            used_count: newUsedCount,
-            remaining: newRemaining,
-            last_used_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          return { success: false, error: createError.message };
-        }
-
-        console.log(`✅ [云端服务] 创建使用记录: ${newUsedCount}, 剩余: ${newRemaining}`);
-        return { success: true, usedCount: newUsedCount, remaining: newRemaining };
-      }
+    if (!result.success) {
+      console.error('❌ [云端服务] 增加使用次数失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log(`✅ [云端服务] 使用次数: ${data?.used_count || 0}, 剩余: ${data?.remaining || 0}`);
-    return { success: true, usedCount: data?.used_count || 0, remaining: data?.remaining || 0 };
+    console.log('✅ [云端服务] 使用次数更新成功');
+    return {
+      success: true,
+      usedCount: result.data.used_count,
+      remaining: result.data.remaining
+    };
   } catch (error) {
     console.error('❌ [云端服务] 增加使用次数异常:', error);
     return { success: false, error: error.message };

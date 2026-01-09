@@ -88,6 +88,36 @@ async function moveToTrash(filePath) {
   }
 }
 
+/**
+ * 清空回收站
+ * @returns {Promise<void>}
+ */
+async function emptyTrash() {
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    // macOS: 使用 AppleScript 清空回收站
+    const script = 'tell application "Finder" to empty trash';
+    await execPromise(`osascript -e '${script}'`);
+    safeLog('✅ macOS 回收站已清空');
+  } else if (platform === 'win32') {
+    // Windows: 使用 PowerShell 清空回收站
+    const script = `
+      $shell = New-Object -ComObject Shell.Application
+      $shell.Namespace(0xA).Items() | ForEach-Object { Remove-Item $_.Path -Recurse -Force }
+    `;
+    await execPromise(`powershell -NoProfile -Command "${script.replace(/\n/g, '').replace(/\s+/g, ' ')}"`, {
+      shell: 'powershell.exe',
+      windowsHide: true
+    });
+    safeLog('✅ Windows 回收站已清空');
+  } else {
+    // Linux: 清空 ~/.local/share/Trash/
+    await execPromise('rm -rf ~/.local/share/Trash/*');
+    safeLog('✅ Linux 回收站已清空');
+  }
+}
+
 // 模型提供商配置
 const MODEL_PROVIDERS = {
   anthropic: {
@@ -180,6 +210,14 @@ const FILE_TOOLS = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: 'empty_trash',
+    description: '清空回收站（删除所有已删除的文件）。⚠️ 注意：此操作不可逆，请谨慎使用！\n\n支持平台：\n- macOS: 使用 AppleScript 清空回收站\n- Windows: 使用 PowerShell 清空回收站\n- Linux: 清空 ~/.local/share/Trash/ 目录\n\n返回格式：\n- 成功：✅ 回收站已清空\n- 失败：❌ 清空回收站失败：[错误信息]',
+    input_schema: {
+      type: 'object',
+      properties: {},
     },
   },
   {
@@ -384,6 +422,16 @@ async function handleToolUse(toolName, input) {
         safeLog(`✓ 目录已创建: ${dirPath}`);
         // v2.9.2 - 返回格式化的消息
         return `✅ 目录已创建：\`${dirPath}\``;
+      }
+
+      case 'empty_trash': {
+        try {
+          await emptyTrash();
+          return '✅ 回收站已清空';
+        } catch (error) {
+          safeError('清空回收站失败:', error);
+          return `❌ 清空回收站失败：${error.message}`;
+        }
       }
 
       case 'delete_file': {
@@ -886,7 +934,7 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
 
     safeLog('Agent: 开始调用 API（带工具支持）');
 
-    // 系统提示词（注入自动加载的记忆）- v2.10.23 优化：精简提示词以提升响应速度
+    // 系统提示词（注入自动加载的记忆）- v2.10.27 优化：强化工具使用指令
     const systemPrompt = `你是小白AI，一个基于 Claude Agent SDK 的 AI 助手。
 
 ## 📝 用户记忆
@@ -895,10 +943,40 @@ ${aiMemory}
 
 ---
 
+## 🛠️ 工具使用规则（重要）
+
+你必须优先使用专用工具，而不是执行 shell 命令：
+
+### 1. 文件系统操作
+- **清空回收站** → 调用 \`empty_trash\` 工具（不要用 rm 命令）
+- **删除文件** → 调用 \`delete_file\` 工具
+- **移到回收站** → 调用 \`move_to_trash_file\` 工具
+- **创建目录** → 调用 \`create_directory\` 工具
+- **列出目录** → 调用 \`list_directory\` 工具
+- **读取文件** → 调用 \`read_file\` 工具
+- **写入文件** → 调用 \`write_file\` 工具
+
+### 2. 何时使用 execute_command
+只有在以下情况才使用 \`execute_command\` 工具：
+- 查看系统信息（如：ps aux, top, df -h）
+- 查看进程列表
+- 查看网络状态
+- 执行 git 命令
+- 其他无法用专用工具完成的操作
+
+### 3. 常见错误示例
+❌ 用户说"清空回收站"，你执行：rm -rf ~/.Trash/*
+✅ 用户说"清空回收站"，你调用：empty_trash 工具
+
+❌ 用户说"删除这个文件"，你执行：rm /path/to/file
+✅ 用户说"删除这个文件"，你调用：delete_file 工具
+
+---
+
 ## 工作原则
 
 1. **诚实优先**：不知道就说不知道，不编造信息
-2. **工具使用**：文件操作必须调用工具，确保结果真实准确
+2. **工具优先**：所有操作优先使用专用工具，确保结果准确
 3. **简洁沟通**：直接回答，不绕弯子
 4. **文件路径格式**：必须用反引号包裹路径（如 \`/path/to/file\`），方便用户点击
 
@@ -909,7 +987,7 @@ ${aiMemory}
   内容（1-2句）
 
 ⏺ 执行方案
-  内容（1-2句）
+  调用：xxx 工具
 
 ⏺ 完成！
   结果
