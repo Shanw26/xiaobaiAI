@@ -40,28 +40,44 @@
 ```sql
 CREATE TABLE user_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone TEXT UNIQUE NOT NULL,           -- 手机号(唯一标识)
-  has_api_key BOOLEAN DEFAULT false,    -- 是否配置了API Key
+  phone TEXT UNIQUE NOT NULL,              -- 手机号(唯一标识)
+  has_api_key BOOLEAN DEFAULT false,       -- 是否配置了API Key
+  api_key TEXT,                            -- 🔒 已废弃：明文 API Key（兼容性）
+  api_key_encrypted TEXT,                  -- 🔒 v2.11.7：加密后的 API Key
+  api_key_iv TEXT,                         -- 🔒 v2.11.7：加密初始化向量
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 索引
 CREATE INDEX idx_user_profiles_phone ON user_profiles(phone);
+CREATE INDEX idx_user_profiles_api_key_encrypted
+  ON user_profiles(user_id)
+  WHERE api_key_encrypted IS NOT NULL;
 ```
 
 **字段说明**:
 
-| 字段 | 类型 | 说明 | 必填 |
-|-----|------|------|------|
-| id | UUID | 主键，自动生成 | ✅ |
-| phone | TEXT | 手机号，唯一标识 | ✅ |
-| has_api_key | BOOLEAN | 是否配置了自己的 API Key | ❌ (默认 false) |
-| created_at | TIMESTAMPTZ | 创建时间 | ❌ (自动生成) |
+| 字段 | 类型 | 说明 | 必填 | 版本 |
+|-----|------|------|------|------|
+| id | UUID | 主键，自动生成 | ✅ | - |
+| phone | TEXT | 手机号，唯一标识 | ✅ | - |
+| has_api_key | BOOLEAN | 是否配置了自己的 API Key | ❌ (默认 false) | - |
+| api_key | TEXT | ⚠️ 已废弃：明文 API Key | ❌ | v2.11.6 及之前 |
+| api_key_encrypted | TEXT | 🔒 加密后的 API Key (AES-256-GCM) | ❌ | v2.11.7+ |
+| api_key_iv | TEXT | 🔒 加密初始化向量 (IV) | ❌ | v2.11.7+ |
+| created_at | TIMESTAMPTZ | 创建时间 | ❌ (自动生成) | - |
+
+**🔒 v2.11.7 安全增强**：
+- ✅ API Key 使用 AES-256-GCM 加密存储
+- ✅ 每个用户使用独立的加密密钥（基于用户 ID 派生）
+- ✅ 保留 `api_key` 字段用于兼容旧数据
+- ✅ 新保存的 API Key 自动加密，旧数据在用户重新保存时迁移
 
 **设计要点**:
 - ✅ 不需要 email 字段（小白AI特点）
 - ✅ phone 是唯一标识
 - ✅ 简单设计，只存储必需字段
+- ✅ v2.11.7+ API Key 加密存储，提高安全性
 
 ---
 
@@ -232,9 +248,9 @@ CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,                 -- 用户 ID (UUID)
   phone TEXT NOT NULL,                 -- 手机号
-  api_key TEXT,                        -- API 密钥
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  last_login_at DATETIME,              -- 最后登录时间
+  total_requests INTEGER DEFAULT 0     -- 请求总数
 );
 
 -- 索引
@@ -247,13 +263,18 @@ CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 |-----|------|------|------|
 | id | TEXT | 用户 ID（来自 Supabase Auth） | ✅ |
 | phone | TEXT | 手机号 | ✅ |
-| api_key | TEXT | 用户的自定义 API Key | ❌ |
 | created_at | DATETIME | 创建时间 | ❌ |
-| updated_at | DATETIME | 更新时间 | ❌ |
+| last_login_at | DATETIME | 最后登录时间 | ❌ |
+| total_requests | INTEGER | 请求总数 | ❌ (默认 0) |
+
+**🔒 v2.11.7 安全增强**：
+- ✅ **已删除 `api_key` 字段**（不再本地存储敏感数据）
+- ✅ API Key 只存储在云端（加密）和内存中（运行时）
+- ✅ 本地数据库只存储非敏感信息（手机号、登录时间等）
 
 **用途**：
 - 登录后同步用户信息到本地
-- 查询用户是否配置了自定义 API Key
+- 记录用户登录时间和使用次数
 - 避免每次查询云端数据库
 
 **使用示例**：

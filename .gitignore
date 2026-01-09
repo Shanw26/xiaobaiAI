@@ -58,3 +58,25 @@ Thumbs.db
 # Debug
 *.log
 localhost-*.log
+
+# 登录问题排查工具（2026-01-09）- 包含敏感密钥
+401-fix-guide.md
+check-keys.js
+compare-functions.js
+diagnose-login.js
+local-login-fallback.js
+test-complete-login.js
+test-login-test.js
+test-signin.js
+verify-edge-function.js
+test-login.html
+supabase/functions/login-test/
+
+# 通用测试和诊断工具（防止硬编码密钥）
+test-*.js
+test-*.html
+check-*.js
+diagnose-*.js
+verify-*.js
+compare-*.js
+*-fix-guide.md

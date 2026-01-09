@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // AI Agent 功能
   initAgent: (config) => ipcRenderer.invoke('init-agent', config),
+  reloadAgent: () => ipcRenderer.invoke('reload-agent'),  // 🔥 v2.11.7 新增：重新加载 Agent
   sendMessage: (conversationId, message, files) => ipcRenderer.invoke('send-message', conversationId, message, files),  // ✨ v2.10.1 修改：添加 conversationId
   getProviders: () => ipcRenderer.invoke('get-providers'),
   getModels: (providerId) => ipcRenderer.invoke('get-models', providerId),

@@ -6,6 +6,88 @@ const EDGE_FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 // Supabase Anon Key（从环境变量读取）
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// ==================== API Key 加密工具 ====================
+
+/**
+ * 🔒 v2.11.7 安全增强：API Key 加密存储
+ * 使用 Web Crypto API 进行客户端加密
+ * 每个用户使用独立的加密密钥（基于用户 ID 派生）
+ */
+
+/**
+ * 从用户 ID 派生加密密钥
+ * @param {string} userId - 用户 ID
+ * @returns {Promise<CryptoKey>} - 派生的加密密钥
+ */
+async function deriveEncryptionKey(userId) {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(userId + 'xiaobai-ai-salt-2026'),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: encoder.encode('xiaobai-api-key-salt'),
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * 加密 API Key
+ * @param {string} apiKey - 明文 API Key
+ * @param {string} userId - 用户 ID
+ * @returns {Promise<{encrypted: string, iv: string}>} - 加密后的数据
+ */
+async function encryptApiKey(apiKey, userId) {
+  const key = await deriveEncryptionKey(userId);
+  const encoder = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoder.encode(apiKey)
+  );
+
+  return {
+    encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+    iv: btoa(String.fromCharCode(...iv))
+  };
+}
+
+/**
+ * 解密 API Key
+ * @param {string} encryptedData - Base64 编码的加密数据
+ * @param {string} iv - Base64 编码的 IV
+ * @param {string} userId - 用户 ID
+ * @returns {Promise<string>} - 解密后的 API Key
+ */
+async function decryptApiKey(encryptedData, iv, userId) {
+  const key = await deriveEncryptionKey(userId);
+  const encrypted = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+  const ivArray = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: ivArray },
+    key,
+    encrypted
+  );
+
+  const decoder = new TextDecoder();
+  return decoder.decode(decrypted);
+}
+
 /**
  * 调用 Edge Function 的辅助函数
  * @param {string} functionName - Edge Function 名称
@@ -812,7 +894,7 @@ function getDefaultAiMemoryTemplate() {
 // ==================== API Key 云端同步 ====================
 
 /**
- * 保存 API Key 到云端
+ * 保存 API Key 到云端（加密存储）🔒
  * @param {string} apiKey - API Key
  * @returns {Promise<{success: boolean, error?: string}>}
  */
@@ -823,14 +905,30 @@ export async function saveApiKey(apiKey) {
       return { success: false, error: '用户未登录' };
     }
 
-    console.log('🔑 [云端服务] 保存 API Key 到云端');
+    console.log('🔑 [云端服务] 保存 API Key 到云端（加密）');
+
+    // 🔒 v2.11.7 安全增强：加密 API Key
+    let updateData = {
+      has_api_key: !!apiKey && apiKey.length > 0
+    };
+
+    if (apiKey && apiKey.length > 0) {
+      const encrypted = await encryptApiKey(apiKey, user.id);
+      updateData.api_key_encrypted = encrypted.encrypted;
+      updateData.api_key_iv = encrypted.iv;
+      // 清空明文字段（如果有旧数据）
+      updateData.api_key = null;
+      console.log('🔒 API Key 已加密');
+    } else {
+      // 删除 API Key
+      updateData.api_key_encrypted = null;
+      updateData.api_key_iv = null;
+      updateData.api_key = null;
+    }
 
     const { data, error } = await supabase
       .from('user_profiles')
-      .update({
-        api_key: apiKey,
-        has_api_key: !!apiKey && apiKey.length > 0
-      })
+      .update(updateData)
       .eq('user_id', user.id)
       .select();
 
@@ -839,7 +937,7 @@ export async function saveApiKey(apiKey) {
       return { success: false, error: error.message };
     }
 
-    console.log('✅ [云端服务] API Key 已保存到云端');
+    console.log('✅ [云端服务] API Key 已加密保存到云端');
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 保存 API Key 异常:', error);
@@ -848,7 +946,7 @@ export async function saveApiKey(apiKey) {
 }
 
 /**
- * 从云端加载 API Key
+ * 从云端加载 API Key（解密）🔒
  * @returns {Promise<{success: boolean, apiKey?: string, hasApiKey?: boolean, error?: string}>}
  */
 export async function loadApiKey() {
@@ -862,7 +960,7 @@ export async function loadApiKey() {
 
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('api_key, has_api_key')
+      .select('api_key, api_key_encrypted, api_key_iv, has_api_key')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -876,10 +974,28 @@ export async function loadApiKey() {
       return { success: true, apiKey: null, hasApiKey: false };
     }
 
+    // 🔒 v2.11.7 安全增强：解密 API Key
+    let apiKey = null;
+
+    if (data.api_key_encrypted && data.api_key_iv) {
+      // 新格式：加密数据
+      try {
+        apiKey = await decryptApiKey(data.api_key_encrypted, data.api_key_iv, user.id);
+        console.log('🔒 API Key 已解密');
+      } catch (decryptError) {
+        console.error('❌ 解密 API Key 失败:', decryptError);
+        return { success: false, error: '解密失败' };
+      }
+    } else if (data.api_key) {
+      // 旧格式：明文数据（兼容性）
+      console.warn('⚠️ 检测到明文 API Key，建议重新保存以启用加密');
+      apiKey = data.api_key;
+    }
+
     console.log(`✅ [云端服务] API Key 加载成功 (hasApiKey: ${data.has_api_key})`);
     return {
       success: true,
-      apiKey: data.api_key,
+      apiKey,
       hasApiKey: data.has_api_key
     };
   } catch (error) {

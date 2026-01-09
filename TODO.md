@@ -6,58 +6,37 @@
 
 ---
 
-## 🔴 高优先级
+## ✅ 已解决问题
 
-### 1. 登录 HTTP 401 错误 ⭐⭐⭐
+### 1. 登录 HTTP 401 错误 ⭐⭐⭐ ✅ 已修复
 
-**状态**: ⏳ 待排查
+**状态**: ✅ 已解决（2026-01-09 20:40）
 
-**现象**:
+**问题描述**:
 - 验证码发送成功 ✅
-- 控制台显示：`✅ [云端服务] 验证码发送成功`
 - 但登录时返回 HTTP 401 ❌
 - 错误信息：`❌ [云端服务] 登录失败: HTTP 401`
 
-**日志输出**:
-```
-[渲染进程 WARN] 📱 [云端服务] 开始发送验证码: 18601043813
-[渲染进程 WARN] ✅ [云端服务] 验证码发送成功
-[渲染进程 WARN] 🔐 [云端服务] 开始登录流程
-  - 手机号: 18601043813
-  - 验证码: 772594
-[渲染进程 INFO] ❌ [云端服务] 登录失败: HTTP 401
-```
+**根本原因**:
+- Supabase Dashboard 上 `sign-in-phone` Edge Function 的 **"Verify JWT with legacy secret"** 开关是**开启**的
+- 启用后要求请求必须有有效的 JWT token
+- 但我们传递的是 Anon Key (`sb_publishable_...`)，所以被拒绝
 
-**可能原因**:
-1. 验证码已过期（默认 5 分钟有效期）
-2. 验证码已被使用（一次性验证码）
-3. Supabase Anon Key 不正确或已过期
-4. Edge Function 认证配置问题
-5. Edge Function 代码逻辑错误
+**解决方案**:
+1. ✅ 在 Supabase Dashboard 访问 `sign-in-phone` Edge Function 详情页
+2. ✅ 找到 **"Verify JWT with legacy secret"** 开关
+3. ✅ **关闭开关**（变成灰色）
+4. ✅ 点击 **"Save changes"** 保存配置
+5. ✅ 等待 1-2 分钟让配置生效
 
-**排查步骤**:
-- [x] 1. 重新获取验证码并立即登录（测试通过：仍失败）
-- [ ] 2. 在 Supabase Dashboard 查看 Edge Function 日志
-  - 路径：Edge Functions → sign-in-phone → Logs
-  - 查看具体哪一步返回了 401
-- [ ] 3. 验证 Anon Key 是否正确
-  - 路径：Settings → API → anon key
-  - 对比 `.env` 文件中的 `VITE_SUPABASE_ANON_KEY`
-- [ ] 4. 检查 Edge Function 代码逻辑
-  - 文件：`supabase/functions/sign-in-phone/index.ts`
-  - 确认验证码验证逻辑是否正确
-- [ ] 5. 重新部署 Edge Function
-  ```bash
-  npx supabase functions deploy sign-in-phone
-  ```
+**验证结果**:
+- ✅ 不再返回 401 "Invalid JWT"
+- ✅ 登录返回 200 OK
+- ✅ 成功返回用户信息
 
-**相关文件**:
-- `supabase/functions/sign-in-phone/index.ts` - 登录 Edge Function
-- `src/lib/cloudService.js` - 前端调用逻辑（signInWithPhone 函数）
-- `.env` - Supabase 环境变量
-
-**临时解决方案**:
-- 使用本地 SQLite 登录（绕过 Supabase）
+**相关文档**:
+- 详细排查过程：见 MEMORY.md (2026-01-09 条目)
+- 修复指南：`401-fix-guide.md`
 
 ---
 
@@ -124,5 +103,5 @@
 
 ---
 
-**最后更新**: 2026-01-09 17:45
+**最后更新**: 2026-01-09 20:40
 **记录人**: Claude Code + 晓力
