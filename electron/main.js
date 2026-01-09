@@ -53,7 +53,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.11.6';
+const APP_VERSION = '2.11.7';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -381,6 +381,36 @@ app.whenReady().then(async () => {
     safeLog(`[启动] 架构: ${process.arch}`);
     safeLog(`[启动] Electron: ${process.versions.electron}`);
     safeLog('='.repeat(60));
+
+    // 🔥 v2.11.7 新增：版本升级检测，强制清空 Agent 缓存
+    const versionFilePath = path.join(app.getPath('userData'), '.version');
+    let previousVersion = null;
+
+    try {
+      previousVersion = await fs.readFile(versionFilePath, 'utf8');
+      safeLog(`[版本检测] 上次运行版本: ${previousVersion.trim()}`);
+    } catch (error) {
+      safeLog('[版本检测] 首次运行或版本文件不存在');
+    }
+
+    const currentVersion = APP_VERSION;
+    safeLog(`[版本检测] 当前版本: ${currentVersion}`);
+
+    // 如果版本不同，强制清空所有 Agent 缓存
+    if (previousVersion && previousVersion.trim() !== currentVersion) {
+      safeLog(`🔄 [版本升级] 从 ${previousVersion.trim()} 升级到 ${currentVersion}`);
+      safeLog('🧹 [版本升级] 强制清空所有 Agent 缓存...');
+
+      // 清空全局 Agent 实例
+      agentInstance = null;
+      // 清空所有会话 Agent
+      conversationAgents.clear();
+
+      safeLog('✅ [版本升级] Agent 缓存已清空，将重新初始化');
+    }
+
+    // 保存当前版本
+    await fs.writeFile(versionFilePath, currentVersion, 'utf8');
 
     // ✨ v2.10.7 修复：首先安装全局错误处理器
     setupGlobalErrorHandlers();
@@ -982,14 +1012,14 @@ ipcMain.handle('sync-login-status', async (event, user) => {
       safeLog('✅ [sync-login-status] 设置登录用户，退出游客模式:', user);
 
       // 🔥 v2.11.4 修复：在本地 users 表中创建/更新用户记录（避免外键约束错误）
+      // 🔥 v2.11.7 修复：不再保存 api_key 到本地数据库（安全增强）
       const existingUser = db.getUserById(user.id);
       if (!existingUser) {
         // 用户不存在，创建新记录
         safeLog('📝 在本地数据库创建用户记录:', user.id);
         db.insertUser({
           id: user.id,
-          phone: user.phone || '',
-          apiKey: user.api_key || null
+          phone: user.phone || ''
         });
       } else {
         // 用户已存在，更新最后登录时间
@@ -1040,20 +1070,9 @@ ipcMain.handle('get-current-user', async () => {
   return null;
 });
 
-// 更新用户API Key
-ipcMain.handle('update-user-api-key', async (event, apiKey) => {
-  if (!currentUser) {
-    return { success: false, error: '用户未登录' };
-  }
-
-  const result = db.updateUserApiKey(currentUser.id, apiKey);
-  if (result.success) {
-    // 更新当前用户信息
-    currentUser = db.getUserById(currentUser.id);
-  }
-
-  return result;
-});
+// 🔒 v2.11.7 安全增强：已删除 'update-user-api-key' IPC 处理器
+// API Key 现在只通过前端 cloudService.saveApiKey() 保存到云端（加密）
+// 不再存储到本地数据库
 
 // 使用游客模式
 ipcMain.handle('use-guest-mode', async () => {
@@ -1071,9 +1090,14 @@ safeLog('小白AI 后端启动成功！');
 
 // ==================== AI Agent 功能 ====================
 
-// 初始化 Agent
-ipcMain.handle('init-agent', async (event, config) => {
+// 🔥 v2.11.7 提取：初始化 Agent 的公共函数（供 init-agent 和 reload-agent 复用）
+async function initializeAgent(config) {
   try {
+    safeLog('🔍 [initializeAgent] 开始初始化...');
+    safeLog('  - isGuestMode:', isGuestMode);
+    safeLog('  - currentUser:', currentUser ? `${currentUser.id} (${currentUser.phone})` : 'null');
+    safeLog('  - config.apiKey:', config.apiKey ? `${config.apiKey.substring(0, 15)}...` : '空');
+
     // 🔥 v2.11.3 修复：自动判断是否应该退出游客模式
     if (isGuestMode && currentUser) {
       // 当前是游客模式，但有登录用户，自动退出游客模式
@@ -1119,14 +1143,18 @@ ipcMain.handle('init-agent', async (event, config) => {
     }
     // 2️⃣ 登录用户：根据优先级选择 API Key
     else {
+      safeLog('👤 [登录用户分支] 开始选择 API Key...');
       // 🔥 v2.11.3 优化：优先级调整
       // ① 用户刚输入的 Key（优先级最高）
       if (config.apiKey && config.apiKey.trim() !== '') {
         apiKey = config.apiKey;
         safeLog('✅ [优先级1] 使用用户输入的 API Key');
+        safeLog('  - Key 长度:', apiKey.length);
+        safeLog('  - Key 格式:', apiKey.substring(0, 20) + '...');
       }
       // ② 云端保存的 Key（次优先级）- 🔥 v2.11.5 修复：添加云端状态验证
       else if (currentUser && currentUser.api_key) {
+        safeLog('🔍 [优先级2] 检查 currentUser.api_key...');
         // 🔥 v2.11.5 关键修复：验证云端的 has_api_key 状态
         let cloudHasApiKey = false;
         try {
@@ -1148,17 +1176,19 @@ ipcMain.handle('init-agent', async (event, config) => {
 
             const { data, error } = await supabase
               .from('user_profiles')
-              .select('has_api_key, api_key')
+              .select('has_api_key, api_key, api_key_encrypted, api_key_iv')
               .eq('user_id', currentUser.id)
               .maybeSingle();
 
             if (!error && data) {
               cloudHasApiKey = data.has_api_key || false;
-              // 🔥 v2.11.5 关键：如果云端有新的 API Key，同步到本地缓存
-              if (data.api_key && data.api_key !== currentUser.api_key) {
-                currentUser.api_key = data.api_key;
-                db.updateUserApiKey(currentUser.id, data.api_key);
-                safeLog('🔄 [云端同步] API Key 已更新');
+              // 🔒 v2.11.7 安全增强：不再同步到本地数据库
+              // 只更新内存中的 API Key（明文，用于运行时）
+              // 注意：这里无法解密，因为没有前端解密函数
+              // 实际的 API Key 会在前端通过 loadApiKey() 解密后传递给后端
+              if (data.api_key || data.api_key_encrypted) {
+                // 只更新 has_api_key 状态，实际 API Key 由前端管理
+                safeLog('🔄 [云端同步] 检测到云端有 API Key');
               }
             } else if (error) {
               safeError('❌ 查询云端 API Key 状态失败:', error.message);
@@ -1183,37 +1213,94 @@ ipcMain.handle('init-agent', async (event, config) => {
       }
       // ③ 官方 Key（兜底）
       else {
+        safeLog('🔄 [优先级3] 使用官方 API Key (兜底)');
+        safeLog('  - 原因: config.apiKey 为空，currentUser.api_key 不存在');
         apiKey = officialConfig.apiKey;
         provider = officialConfig.provider;
         model = officialConfig.defaultModel;
-        safeLog('🔄 [优先级3] 使用官方 API Key (兜底)');
+        safeLog('✅ [优先级3] 使用官方 API Key (兜底)');
       }
     }
 
-    if (!apiKey || apiKey.trim() === '') {
-      throw new Error('API Key 为空');
+    // 🔥 v2.11.7 关键修复：确保 API Key 不为 null
+    if (!apiKey || apiKey.trim() === '' || apiKey === null) {
+      // 如果官方 Key 为 null，尝试重新从数据库读取
+      if (provider === officialConfig.provider && model === officialConfig.defaultModel) {
+        safeError('❌ 官方 API Key 为 null，尝试重新加载...');
+        // 重置缓存，强制重新读取
+        officialConfig.resetCache();
+        apiKey = officialConfig.apiKey;
+
+        // 如果仍然为 null，返回错误
+        if (!apiKey) {
+          return {
+            success: false,
+            error: '系统配置错误：官方API Key未加载完成，请稍后重试或重启应用',
+            needRetry: true
+          };
+        }
+        safeLog('✅ 官方 API Key 重新加载成功');
+      } else {
+        throw new Error('API Key 为空');
+      }
     }
 
-    safeLog('开始初始化 Agent，配置:', {
-      provider,
-      hasApiKey: !!apiKey,
-      isGuestMode,
-      model,
-    });
+    // 创建全局 Agent 实例
+    agentInstance = await agent.createAgent(provider, apiKey, model);
+    safeLog('✅ Agent 初始化成功', { provider, model: model });
 
-    // v2.9.1 - 已取消工作目录设置
+    // 通知渲染进程
+    mainWindow.webContents.send('agent-initialized', { provider, model });
 
-    agentInstance = await agent.createAgent(
-      provider,
-      apiKey,
-      model
-    );
-
-    safeLog('Agent 初始化成功');
     return { success: true };
   } catch (error) {
     safeError('初始化 Agent 失败:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// 初始化 Agent
+ipcMain.handle('init-agent', async (event, config) => {
+  return await initializeAgent(config);
+});
+
+// 🔥 v2.11.7 新增：重新加载 Agent（用于 API Key 修改后）
+ipcMain.handle('reload-agent', async (event) => {
+  try {
+    safeLog('🔄 [重新加载] 开始重新初始化 Agent...');
+
+    // 1. 读取最新配置
+    const configPath = path.join(app.getPath('userData'), 'config.json');
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const newConfig = JSON.parse(configContent);
+
+    // 2. 重新初始化全局 Agent
+    const result = await initializeAgent(newConfig);
+
+    if (result.success) {
+      // 3. 清空所有会话 Agent 缓存
+      const clearedCount = conversationAgents.size;
+      conversationAgents.clear();
+      safeLog(`✅ [重新加载] 已清空 ${clearedCount} 个会话的 Agent 缓存`);
+
+      safeLog('✅ [重新加载] Agent 重新初始化成功');
+      return {
+        success: true,
+        message: 'API Key 已更新，所有会话将使用新的配置'
+      };
+    } else {
+      safeError('❌ [重新加载] Agent 重新初始化失败:', result.error);
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    safeError('❌ [重新加载] 异常:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 });
 

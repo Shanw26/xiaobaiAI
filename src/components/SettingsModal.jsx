@@ -6,6 +6,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import ToastModal from './ToastModal';
 import { showAlert } from '../lib/alertService';
 import { getPlatformClassNames } from '../lib/platformUtil';
+import { APP_VERSION, APP_NAME, GITHUB_RELEASES_URL } from '../config';
 
 // 格式化数字显示
 function formatNumber(num) {
@@ -146,6 +147,31 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout, onUserU
 
     // 保存本地配置
     onSave(localConfig);
+
+    // 🔥 v2.11.7 修复：重新加载 Agent（使 API Key 修改生效）
+    try {
+      console.log('🔄 [Settings] API Key 已修改，重新加载 Agent...');
+      const reloadResult = await window.electronAPI.reloadAgent();
+      if (reloadResult.success) {
+        console.log('✅ [Settings] Agent 重新加载成功:', reloadResult.message);
+        setToast({
+          message: '配置已保存，API Key 已更新',
+          type: 'success'
+        });
+      } else {
+        console.error('❌ [Settings] Agent 重新加载失败:', reloadResult.error);
+        setToast({
+          message: '配置已保存，但 API Key 更新失败，请重启应用',
+          type: 'warning'
+        });
+      }
+    } catch (error) {
+      console.error('❌ [Settings] 重新加载 Agent 异常:', error);
+      setToast({
+        message: '配置已保存，但请重启应用以使 API Key 生效',
+        type: 'warning'
+      });
+    }
   };
 
   const handleEditUserInfo = async () => {
@@ -499,7 +525,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout, onUserU
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.11.6</span>
+          <span className="about-version">v{APP_VERSION}</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>

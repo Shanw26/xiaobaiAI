@@ -1203,6 +1203,12 @@ function AppContent() {
           message: '当前使用人数较多，请稍后尝试',
           type: 'error'
         });
+      } else if (errorMessage.includes('401') || errorMessage.includes('令牌已过期') || errorMessage.includes('身份验证失败') || errorMessage.includes('验证不正确')) {
+        // 🔥 v2.11.7 优化：API Key 错误提示
+        showAlert(
+          '❌ API Key 无效或已过期，请在设置中重新配置',
+          'error'
+        );
       } else {
         // 其他错误显示alert
         showAlert('发送消息失败: ' + error.message, 'error');

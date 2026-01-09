@@ -106,12 +106,32 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       phone TEXT UNIQUE NOT NULL,
-      api_key TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_login_at DATETIME,
       total_requests INTEGER DEFAULT 0
     )
   `);
+
+  // 🔒 v2.11.7 安全增强：删除 api_key 字段（不再本地存储）
+  // 迁移：如果表已存在且有 api_key 列，删除它
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(users)").all();
+    const hasApiKeyColumn = tableInfo.some(col => col.name === 'api_key');
+
+    if (hasApiKeyColumn) {
+      safeLog('🔒 [安全增强] 检测到旧的 api_key 列，正在删除...');
+      db.exec('ALTER TABLE users DROP COLUMN api_key');
+      safeLog('✅ 本地数据库 api_key 列已删除');
+    }
+  } catch (error) {
+    // SQLite 有限制，不支持直接 DROP COLUMN（需要重建表）
+    // 如果出错，记录但不影响启动
+    if (error.message.includes('DROP COLUMN')) {
+      safeLog('⚠️ SQLite 不支持 DROP COLUMN，将在下次重建表时移除 api_key 字段');
+    } else {
+      safeError('删除 api_key 列时出错:', error.message);
+    }
+  }
 
   // 游客使用记录表
   db.exec(`
@@ -270,16 +290,17 @@ function createUser(phone) {
 }
 
 // 插入用户（用于从 Supabase 同步用户数据）
-function insertUser({ id, phone, apiKey }) {
+// 🔥 v2.11.7 修复：不再保存 api_key 到本地数据库（安全增强）
+function insertUser({ id, phone }) {
   const db = initDatabase();
 
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO users (id, phone, api_key, created_at, last_login_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT OR REPLACE INTO users (id, phone, created_at, last_login_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `);
 
   try {
-    stmt.run(id, phone, apiKey);
+    stmt.run(id, phone);
     safeLog('用户同步成功:', id);
     return { success: true, userId: id };
   } catch (error) {
@@ -302,18 +323,8 @@ function getUserById(userId) {
   return stmt.get(userId);
 }
 
-// 更新用户API Key
-function updateUserApiKey(userId, apiKey) {
-  const db = initDatabase();
-  const stmt = db.prepare('UPDATE users SET api_key = ? WHERE id = ?');
-  try {
-    stmt.run(apiKey, userId);
-    return { success: true };
-  } catch (error) {
-    safeError('更新API Key失败:', error);
-    return { success: false, error: error.message };
-  }
-}
+// 🔒 v2.11.7 安全增强：已删除 updateUserApiKey 函数
+// API Key 现在只存储在云端（加密）和内存中，不再存储在本地数据库
 
 // 更新最后登录时间
 function updateLastLogin(userId) {
@@ -448,6 +459,27 @@ function cleanExpiredCodes() {
 // 记录请求日志
 function logRequest({ userId, deviceId, model, inputTokens, outputTokens }) {
   const db = initDatabase();
+
+  // 🔥 v2.11.7 修复：如果 userId 存在，先确保用户记录存在（避免外键约束错误）
+  if (userId) {
+    const existingUser = getUserById(userId);
+    if (!existingUser) {
+      // 用户不存在，尝试从 localStorage 或创建基本记录
+      safeLog('⚠️ [logRequest] 用户记录不存在，尝试创建:', userId);
+      try {
+        insertUser({
+          id: userId,
+          phone: '', // 手机号未知，留空
+        });
+        safeLog('✅ [logRequest] 用户记录创建成功');
+      } catch (error) {
+        safeError('❌ [logRequest] 创建用户记录失败:', error.message);
+        // 如果创建失败，使用 device_id 代替（允许 user_id 为 NULL）
+        userId = null;
+      }
+    }
+  }
+
   const stmt = db.prepare(`
     INSERT INTO request_logs (user_id, device_id, model, input_tokens, output_tokens)
     VALUES (?, ?, ?, ?, ?)
@@ -774,7 +806,7 @@ module.exports = {
   insertUser,
   getUserByPhone,
   getUserById,
-  updateUserApiKey,
+  // 🔒 v2.11.7 安全增强：已移除 updateUserApiKey（API Key 不再存储在本地）
   updateLastLogin,
   incrementUserRequests,
 

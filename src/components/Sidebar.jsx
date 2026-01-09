@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './Sidebar.css';
 import logoSvg from '/logo.svg';
+import { APP_NAME, APP_VERSION } from '../config';
 import ConfirmModal from './ConfirmModal';
 
 // 简单的日期分组函数
@@ -49,8 +50,8 @@ function Sidebar({
             <img src={logoSvg} alt="小白AI Logo" />
           </div>
           <div className="logo-info">
-            <span className="logo-text">小白AI</span>
-            <span className="logo-version">v2.11.6</span>
+            <span className="logo-text">{APP_NAME}</span>
+            <span className="logo-version">v{APP_VERSION}</span>
           </div>
         </div>
         <button className="btn-new-chat" onClick={onNewChat}>
