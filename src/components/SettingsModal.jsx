@@ -36,7 +36,7 @@ const MODEL_PROVIDERS = {
   },
 };
 
-function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
+function SettingsModal({ config, onSave, onClose, currentUser, onLogout, onUserUpdate }) {
   const [localConfig, setLocalConfig] = useState({ ...config });
   const [userInfo, setUserInfo] = useState('');
   const [aiMemory, setAiMemory] = useState('');
@@ -110,9 +110,41 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
   }, [config]);
 
   const handleSave = async () => {
-    // 移除 API Key 强制验证
-    // 用户可能只想保存其他配置（全局提示、记忆内容等）
-    // 登录用户可以使用官方 API Key，无需自己输入
+    // 🔥 v2.11.5 新增：同步 API Key 到云端
+    // 登录用户：保存到云端（包括清空的情况）
+    // 未登录用户：只保存到本地
+    if (currentUser) {
+      try {
+        const { saveApiKey } = await import('../lib/cloudService');
+        const apiKeyToSave = localConfig.apiKey || ''; // 空字符串表示清空
+        const result = await saveApiKey(apiKeyToSave);
+        if (result.success) {
+          console.log('✅ [Settings] API Key 已同步到云端');
+
+          // 🔥 v2.11.5 关键修复：更新 currentUser 对象，添加 api_key 字段
+          const updatedUser = {
+            ...currentUser,
+            api_key: apiKeyToSave,
+            has_api_key: !!apiKeyToSave && apiKeyToSave.length > 0
+          };
+          // 更新 localStorage
+          localStorage.setItem('xiaobai_user', JSON.stringify(updatedUser));
+          // 通知父组件更新 currentUser
+          if (onUserUpdate) {
+            onUserUpdate(updatedUser);
+          }
+          console.log('✅ [Settings] currentUser 对象已更新');
+        } else {
+          console.error('❌ [Settings] API Key 同步到云端失败:', result.error);
+          // 不阻塞保存流程，只记录错误
+        }
+      } catch (error) {
+        console.error('❌ [Settings] API Key 同步异常:', error);
+        // 不阻塞保存流程，只记录错误
+      }
+    }
+
+    // 保存本地配置
     onSave(localConfig);
   };
 
@@ -199,19 +231,40 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
 
       </div>
 
-      <div className="form-group">
-        <label className="form-label">
-          API Key
-        </label>
-        <input
-          type="password"
-          className="form-input"
-          value={localConfig.apiKey || ''}
-          onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
-          placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key' : 'sk-ant-...'}
-        />
-    
-      </div>
+      {currentUser && (
+        <div className="form-group">
+          <label className="form-label">
+            API Key
+            <span className="form-hint">（登录用户可设置自己的 Key）</span>
+          </label>
+          <input
+            type="password"
+            className="form-input"
+            value={localConfig.apiKey || ''}
+            onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
+            placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key' : 'sk-ant-...'}
+          />
+        </div>
+      )}
+
+      {!currentUser && (
+        <div className="form-group">
+          <label className="form-label">
+            API Key
+          </label>
+          <div className="info-box" style={{
+            padding: '12px',
+            background: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            border: '1px dashed var(--border-color)',
+            textAlign: 'center'
+          }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+              🔐 登录后可使用自己的 API Key
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="form-group">
         <label className="form-label">
@@ -446,7 +499,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout }) {
         </div>
         <div className="about-title-wrapper">
           <h2 className="about-title">小白AI</h2>
-          <span className="about-version">v2.10.27</span>
+          <span className="about-version">v2.11.6</span>
 
           {updateAvailable && updateStatus && (
             <button className="update-tag" onClick={handleDownloadUpdate}>

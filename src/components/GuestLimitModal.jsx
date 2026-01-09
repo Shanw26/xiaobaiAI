@@ -1,7 +1,7 @@
 import './GuestLimitModal.css';
 import { getPlatformClassNames } from '../lib/platformUtil';
 
-function GuestLimitModal({ onClose, onLogin }) {
+function GuestLimitModal({ onClose, onLogin, limit = 10 }) {
   return (
     <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
       <div className="modal-content guest-limit-modal" onClick={(e) => e.stopPropagation()}>
@@ -10,7 +10,7 @@ function GuestLimitModal({ onClose, onLogin }) {
         <h2>免费次数已用完</h2>
 
         <p className="description">
-          游客模式可免费使用10次，您已用完免费额度。
+          游客模式可免费使用{limit}次，您已用完免费额度。
         </p>
 
         <div className="benefits">

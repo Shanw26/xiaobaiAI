@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.10.28",
+  "version": "2.11.6",
   "description": "小白AI - 操作系统级AI助手",
   "main": "electron/main.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac:notarized": "node scripts/package-mac.js",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
     "release": "npm run build && electron-builder --publish=never",
@@ -91,13 +92,6 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
           "arch": [
             "x64",
             "arm64"

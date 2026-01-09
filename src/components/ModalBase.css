@@ -41,7 +41,8 @@
 }
 
 /* ==================== 弹窗容器 ==================== */
-.modal {
+.modal,
+.modal-content {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
@@ -51,6 +52,11 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.modal-content {
+  padding: 40px;
+  max-width: 480px;
 }
 
 @keyframes slideUp {
@@ -159,7 +165,6 @@
   gap: 12px;
   padding: 20px 28px 24px;
   border-top: 1px solid var(--border);
-  background: white;
 }
 
 /* ==================== 按钮 ==================== */

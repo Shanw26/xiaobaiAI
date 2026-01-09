@@ -1,94 +1,128 @@
-# 小白AI - 待办事项
+# 小白AI 待解决问题
 
-> **最后更新**: 2026-01-07
-> **当前版本**: v2.6.9
+> **最后更新**: 2026-01-09 17:45
+> **当前版本**: v2.11.6
+> **状态**: 开发中
 
 ---
 
-## 🔴 紧急（安全相关）
+## 🔴 高优先级
 
-### 1. 完成数据库安全修复（方案B）⭐⭐⭐
+### 1. 登录 HTTP 401 错误 ⭐⭐⭐
 
-**背景**:
-- v2.6.9 已完成方案A（快速修复）
-- 但前端仍在使用 `supabaseAdmin`，会绕过 RLS
-- 需要将数据库操作隔离到 Electron 主进程
+**状态**: ⏳ 待排查
 
-**方案B: Electron 主进程隔离**（推荐，2-3小时）
+**现象**:
+- 验证码发送成功 ✅
+- 控制台显示：`✅ [云端服务] 验证码发送成功`
+- 但登录时返回 HTTP 401 ❌
+- 错误信息：`❌ [云端服务] 登录失败: HTTP 401`
 
-**步骤**:
-1. [ ] 在 `electron/main.js` 中添加 IPC 处理器
-   - `get-conversations`
-   - `get-messages`
-   - `save-conversation`
-   - `save-message`
-   - `send-verification-code`
-   - `sign-in-with-phone`
+**日志输出**:
+```
+[渲染进程 WARN] 📱 [云端服务] 开始发送验证码: 18601043813
+[渲染进程 WARN] ✅ [云端服务] 验证码发送成功
+[渲染进程 WARN] 🔐 [云端服务] 开始登录流程
+  - 手机号: 18601043813
+  - 验证码: 772594
+[渲染进程 INFO] ❌ [云端服务] 登录失败: HTTP 401
+```
 
-2. [ ] 创建 `electron/databaseService.js`
-   - 封装所有数据库操作
-   - 只在主进程中使用 `supabaseAdmin`
+**可能原因**:
+1. 验证码已过期（默认 5 分钟有效期）
+2. 验证码已被使用（一次性验证码）
+3. Supabase Anon Key 不正确或已过期
+4. Edge Function 认证配置问题
+5. Edge Function 代码逻辑错误
 
-3. [ ] 修改前端 `cloudService.js`
-   - 移除所有 `supabaseAdmin` 调用
-   - 改为通过 `window.electronAPI` 调用
+**排查步骤**:
+- [x] 1. 重新获取验证码并立即登录（测试通过：仍失败）
+- [ ] 2. 在 Supabase Dashboard 查看 Edge Function 日志
+  - 路径：Edge Functions → sign-in-phone → Logs
+  - 查看具体哪一步返回了 401
+- [ ] 3. 验证 Anon Key 是否正确
+  - 路径：Settings → API → anon key
+  - 对比 `.env` 文件中的 `VITE_SUPABASE_ANON_KEY`
+- [ ] 4. 检查 Edge Function 代码逻辑
+  - 文件：`supabase/functions/sign-in-phone/index.ts`
+  - 确认验证码验证逻辑是否正确
+- [ ] 5. 重新部署 Edge Function
+  ```bash
+  npx supabase functions deploy sign-in-phone
+  ```
 
-4. [ ] 测试所有功能
-   - 登录
-   - 发送消息
-   - 用户信息
-   - AI 记忆
+**相关文件**:
+- `supabase/functions/sign-in-phone/index.ts` - 登录 Edge Function
+- `src/lib/cloudService.js` - 前端调用逻辑（signInWithPhone 函数）
+- `.env` - Supabase 环境变量
 
-5. [ ] 更新 MEMORY.md
-
-**预期结果**:
-- ✅ Service Role Key 只在主进程中使用
-- ✅ 前端无法直接访问数据库
-- ✅ 安全性大幅提升
-
-**相关文档**:
-- `supabase/RLS_FIX_INSTRUCTIONS.md` - 方案说明
-- `MEMORY.md` - v2.6.9 记录
+**临时解决方案**:
+- 使用本地 SQLite 登录（绕过 Supabase）
 
 ---
 
 ## 🟡 中优先级
 
-### 2. 优化 RLS 策略
-- 当前策略较简单，存在递归风险
-- 需要设计更完善的策略
+### 2. 版本升级清空数据问题
 
-### 3. 输入框优化
-- 中文输入法体验
+**状态**: 已识别，待修复
 
-### 4. 性能优化
-- 对话历史加载速度
+**问题描述**:
+- 每次版本升级都会清空所有数据（包括用户数据）
+- 用户体验不好，需要重新登录
+
+**解决方案**:
+- 只清理缓存，保留用户数据
+- 修改版本升级逻辑，只删除必要文件
+
+**影响范围**:
+- `electron/main.js` 版本升级逻辑
 
 ---
 
 ## 🟢 低优先级
 
-### 5. 测试覆盖
-- 自动化测试
+### 3. 代码优化
+
+**状态**: 已记录，暂不处理
+
+**待优化项**:
+- 移除硬编码的魔法数字
+- 统一错误处理机制
+- 添加单元测试
+- 优化性能瓶颈
 
 ---
 
-## 💡 备忘录
+## 📋 开发备注
 
-**数据库迁移待应用**:
-```bash
-# 方案A 的迁移还未应用到生产环境
-cd /Users/shawn/Downloads/小白AI
-supabase db push
-# 或手动在 Supabase Dashboard 执行
-```
+### 下一步计划
 
-**环境变量已配置**:
-- `.env` 文件已创建
-- `.gitignore` 已更新
+1. **优先解决登录 401 错误**
+   - 查看日志确认根本原因
+   - 修复并测试
+   - 部署到生产环境
 
-**版本号**: v2.6.9
+2. **准备 v2.11.7 发布**
+   - 修复所有已知 bug
+   - 完整测试
+   - 打包上传到 OSS
+
+3. **功能迭代规划**
+   - 收集用户反馈
+   - 优先级排序
+   - 制定开发计划
 
 ---
 
-**下次开发优先级**: 🔴 方案B - 数据库安全修复
+## 🔗 相关文档
+
+- **项目记忆**: `MEMORY.md` (v2.11.6 详细记录)
+- **开发规范**: `DEVELOPMENT_GUIDELINES.md`
+- **技术文档**: `docs/README.md`
+- **数据库设计**: `docs/03-database-design.md`
+
+---
+
+**最后更新**: 2026-01-09 17:45
+**记录人**: Claude Code + 晓力

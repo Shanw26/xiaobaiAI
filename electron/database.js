@@ -4,6 +4,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { createClient } = require('@supabase/supabase-js');
+// 🔥 v2.11.6 修复：移除循环依赖，改为延迟加载 official-config
 
 // ==================== 安全的日志输出 ====================
 // 检查流可写性，避免 EPIPE 错误
@@ -73,10 +74,18 @@ function initDatabase() {
   }
 
   try {
-    db = new Database(dbPath, { /* v2.9.8 添加错误处理 */ });
+    // 🔥 v2.11.3 修复：明确指定数据库为读写模式
+    db = new Database(dbPath, {
+      fileMustExist: false,
+      readonly: false,  // 明确设置为可写模式
+      timeout: 5000     // 5秒超时
+    });
 
     // 启用外键约束
     db.pragma('foreign_keys = ON');
+
+    // 设置 WAL 模式以提高并发性能
+    db.pragma('journal_mode = WAL');
 
     safeLog('✓ 数据库连接成功');
   } catch (error) {
@@ -260,6 +269,25 @@ function createUser(phone) {
   }
 }
 
+// 插入用户（用于从 Supabase 同步用户数据）
+function insertUser({ id, phone, apiKey }) {
+  const db = initDatabase();
+
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO users (id, phone, api_key, created_at, last_login_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `);
+
+  try {
+    stmt.run(id, phone, apiKey);
+    safeLog('用户同步成功:', id);
+    return { success: true, userId: id };
+  } catch (error) {
+    safeError('用户同步失败:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // 根据手机号获取用户
 function getUserByPhone(phone) {
   const db = initDatabase();
@@ -337,13 +365,17 @@ function incrementGuestUsage(deviceId) {
 // 检查游客是否可以继续使用
 function canGuestUse(deviceId) {
   const usage = getGuestUsage(deviceId);
+  // 🔥 v2.11.6 修复：延迟加载以避免循环依赖
+  const officialConfig = require('./official-config');
+  const limit = officialConfig.freeUsageLimit;
+
   if (!usage) {
     // 首次使用，创建记录
     initGuestUsage(deviceId);
-    return { canUse: true, remaining: 10 };
+    return { canUse: true, remaining: limit };
   }
 
-  const remaining = 10 - usage.used_count;
+  const remaining = limit - usage.used_count;
   return {
     canUse: remaining > 0,
     remaining: Math.max(0, remaining),
@@ -468,12 +500,22 @@ async function fetchOfficialConfigFromSupabase() {
   try {
     // 从环境变量读取 Supabase 配置
     // 兼容 VITE_ 前缀（前端）和无前缀（后端）
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    // 优先使用 Service Role Key（绕过 RLS），其次使用 Anon Key
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
-                        process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                        process.env.SUPABASE_ANON_KEY ||
-                        process.env.VITE_SUPABASE_ANON_KEY;
+    // Supabase URL 和 Publishable Key 是公开的，可以硬编码作为 fallback
+    const supabaseUrl = process.env.SUPABASE_URL ||
+                        process.env.VITE_SUPABASE_URL ||
+                        'https://cnszooaxwxatezodbbxq.supabase.co';
+
+    // 优先使用 Service Role Key（绕过 RLS），其次使用 Publishable Key
+    // Service Role Key 不硬编码（仅来自环境变量）
+    // Publishable Key 可以硬编码（公开信息）
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                                   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    const supabasePublishableKey = process.env.SUPABASE_ANON_KEY ||
+                                   process.env.VITE_SUPABASE_ANON_KEY ||
+                                   'sb_publishable_VwrPo1L5FuCwCYwmveIZoQ_KqEr8oLe'; // 🔧 v2.11.2 硬编码 fallback（2026-01-09 更新）
+
+    const supabaseKey = supabaseServiceRoleKey || supabasePublishableKey;
 
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase 配置缺失');
@@ -545,54 +587,67 @@ async function fetchOfficialConfigFromSupabase() {
   }
 }
 
-// 初始化官方配置（首次启动时调用）
+// 初始化官方配置（每次启动时都从 Supabase 同步最新配置）
 async function initOfficialConfig() {
-  // 检查是否已初始化
-  const isInitialized = getSystemConfig('official_config_initialized');
-  if (isInitialized) {
-    safeLog('✅ 官方配置已存在，跳过初始化');
-    return;
-  }
-
-  safeLog('🔄 开始初始化官方配置...');
+  safeLog('🔄 开始同步官方配置...');
 
   let officialApiKey = null;
   let officialProvider = 'zhipu';
   let officialModel = 'glm-4.7';
-  let freeUsageLimit = '10';
+  let freeUsageLimit = '3';  // 🔥 v2.11.6 修改：从 Supabase 读取
+  let useSupabase = false;
 
-  // ✨ v2.10.13 优先级：Supabase > 环境变量 > 默认值
-  // 1. 尝试从 Supabase 获取（推荐）
+  // ✨ v2.11.6 优先级：Supabase > 本地缓存 > 环境变量 > 默认值
+  // 1. 尝试从 Supabase 获取最新配置（推荐）
   const supabaseConfig = await fetchOfficialConfigFromSupabase();
   if (supabaseConfig) {
     officialApiKey = supabaseConfig.apiKey;
     officialProvider = supabaseConfig.provider;
     officialModel = supabaseConfig.model;
     freeUsageLimit = supabaseConfig.limit;
-    safeLog('✅ 使用 Supabase 配置');
+    useSupabase = true;
+    safeLog('✅ 从 Supabase 同步最新配置');
   } else {
-    // 2. 降级方案：环境变量
-    officialApiKey = process.env.ZHIPU_OFFICIAL_API_KEY;
-    if (officialApiKey) {
-      safeLog('✅ 使用环境变量配置');
+    // 2. 降级方案：使用本地缓存配置
+    const cachedApiKey = getSystemConfig('official_api_key');
+    const cachedProvider = getSystemConfig('official_provider');
+    const cachedModel = getSystemConfig('official_model');
+    const cachedLimit = getSystemConfig('free_usage_limit');
+
+    if (cachedApiKey) {
+      officialApiKey = cachedApiKey;
+      officialProvider = cachedProvider || 'zhipu';
+      officialModel = cachedModel || 'glm-4.7';
+      freeUsageLimit = cachedLimit || '3';
+      safeLog('⚠️  Supabase 连接失败，使用本地缓存配置');
     } else {
-      // 3. 最后兜底：使用默认值（不推荐，仅用于开发测试）
-      safeError('⚠️  警告：无法从 Supabase 或环境变量获取 API Key');
-      safeError('⚠️  游客模式将无法使用');
-      safeError('⚠️  请在 Supabase system_configs 表中配置 official_api_key');
-      safeError('⚠️  或在 .env 文件中设置 ZHIPU_OFFICIAL_API_KEY');
-      return;  // 不使用硬编码 Key，让初始化失败
+      // 3. 最后兜底：环境变量
+      officialApiKey = process.env.ZHIPU_OFFICIAL_API_KEY;
+      if (officialApiKey) {
+        safeLog('✅ 使用环境变量配置');
+      } else {
+        // 4. 兜底方案：使用默认值（不推荐，仅用于开发测试）
+        safeError('⚠️  警告：无法从 Supabase、本地缓存或环境变量获取 API Key');
+        safeError('⚠️  游客模式将无法使用');
+        safeError('⚠️  请在 Supabase system_configs 表中配置 official_api_key');
+        safeError('⚠️  或在 .env 文件中设置 ZHIPU_OFFICIAL_API_KEY');
+        return;  // 不使用硬编码 Key，让初始化失败
+      }
     }
   }
 
-  // 写入官方API Key到数据库（仅首次写入）
+  // 写入/更新官方API Key到数据库（每次启动都更新）
   setSystemConfig('official_api_key', officialApiKey, '官方智谱GLM API Key（游客模式使用）');
   setSystemConfig('official_provider', officialProvider, '官方模型提供商');
   setSystemConfig('official_model', officialModel, '官方默认模型');
   setSystemConfig('free_usage_limit', freeUsageLimit, '游客免费使用次数限制');
   setSystemConfig('official_config_initialized', 'true', '配置已初始化标记');
 
-  safeLog('✅ 官方配置已初始化到数据库（存储在本地加密数据库中）');
+  if (useSupabase) {
+    safeLog(`✅ 官方配置已同步（模型: ${officialProvider}/${officialModel}, 限制: ${freeUsageLimit}次）`);
+  } else {
+    safeLog('✅ 官方配置已加载（存储在本地加密数据库中）');
+  }
 }
 
 // 获取官方API Key
@@ -716,6 +771,7 @@ module.exports = {
 
   // 用户操作
   createUser,
+  insertUser,
   getUserByPhone,
   getUserById,
   updateUserApiKey,

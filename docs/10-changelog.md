@@ -2,7 +2,79 @@
 
 > **说明**: 本文档记录小白AI的所有版本更新和重要变更
 > **更新频率**: 每次发布新版本后立即更新
-> **当前版本**: v2.10.27
+> **当前版本**: v2.11.3
+
+---
+
+## 📅 2026-01-09 - v2.11.3 (Bug 修复与性能优化) ⭐
+
+### 🚀 核心优化
+
+**输入框清空延迟优化** - 用户体验大幅提升
+- **问题**: 发送消息后，输入框清空有延迟，AI 回答都出来了，输入框的消息才消失
+- **解决方案**: 将 AI 处理逻辑移到后台异步执行，消息创建到云端后立即返回成功
+- **技术实现**:
+  ```javascript
+  // ✅ 新代码：立即返回，后台异步处理
+  const handleSendMessage = async (content, files) => {
+    await createMessage(chat.id, aiMessage);
+    processAIMessageInBackground({ chat, content, ...params }); // 后台处理
+    return { success: true }; // 立即返回
+  };
+  ```
+- **效果**: 输入框立即清空，AI 在后台继续处理，所有功能不受影响
+- **修改文件**: `src/App.jsx`
+
+### 🔧 Bug 修复
+
+**1. 数据库只读模式修复**
+- **问题**: SQLite 写入时报错 `attempt to write a readonly database`
+- **解决方案**: 明确设置 `readonly: false` 和 WAL 模式
+- **修改文件**: `electron/database.js`
+
+**2. Edge Functions API 参数命名修复**
+- **问题**: 后端日志报错 `缺少必填字段: conversationId`
+- **解决方案**: 将 snake_case 改为 camelCase（`conversationId`、`createdAt` 等）
+- **修改文件**: `src/lib/cloudService.js` - `createMessage()`、`updateMessage()`、`deleteConversation()` 函数
+
+**3. 数据库 Schema 更新**
+- **问题**: Edge Function 报错 `Could not find the 'remaining' column of 'guest_usage'`
+- **解决方案**: 创建迁移文件，添加 `remaining` 字段到 `guest_usage` 表
+- **新增文件**: `supabase/migrations/20260109_add_remaining_to_guest_usage.sql`
+
+**4. API Key 优先级修复** 🔑
+- **问题**: 登录用户在设置中输入新 API Key 后，系统仍使用云端保存的旧 Key
+- **场景**:
+  - 用户云端保存了智谱 Key A
+  - 用户在设置输入 Claude Key B
+  - 发送消息时仍使用 Key A（云端），而不是 Key B（用户刚输入）
+- **解决方案**: 调整优先级为 **用户输入 > 云端保存 > 官方 Key**
+- **修改文件**: `electron/main.js` - `init-agent` 处理函数
+- **优先级说明**:
+  - 🥇 **优先级1**: 用户在设置中输入的 API Key（立即生效）
+  - 🥈 **优先级2**: 云端保存的 API Key（用户之前保存的）
+  - 🥉 **优先级3**: 官方 API Key（兜底，确保游客模式可用）
+- **效果**: ✅ 用户输入的 API Key 立即生效，不会被云端 Key 覆盖
+
+### 🎨 UI 改进
+
+**弹窗半透明背景修复**
+- **问题**: GuestLimitModal 背景不是半透明效果
+- **解决方案**: 添加 `.modal-content` 样式，实现毛玻璃效果（`backdrop-filter: blur(40px)`）
+- **修改文件**: `src/components/ModalBase.css`
+- **效果**: 弹窗视觉更美观，符合 macOS 原生设计风格
+
+### 📊 版本号更新
+
+- **package.json**: `"version": "2.11.3"`
+- **electron/main.js**: `const APP_VERSION = '2.11.3'`
+- **SettingsModal.jsx**: `<span className="about-version">v2.11.3</span>`
+- **Sidebar.jsx**: `<span className="logo-version">v2.11.3</span>`
+
+### 📝 详细文档
+
+- 项目 MEMORY.md - 2026-01-09 v2.11.3 条目
+- 全局 memory.md - 2026-01-09 小白AI v2.11.3 条目
 
 ---
 

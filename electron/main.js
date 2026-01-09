@@ -12,6 +12,7 @@ const os = require('os');
 const agent = require('./agent');
 const db = require('./database');
 const officialConfig = require('./official-config');
+const { createClient } = require('@supabase/supabase-js');
 
 // ==================== 安全的日志输出 ====================
 // 检查流可写性，避免 EPIPE 错误
@@ -52,7 +53,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.10.27';
+const APP_VERSION = '2.11.6';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -971,6 +972,44 @@ ipcMain.handle('logout', async () => {
   return { success: true };
 });
 
+// 🔥 v2.11.3 新增：同步登录状态（用于 Supabase 登录后通知后端）
+ipcMain.handle('sync-login-status', async (event, user) => {
+  try {
+    if (user && user.id) {
+      // 有用户信息，设置登录状态
+      currentUser = user;
+      isGuestMode = false; // 🔥 v2.11.4 修复：明确设置为 false，退出游客模式
+      safeLog('✅ [sync-login-status] 设置登录用户，退出游客模式:', user);
+
+      // 🔥 v2.11.4 修复：在本地 users 表中创建/更新用户记录（避免外键约束错误）
+      const existingUser = db.getUserById(user.id);
+      if (!existingUser) {
+        // 用户不存在，创建新记录
+        safeLog('📝 在本地数据库创建用户记录:', user.id);
+        db.insertUser({
+          id: user.id,
+          phone: user.phone || '',
+          apiKey: user.api_key || null
+        });
+      } else {
+        // 用户已存在，更新最后登录时间
+        safeLog('📝 更新用户最后登录时间:', user.id);
+        db.updateLastLogin(user.id);
+      }
+
+      safeLog('✅ 登录状态已同步到后端:', user);
+      return { success: true };
+    } else {
+      // 无用户信息，保持游客模式
+      safeLog('ℹ️ 游客模式状态确认');
+      return { success: true };
+    }
+  } catch (error) {
+    safeError('同步登录状态失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // 获取当前用户信息
 ipcMain.handle('get-current-user', async () => {
   if (isGuestMode) {
@@ -981,7 +1020,8 @@ ipcMain.handle('get-current-user', async () => {
       isGuest: true,
       canUse: status.canUse,
       remaining: status.remaining,
-      usedCount: status.usedCount || 0
+      usedCount: status.usedCount || 0,
+      limit: officialConfig.freeUsageLimit  // 🔥 v2.11.6 新增
     };
   }
 
@@ -1034,11 +1074,21 @@ safeLog('小白AI 后端启动成功！');
 // 初始化 Agent
 ipcMain.handle('init-agent', async (event, config) => {
   try {
+    // 🔥 v2.11.3 修复：自动判断是否应该退出游客模式
+    if (isGuestMode && currentUser) {
+      // 当前是游客模式，但有登录用户，自动退出游客模式
+      isGuestMode = false;
+      safeLog('✅ 检测到登录用户，自动退出游客模式');
+    }
+
     let apiKey = config.apiKey;
     let provider = config.modelProvider || 'anthropic';
     let model = config.model || officialConfig.defaultModel;
 
-    // 游客模式：使用官方API Key
+    // 🔥 v2.11.3 修复：调整 API Key 优先级
+    // 优先级：用户输入 > 云端保存 > 官方 Key
+
+    // 1️⃣ 游客模式：强制使用官方API Key（最高优先级是官方）
     if (isGuestMode) {
       const deviceId = db.getDeviceId();
       const guestStatus = db.canGuestUse(deviceId);
@@ -1067,10 +1117,77 @@ ipcMain.handle('init-agent', async (event, config) => {
       model = officialConfig.defaultModel;
       safeLog('游客模式：使用官方API Key', { provider, model });
     }
-    // 登录用户：使用用户自己的API Key（如果有）
-    else if (currentUser && currentUser.api_key) {
-      apiKey = currentUser.api_key;
-      safeLog('登录用户：使用用户API Key');
+    // 2️⃣ 登录用户：根据优先级选择 API Key
+    else {
+      // 🔥 v2.11.3 优化：优先级调整
+      // ① 用户刚输入的 Key（优先级最高）
+      if (config.apiKey && config.apiKey.trim() !== '') {
+        apiKey = config.apiKey;
+        safeLog('✅ [优先级1] 使用用户输入的 API Key');
+      }
+      // ② 云端保存的 Key（次优先级）- 🔥 v2.11.5 修复：添加云端状态验证
+      else if (currentUser && currentUser.api_key) {
+        // 🔥 v2.11.5 关键修复：验证云端的 has_api_key 状态
+        let cloudHasApiKey = false;
+        try {
+          const supabaseUrl = process.env.SUPABASE_URL ||
+                              process.env.VITE_SUPABASE_URL ||
+                              'https://cnszooaxwxatezodbbxq.supabase.co';
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                             process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+                             process.env.SUPABASE_ANON_KEY ||
+                             process.env.VITE_SUPABASE_ANON_KEY;
+
+          if (supabaseUrl && supabaseKey) {
+            const supabase = createClient(supabaseUrl, supabaseKey, {
+              auth: {
+                persistSession: false,
+                autoRefreshToken: false
+              }
+            });
+
+            const { data, error } = await supabase
+              .from('user_profiles')
+              .select('has_api_key, api_key')
+              .eq('user_id', currentUser.id)
+              .maybeSingle();
+
+            if (!error && data) {
+              cloudHasApiKey = data.has_api_key || false;
+              // 🔥 v2.11.5 关键：如果云端有新的 API Key，同步到本地缓存
+              if (data.api_key && data.api_key !== currentUser.api_key) {
+                currentUser.api_key = data.api_key;
+                db.updateUserApiKey(currentUser.id, data.api_key);
+                safeLog('🔄 [云端同步] API Key 已更新');
+              }
+            } else if (error) {
+              safeError('❌ 查询云端 API Key 状态失败:', error.message);
+            }
+          }
+        } catch (error) {
+          safeError('❌ 验证云端 API Key 状态异常:', error.message);
+        }
+
+        // 只有当云端确认 has_api_key = true 时，才使用本地缓存的 API Key
+        if (cloudHasApiKey) {
+          apiKey = currentUser.api_key;
+          safeLog('✅ [优先级2] 使用云端保存的 API Key（已验证）');
+        } else {
+          // 云端已删除 API Key，跳过本地缓存，使用官方 Key
+          safeLog('⚠️ [优先级2] 云端 API Key 已删除，跳过本地缓存');
+          apiKey = officialConfig.apiKey;
+          provider = officialConfig.provider;
+          model = officialConfig.defaultModel;
+          safeLog('🔄 [优先级3] 使用官方 API Key (兜底)');
+        }
+      }
+      // ③ 官方 Key（兜底）
+      else {
+        apiKey = officialConfig.apiKey;
+        provider = officialConfig.provider;
+        model = officialConfig.defaultModel;
+        safeLog('🔄 [优先级3] 使用官方 API Key (兜底)');
+      }
     }
 
     if (!apiKey || apiKey.trim() === '') {
@@ -1141,7 +1258,7 @@ ipcMain.handle('send-message', async (event, conversationId, message, files) => 
       safeLog('❌ 游客免费次数已用完，拒绝发送消息');
       return {
         success: false,
-        error: '游客免费次数已用完（10次），请登录后继续使用',
+        error: `游客免费次数已用完（${officialConfig.freeUsageLimit}次），请登录后继续使用`,
         needLogin: true,
         usedCount: status.usedCount,
         remaining: 0
@@ -1150,14 +1267,17 @@ ipcMain.handle('send-message', async (event, conversationId, message, files) => 
 
     // 检查通过，增加使用次数
     db.incrementGuestUsage(deviceId);
-    safeLog(`✅ 游客使用次数增加: ${status.usedCount + 1}/10`);
+    safeLog(`✅ 游客使用次数增加: ${status.usedCount + 1}/${officialConfig.freeUsageLimit}`);
 
     // 通知前端更新剩余次数
     const newStatus = db.canGuestUse(deviceId);
+    safeLog(`📡 准备发送 IPC 事件: guest-usage-updated, usedCount=${newStatus.usedCount}, remaining=${newStatus.remaining}`);
     mainWindow.webContents.send('guest-usage-updated', {
       usedCount: newStatus.usedCount,
-      remaining: newStatus.remaining
+      remaining: newStatus.remaining,
+      limit: officialConfig.freeUsageLimit  // 🔥 v2.11.5 新增：发送限制次数
     });
+    safeLog('✅ IPC 事件已发送');
   }
   // 登录用户：增加请求次数
   else if (currentUser) {

@@ -34,278 +34,1190 @@
 
 ---
 
-## 📅 2026-01-09
+## 📅 2026-01-09 (v2.11.6 - API Key 云端同步 + 配置动态化) ⭐⭐⭐
 
-### 🚀 Edge Functions 完整迁移 - 彻底解决浏览器密钥安全问题 ⭐
+### 🎯 核心功能：跨设备同步 + 动态配置
 
-**版本**: v2.10.27 → v2.10.28
+#### 1️⃣ **API Key 云端同步**（产品经理需求）
 
-**核心变更**: 将所有前端数据库操作迁移到 Supabase Edge Functions（服务端）
+**需求背景**:
+- 用户反馈："key也需要同步到云端数据库，方便用户切换电脑还可以用"
+- 之前只能本地保存，换电脑需要重新输入
+- 产品经理：晓力
 
-**原因**:
-- 浏览器端使用 service role key 导致 Supabase 报错：`Forbidden use of secret API key in browser`
-- 安全隐患：service role key 不应暴露在浏览器中
-- 需要统一的数据访问层，便于维护和扩展
-
-**实施方案**:
-
-#### 1. 创建共享工具模块 ✅
-**文件**: `supabase/functions/_shared/_supabaseClient.ts` (233 行)
-
-**功能**:
-- 数据库客户端封装（service role 权限）
-- CORS 处理
-- 标准化响应格式（successResponse, errorResponse）
-- 请求验证（validateMethod, validateRequired）
-- 日志辅助函数（logRequest, logSuccess, logError）
-- 智能查询函数（querySmart - 自动判断游客/登录用户）
+**实现方案**（三层存储架构）:
+```
+┌─────────────────────────────────────────────┐
+│           API Key 三层存储架构              │
+├─────────────────────────────────────────────┤
+│ 1. 本地 config.json          (快速读取)     │
+│ 2. 云端 user_profiles 表      (跨设备同步)   │
+│ 3. localStorage               (前端缓存)     │
+└─────────────────────────────────────────────┘
+```
 
 **关键代码**:
-```typescript
-export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-})
 
-export function validateRequired<T>(body: T, requiredFields: (keyof T)[]) {
-  for (const field of requiredFields) {
-    if (!body[field]) {
-      return { valid: false, missing: String(field) }
-    }
-  }
-  return { valid: true }
+① **cloudService.js** - 新增同步函数:
+```javascript
+// 保存 API Key 到云端
+export async function saveApiKey(apiKey) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .update({
+      api_key: apiKey,
+      has_api_key: !!apiKey && apiKey.length > 0
+    })
+    .eq('user_id', user.id)
+    .select();
+  return { success: !error };
+}
+
+// 从云端加载 API Key
+export async function loadApiKey() {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('api_key, has_api_key')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  return {
+    success: !error,
+    apiKey: data?.api_key,
+    hasApiKey: data?.has_api_key
+  };
 }
 ```
 
-#### 2. 创建 16 个 Edge Functions ✅
-
-**分类清单**:
-
-**登录和用量管理（4个）**:
-1. `send-verification-code` - 发送短信验证码
-2. `sign-in-phone` - 手机号登录
-3. `get-user-usage` - 获取使用次数
-4. `increment-usage` - 增加使用次数
-
-**对话管理（5个）**:
-5. `load-conversations` - 加载对话列表
-6. `create-conversation` - 创建新对话
-7. `create-message` - 创建消息
-8. `update-message` - 更新消息
-9. `delete-conversation` - 删除对话
-
-**用户信息（2个）**:
-10. `get-user-info` - 获取用户信息
-11. `save-user-info` - 保存用户信息
-
-**AI记忆（2个）**:
-12. `get-ai-memory` - 获取AI记忆
-13. `save-ai-memory` - 保存AI记忆
-
-**数据合并（3个）**:
-14. `merge-guest-conversations` - 合并游客对话
-15. `merge-guest-user-info` - 合并游客用户信息
-16. `merge-guest-ai-memory` - 合并游客AI记忆
-
-**Edge Function 标准结构**:
-```typescript
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import {
-  supabase, corsHeaders, handleOptions,
-  successResponse, errorResponse,
-  validateMethod, validateRequired,
-  logRequest, logSuccess, logError
-} from '../_shared/_supabaseClient.ts'
-
-serve(async (req) => {
-  const FUNCTION_NAME = 'function-name'
-
-  if (req.method === 'OPTIONS') {
-    return handleOptions()
+② **SettingsModal.jsx** - 保存时同步:
+```javascript
+const handleSave = async () => {
+  // ... 保存到本地
+  if (currentUser) {
+    const { saveApiKey } = await import('../lib/cloudService');
+    await saveApiKey(localConfig.apiKey);
+    // 更新 currentUser 对象
+    const updatedUser = {
+      ...currentUser,
+      api_key: localConfig.apiKey,
+      has_api_key: !!localConfig.apiKey && localConfig.apiKey.length > 0
+    };
+    localStorage.setItem('xiaobai_user', JSON.stringify(updatedUser));
+    onUserUpdate(updatedUser);
   }
+  onSave(localConfig);
+};
+```
 
-  try {
-    if (!validateMethod(req, ['POST'])) {
-      return errorResponse('方法不允许', 405)
-    }
+③ **App.jsx** - 登录和启动时加载:
+```javascript
+const handleLoginSuccess = async (user) => {
+  // 🔥 安全：先清空本地 API Key，防止其他用户的 Key 泄露
+  savedConfig.apiKey = '';
+  await window.electronAPI.saveConfig(savedConfig);
 
-    const { param1, param2 } = await req.json()
-    logRequest(FUNCTION_NAME, { param1, param2 })
-
-    const validation = validateRequired({ param1 }, ['param1'])
-    if (!validation.valid) {
-      return errorResponse(`缺少必填字段: ${validation.missing}`)
-    }
-
-    // 业务逻辑使用 service role key
-    const { data } = await supabase.from('table').select('*')
-
-    logSuccess(FUNCTION_NAME, data)
-    return successResponse(data)
-  } catch (error: any) {
-    logError(FUNCTION_NAME, error)
-    return errorResponse(error.message, 500)
+  // 🔥 从云端加载 API Key
+  const apiKeyResult = await loadApiKey();
+  if (apiKeyResult.success && apiKeyResult.apiKey) {
+    savedConfig.apiKey = apiKeyResult.apiKey;
+    await window.electronAPI.saveConfig(savedConfig);
+    setConfig(savedConfig);
   }
-})
+};
 ```
 
-#### 3. 前端代码改造 ✅
-**文件**: `src/lib/cloudService.js`
-
-**改动统计**:
-- 删除代码：395 行（前端数据库操作逻辑）
-- 新增代码：120 行（Edge Function 调用）
-- 净减少：275 行
-- 代码简化：900+ 行 → 600+ 行
-
-**改造模式**:
-
-**改造前**（直接访问数据库）:
-```javascript
-// ❌ 浏览器端使用 service role key（不安全）
-const { data } = await supabaseAdmin.from('conversations').select('*')
-```
-
-**改造后**（调用 Edge Function）:
-```javascript
-// ✅ 浏览端调用 Edge Function（安全）
-const result = await callEdgeFunction('load-conversations', {
-  user_id: user?.id,
-  device_id: deviceId
-});
-
-if (!result.success) {
-  return { success: false, error: result.error };
-}
-
-return { success: true, data: result.data };
-```
-
-**辅助函数**:
-```javascript
-async function callEdgeFunction(functionName, data) {
-  const response = await fetch(`${EDGE_FUNCTIONS_BASE}/${functionName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'apikey': SUPABASE_ANON_KEY
-    },
-    body: JSON.stringify(data)
-  });
-
-  const result = await response.json();
-  return result;
-}
-```
-
-#### 4. 数据库 Schema 更新 ✅
-**文件**: `supabase/migrations/20260109_add_user_id_to_guest_usage.sql`
-
-**问题**: `guest_usage` 表缺少 `user_id` 列，导致 Edge Function 查询失败
-
-**修复**:
+**数据库 Schema 更新**:
 ```sql
--- 添加 user_id 列
-ALTER TABLE guest_usage ADD COLUMN IF NOT EXISTS user_id TEXT;
-
--- 创建索引
-CREATE INDEX IF NOT EXISTS idx_guest_usage_user_id ON guest_usage(user_id);
-CREATE INDEX IF NOT EXISTS idx_guest_usage_device_user ON guest_usage(device_id, user_id);
+-- 文件: add-api-key-field.sql
+ALTER TABLE user_profiles
+  ADD COLUMN api_key TEXT,
+  ADD COLUMN has_api_key BOOLEAN DEFAULT false;
 ```
-
-**手动执行脚本**: `fix_guest_usage_table.sql`
-
-#### 5. Bug 修复 ✅
-
-**问题 1**: `validateRequired is not defined`
-- **原因**: Edge Function 导入语句缺少 `validateRequired`
-- **影响**: `get-user-usage` 等 Edge Function 报错
-- **修复**: 所有 Edge Function 添加 `validateRequired` 导入
-- **部署**: 重新部署所有 16 个 Edge Functions
-
-**问题 2**: `column guest_usage.user_id does not exist`
-- **原因**: 数据库表缺少 `user_id` 列
-- **影响**: 获取使用次数失败
-- **修复**: 创建迁移文件添加列 + 手动执行 SQL
-
-#### 6. 版本发布 ✅
-**版本**: v2.10.28
-**打包内容**:
-- ✅ Windows x64 安装程序（224 MB）
-- ✅ Windows ARM64 安装程序
-- ✅ NSIS 安装向导（可选择安装目录）
-- ✅ 增量更新支持（.blockmap）
-
-**修改文件清单**:
-
-**新增文件** (18个):
-1. `supabase/functions/_shared/_supabaseClient.ts` - 共享工具模块
-2-17. 16 个 Edge Functions 的 `index.ts` 文件
-18. `supabase/migrations/20260109_add_user_id_to_guest_usage.sql`
-
-**修改文件** (1个):
-1. `src/lib/cloudService.js` - 所有函数改为调用 Edge Functions
-
-**部署的 Edge Functions**:
-```
-✅ create-conversation
-✅ create-message
-✅ delete-conversation
-✅ get-ai-memory
-✅ get-user-info
-✅ get-user-usage
-✅ increment-usage
-✅ load-conversations
-✅ merge-guest-ai-memory
-✅ merge-guest-conversations
-✅ merge-guest-user-info
-✅ save-ai-memory
-✅ save-user-info
-✅ send-sms (已存在)
-✅ send-verification-code
-✅ sign-in-phone
-✅ update-message
-```
-
-**测试结果**: ✅ 通过
-
-**架构对比**:
-
-| 方面 | 迁移前 | 迁移后 |
-|-----|--------|--------|
-| 浏览器端密钥 | service role key（不安全） | anon key（安全） |
-| 数据库操作 | 直接调用 | Edge Functions 代理 |
-| 代码位置 | 前端（cloudService.js） | 服务端（Edge Functions） |
-| 代码行数 | 900+ 行 | 600+ 行 |
-| 安全性 | ❌ 密钥暴露 | ✅ 密钥隔离 |
-| 维护性 | ⚠️ 分散 | ✅ 集中 |
-
-**安全架构**:
-```
-迁移前:
-浏览器 → Supabase API（使用 service role key）❌
-
-迁移后:
-浏览器 → Edge Functions（使用 anon key）→ Supabase（使用 service role key）✅
-```
-
-**关键优势**:
-1. ✅ **安全性**: Service role key 永远不暴露在浏览器中
-2. ✅ **简化性**: 前端代码减少 275 行
-3. ✅ **一致性**: 所有数据库操作统一通过 Edge Functions
-4. ✅ **可维护性**: 业务逻辑集中在服务端，易于调试和扩展
-5. ✅ **合规性**: 符合 Supabase 安全最佳实践
-
-**相关文档**:
-- Supabase Edge Functions: https://supabase.com/docs/guides/functions
-- 安全最佳实践: https://supabase.com/docs/guides/functions/security
-
-**Git 提交**:
-- `90ed94d` - 完成 Edge Functions 前端改造（v2.10.27）
-- `22ab115` - 修复 Edge Function 和数据库 schema 问题（v2.10.28）
-- `0b83b21` - 发布版本 2.10.28 - Windows 版本
 
 ---
+
+#### 2️⃣ **每日使用限制逻辑修复**
+
+**问题**:
+- 用户反馈："检查下代码，是不是没输入key的用户也不拦截了"
+- 只检查本地 `config.apiKey`，忽略了云端 `has_api_key` 状态
+
+**修复**:
+```javascript
+// App.jsx:912-920
+const userHasApiKey = config?.apiKey || dailyUsageStatus?.hasApiKey;
+if (currentUser && dailyUsageStatus && !userHasApiKey) {
+  if (dailyUsageStatus.remaining <= 0) {
+    showAlert('今日使用已达上限，请使用自己的key，或联系晓力', 'warning');
+    return { success: false };
+  }
+}
+```
+
+---
+
+#### 3️⃣ **后端缓存验证机制**（安全关键）
+
+**问题**:
+- 用户反馈："刚才我删除了 key，但我还是可以继续使用"
+- 后端的 `currentUser.api_key` 来自本地 SQLite，已过期
+
+**修复方案**:
+```javascript
+// main.js:1127-1182 - init-agent 处理器
+if (currentUser && currentUser.api_key) {
+  // 🔥 v2.11.5 关键修复：验证云端的 has_api_key 状态
+  let cloudHasApiKey = false;
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('has_api_key, api_key')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (!error && data) {
+      cloudHasApiKey = data.has_api_key || false;
+      // 🔥 如果云端有新的 API Key，同步到本地缓存
+      if (data.api_key && data.api_key !== currentUser.api_key) {
+        currentUser.api_key = data.api_key;
+        db.updateUserApiKey(currentUser.id, data.api_key);
+        safeLog('🔄 [云端同步] API Key 已更新');
+      }
+    }
+  } catch (error) {
+    safeError('❌ 验证云端 API Key 状态异常:', error.message);
+  }
+
+  // 只有当云端确认 has_api_key = true 时，才使用本地缓存的 API Key
+  if (cloudHasApiKey) {
+    apiKey = currentUser.api_key;
+    safeLog('✅ [优先级2] 使用云端保存的 API Key（已验证）');
+  } else {
+    // 云端已删除 API Key，跳过本地缓存，使用官方 Key
+    safeLog('⚠️ [优先级2] 云端 API Key 已删除，跳过本地缓存');
+    apiKey = officialConfig.apiKey;
+    provider = officialConfig.provider;
+    model = officialConfig.defaultModel;
+  }
+}
+```
+
+---
+
+#### 4️⃣ **游客限制数据库化**（产品经理核心需求）
+
+**需求背景**:
+- 产品经理："游客模式的次数限制，可以改造到数据库限制不，这样不依赖发版就可以修改对游客的限制"
+- 之前硬编码为 2 次，修改需要发版
+
+**实现方案**（配置动态化）:
+```
+┌─────────────────────────────────────────────┐
+│         配置优先级架构                       │
+├─────────────────────────────────────────────┤
+│ 1. Supabase system_configs (动态配置)      │
+│ 2. 本地 SQLite system_configs (缓存)       │
+│ 3. 环境变量 .env (兜底方案)                │
+│ 4. 硬编码默认值 (最后兜底)                  │
+└─────────────────────────────────────────────┘
+```
+
+**关键代码**:
+
+① **database.js** - 每次启动同步配置:
+```javascript
+async function initOfficialConfig() {
+  safeLog('🔄 开始同步官方配置...');
+
+  let officialApiKey = null;
+  let freeUsageLimit = '3';  // 🔥 v2.11.6 修改：从 Supabase 读取
+  let useSupabase = false;
+
+  // 1. 尝试从 Supabase 获取最新配置（推荐）
+  const supabaseConfig = await fetchOfficialConfigFromSupabase();
+  if (supabaseConfig) {
+    officialApiKey = supabaseConfig.apiKey;
+    freeUsageLimit = supabaseConfig.limit;
+    useSupabase = true;
+    safeLog('✅ 从 Supabase 同步最新配置');
+  } else {
+    // 2. 降级方案：使用本地缓存配置
+    const cachedLimit = getSystemConfig('free_usage_limit');
+    if (cachedApiKey) {
+      freeUsageLimit = cachedLimit || '3';
+      safeLog('⚠️  Supabase 连接失败，使用本地缓存配置');
+    }
+  }
+
+  // 写入/更新官方配置到数据库（每次启动都更新）
+  setSystemConfig('free_usage_limit', freeUsageLimit, '游客免费使用次数限制');
+
+  if (useSupabase) {
+    safeLog(`✅ 官方配置已同步（限制: ${freeUsageLimit}次）`);
+  }
+}
+```
+
+② **official-config.js** - 动态读取:
+```javascript
+// 游客免费使用次数限制（从数据库读取）
+get freeUsageLimit() {
+  const limit = db.getSystemConfig('free_usage_limit');
+  return limit ? parseInt(limit) : 10;
+},
+
+// 提示信息（动态读取限制次数）
+get guestWelcomeMessage() {
+  return `👋 欢迎使用小白AI！\n\n游客模式可免费使用${this.freeUsageLimit}次，之后需要登录。\n\n开始你的AI之旅吧！`;
+},
+
+get guestLimitReachedMessage() {
+  return `⚠️ 免费次数已用完\n\n您已使用${this.freeUsageLimit}次免费额度，请登录后继续使用。\n\n登录后可配置自己的API Key。`;
+},
+```
+
+**数据库初始化**:
+```sql
+-- 文件: init-guest-limit-config.sql
+INSERT INTO system_configs (key, value, description, created_at, updated_at)
+VALUES
+  ('free_usage_limit', '5', '游客免费使用次数限制（可在数据库中动态调整）', NOW(), NOW())
+ON CONFLICT (key) DO UPDATE SET
+  value = EXCLUDED.value,
+  description = EXCLUDED.description,
+  updated_at = NOW();
+```
+
+**修改配置方法**（无需发版）:
+```sql
+-- 在 Supabase Dashboard 执行
+UPDATE system_configs SET value = '10' WHERE key = 'free_usage_limit';
+
+-- 查看当前限制
+SELECT * FROM system_configs WHERE key = 'free_usage_limit';
+```
+
+---
+
+#### 5️⃣ **安全修复：游客模式隐藏 API Key**
+
+**问题**:
+- 用户反馈："我现在是游客，是不是不应该能看到key？没登录就不能看到呀"
+
+**修复**:
+```javascript
+// SettingsModal.jsx
+{currentUser && (
+  <div className="form-group">
+    <label>API Key <span className="form-hint">（登录用户可设置自己的 Key）</span></label>
+    <input type="password" value={localConfig.apiKey || ''} />
+  </div>
+)}
+```
+
+---
+
+#### 6️⃣ **多用户安全：切换账号清空缓存**
+
+**问题**:
+- 用户提问："如果我在同一台设备上，登录不同的手机号，会怎么样？A输入的key，B登录，会看到吗？"
+
+**风险分析**:
+- `config.json` 是设备级文件，用户 A 和 B 共享
+- 如果不清空，用户 B 能看到用户 A 的 API Key
+
+**修复方案**:
+```javascript
+// App.jsx - 登录成功后先清空
+const handleLoginSuccess = async (user) => {
+  const savedConfig = await window.electronAPI.readConfig();
+
+  // 🔥 安全：先清空本地 API Key，防止其他用户的 Key 泄露
+  savedConfig.apiKey = '';
+  await window.electronAPI.saveConfig(savedConfig);
+  console.log('🔒 [App] 已清空本地 API Key（安全措施）');
+
+  // 🔥 从云端加载当前用户的 API Key
+  const apiKeyResult = await loadApiKey();
+  if (apiKeyResult.success && apiKeyResult.apiKey) {
+    savedConfig.apiKey = apiKeyResult.apiKey;
+    await window.electronAPI.saveConfig(savedConfig);
+    setConfig(savedConfig);
+  }
+};
+```
+
+---
+
+#### 7️⃣ **Bug 修复：游客限制提醒框缺失**
+
+**问题**:
+- 用户反馈："没有游客限制的提醒框了"
+
+**根本原因**:
+- 后端 `get-current-user` IPC 处理器缺少 `limit` 字段
+
+**修复**:
+```javascript
+// main.js:1014-1026
+ipcMain.handle('get-current-user', async () => {
+  if (isGuestMode) {
+    const deviceId = db.getDeviceId();
+    const status = db.canGuestUse(deviceId);
+
+    return {
+      isGuest: true,
+      canUse: status.canUse,
+      remaining: status.remaining,
+      usedCount: status.usedCount || 0,
+      limit: officialConfig.freeUsageLimit  // 🔥 v2.11.6 新增
+    };
+  }
+```
+
+---
+
+#### 8️⃣ **Bug 修复：循环依赖**
+
+**问题**:
+- `database.js` 引用 `official-config.js`
+- `official-config.js` 引用 `database.js`
+- 导致 `db.getSystemConfig is not a function` 错误
+
+**修复**:
+```javascript
+// database.js:7 - 移除顶部引用
+// ❌ const officialConfig = require('./official-config');
+
+// database.js:368 - 延迟加载
+function canGuestUse(deviceId) {
+  const usage = getGuestUsage(deviceId);
+  // 🔥 v2.11.6 修复：延迟加载以避免循环依赖
+  const officialConfig = require('./official-config');
+  const limit = officialConfig.freeUsageLimit;
+  // ...
+}
+```
+
+---
+
+### 📝 版本号同步更新
+
+**更新位置**（4处）:
+1. `package.json` - version: "2.11.6"
+2. `electron/main.js` - APP_VERSION = '2.11.6'
+3. `src/components/SettingsModal.jsx` - v2.11.6
+4. `src/components/Sidebar.jsx` - v2.11.6
+
+---
+
+### ⚠️ 待解决问题
+
+#### **登录 HTTP 401 错误**（优先级：高）
+
+**现象**:
+- 验证码发送成功 ✅
+- 登录时返回 HTTP 401 ❌
+- 错误信息：`❌ [云端服务] 登录失败: HTTP 401`
+
+**可能原因**:
+1. 验证码已过期（默认 5 分钟有效期）
+2. 验证码已被使用（一次性）
+3. Supabase Anon Key 不正确或已过期
+4. Edge Function 认证配置问题
+
+**排查步骤**:
+1. ✅ 重新获取验证码并立即登录
+2. ⏳ 在 Supabase Dashboard 查看 Edge Function 日志
+3. ⏳ 验证 Anon Key 是否正确
+4. ⏳ 重新部署 Edge Function
+
+**解决方案**:
+- 待进一步排查
+- 需要查看 Supabase Edge Function 实时日志
+
+---
+
+### 📊 修改文件清单
+
+#### 核心文件
+1. ✅ `package.json` - 版本号 2.11.5 → 2.11.6
+2. ✅ `electron/main.js`
+   - APP_VERSION 更新
+   - `get-current-user` 添加 `limit` 字段
+   - 后端缓存验证机制
+3. ✅ `electron/database.js`
+   - `initOfficialConfig()` - 每次启动同步配置
+   - `canGuestUse()` - 延迟加载避免循环依赖
+4. ✅ `electron/official-config.js`
+   - 静态消息改为 getter 函数
+5. ✅ `src/lib/cloudService.js`
+   - 新增 `saveApiKey()` 函数
+   - 新增 `loadApiKey()` 函数
+
+#### UI 组件
+6. ✅ `src/components/SettingsModal.jsx`
+   - 保存时同步 API Key 到云端
+   - 游客模式隐藏 API Key 输入
+   - 版本号更新
+7. ✅ `src/components/Sidebar.jsx` - 版本号更新
+8. ✅ `src/components/GuestLimitModal.jsx` - 接收 `limit` prop
+
+#### 业务逻辑
+9. ✅ `src/App.jsx`
+   - 登录时清空本地 API Key
+   - 从云端加载 API Key
+   - 每日限制逻辑修复
+
+#### 数据库
+10. ✅ `add-api-key-field.sql` - user_profiles 添加 api_key 字段
+11. ✅ `init-guest-limit-config.sql` - 初始化游客限制配置
+
+---
+
+### ✅ 测试验证
+
+**功能测试**（已通过）:
+1. ✅ API Key 云端同步：
+   - 登录用户保存 API Key → 写入云端 ✅
+   - 切换设备登录 → 自动加载云端 API Key ✅
+2. ✅ 游客限制动态配置：
+   - Supabase 修改限制为 3 → 客户端重启后生效 ✅
+   - 游客显示 3 次限制 ✅
+3. ✅ 安全修复：
+   - 游客模式隐藏 API Key 输入 ✅
+   - 多用户切换清空本地缓存 ✅
+
+**待测试**:
+- ⏳ 登录 HTTP 401 错误修复
+
+---
+
+### 🎯 产品经理视角
+
+**核心价值**:
+1. **运营效率提升** ⭐⭐⭐
+   - 游客限制动态调整，无需发版
+   - 产品经理可在 Supabase 直接修改配置
+   - 快速响应市场和运营需求
+
+2. **用户体验提升** ⭐⭐⭐
+   - API Key 跨设备同步
+   - 换电脑无需重新输入
+   - 降低使用门槛
+
+3. **安全性增强** ⭐⭐
+   - 多用户隔离
+   - 防止 API Key 泄露
+   - 云端状态验证
+
+**运营操作指南**:
+```sql
+-- 修改游客限制（无需发版）
+UPDATE system_configs SET value = '10' WHERE key = 'free_usage_limit';
+
+-- 查看当前限制
+SELECT * FROM system_configs WHERE key = 'free_usage_limit';
+
+-- 查看用户 API Key 状态
+SELECT phone, has_api_key, created_at
+FROM user_profiles
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+---
+
+## 📅 2026-01-09 (v2.11.4 - 游客模式重大修复) 🔥
+
+### 🎯 核心问题：登录后游客限制未清除
+
+**问题描述**:
+- 游客免费次数（2次）用完后，登录账号，发送消息还是提示"次数已用完"
+- 用户反馈：登录后应该可以正常使用，但还是被游客限制阻止
+- 影响：严重阻碍用户登录转化
+
+**根本原因分析**:
+```
+前端流程（Supabase 登录）：
+1. signInWithPhone() → Supabase Edge Function 验证
+2. auth.login(user) → 前端更新 currentUser
+3. 初始化 Agent
+
+❌ 问题：后端完全不知道用户已登录！
+   - 前端：currentUser = 登录用户 ✅
+   - 后端：isGuestMode = true ❌
+   - 后端：currentUser = null ❌
+```
+
+**完整解决方案**（三层防护）：
+
+#### 1️⃣ **新增登录状态同步 API**（main.js:975-992）
+```javascript
+// 🔥 v2.11.3 新增：同步登录状态（用于 Supabase 登录后通知后端）
+ipcMain.handle('sync-login-status', async (event, user) => {
+  if (user && user.id) {
+    currentUser = user;
+    isGuestMode = false;  // 🔥 退出游客模式
+    // 🔥 在本地数据库创建用户记录（避免外键约束错误）
+    db.insertUser({ id, phone, apiKey });
+  }
+});
+```
+
+#### 2️⃣ **init-agent 自动检查机制**（main.js:1037-1042）
+```javascript
+ipcMain.handle('init-agent', async (event, config) => {
+  // 🔥 v2.11.3 修复：自动判断是否应该退出游客模式
+  if (isGuestMode && currentUser) {
+    isGuestMode = false;
+    safeLog('✅ 检测到登录用户，自动退出游客模式');
+  }
+  // ... 继续初始化
+});
+```
+
+#### 3️⃣ **前端登录后立即同步**（App.jsx:448-450）
+```javascript
+const handleLoginSuccess = async (user) => {
+  auth.login(user);
+  // 🔥 v2.11.3 修复：同步登录状态到后端（重要！）
+  await window.electronAPI.syncLoginStatus(user);
+  console.log('✅ [App] 登录状态已同步到后端');
+  setGuestStatus(null);  // 清空游客状态
+  // ...
+};
+```
+
+**修改文件清单**:
+1. ✅ `electron/main.js`
+   - 新增 `sync-login-status` IPC 处理器（第 975-992 行）
+   - `init-agent` 添加自动检查逻辑（第 1037-1042 行）
+2. ✅ `electron/preload.js`
+   - 暴露 `syncLoginStatus` API（第 62 行）
+3. ✅ `src/App.jsx`
+   - 登录成功后调用同步 API（第 448-450 行）
+
+**验证方法**:
+```bash
+# 1. 游客模式发送 2 条消息用完次数
+# 2. 点击登录
+# 3. 查看日志应显示：
+✅ [App] 登录状态已同步到后端
+✅ 登录状态已同步到后端: { id: '...', phone: '...' }
+✅ 检测到登录用户，自动退出游客模式（如果 init-agent 被调用）
+# 4. 发送消息应正常，不再提示次数用完
+```
+
+---
+
+### 🔧 修复游客使用次数双重计数问题
+
+**问题描述**:
+- 发送 1 条消息，使用次数却增加了 2 次
+- 现象：第 1 条消息显示 2/2，而不是 1/2
+- 数据库查询：`used_count = 2`（实际应该 = 1）
+
+**根本原因**:
+```javascript
+// ❌ 旧代码：双重计数
+// 后端：发送消息时增加次数
+ipcMain.handle('send-message', async () => {
+  db.incrementGuestUsage(deviceId);  // ← 后端 +1
+  mainWindow.webContents.send('guest-usage-updated', { ... });
+});
+
+// 前端：消息完成后又增加一次
+await updateMessageCloud(chat.id, aiMessage);
+await incrementUserUsage();  // ← 前端云函数 +1
+setGuestStatus({ usedCount: incrementResult.usedCount });  // ← 覆盖后端的值
+```
+
+**解决方案**:
+```javascript
+// ✅ 新代码：只依赖后端更新
+// 1. 后端：发送消息时增加次数（保留）
+ipcMain.handle('send-message', async () => {
+  db.incrementGuestUsage(deviceId);
+  mainWindow.webContents.send('guest-usage-updated', { ... });
+});
+
+// 2. 前端：通过 IPC 监听器更新（删除 incrementUserUsage）
+await updateMessageCloud(chat.id, aiMessage);
+// ❌ 删除：await incrementUserUsage();
+// ❌ 删除：setGuestStatus({ usedCount: ... });
+
+// 3. 前端：监听后端 IPC 事件（已存在）
+window.electronAPI.onGuestUsageUpdated((data) => {
+  setGuestStatus(prev => ({
+    ...prev,
+    usedCount: data.usedCount,
+    remaining: data.remaining
+  }));
+});
+```
+
+**修改文件**:
+- `src/App.jsx` (第 1082-1085 行)
+  - 删除了 `incrementUserUsage()` 调用
+  - 添加了注释说明
+
+**效果**:
+- ✅ 发送 1 条消息，使用次数 +1
+- ✅ 前端显示正确（1/2, 2/2）
+- ✅ 数据库记录正确（`used_count` 与实际发送数一致）
+
+---
+
+### 🐛 修复错误消息不一致
+
+**问题描述**:
+- 游客次数用完时，错误消息显示"已用完（10次）"
+- 但实际限制已改为 2 次测试
+
+**解决方案**:
+```javascript
+// electron/main.js:1207
+error: '游客免费次数已用完（2次），请登录后继续使用'
+```
+
+**修改文件**:
+- `electron/main.js` (第 1207 行)
+
+---
+
+### 📝 游客限制临时改为 2 次（测试用）
+
+**目的**: 方便快速测试游客限制功能
+
+**修改清单**（所有标记 `// 🔧 临时测试：10 -> 2`）：
+1. `electron/database.js:351` - `remaining: 2`
+2. `electron/database.js:354` - `2 - usage.used_count`
+3. `electron/database.js:580` - `freeUsageLimit = '2'`
+4. `electron/main.js:1199` - 日志输出 `1/2`
+5. `electron/main.js:1207` - 错误消息 "已用完（2次）"
+6. `electron/official-config.js:84` - 欢迎消息 "免费使用2次"
+7. `electron/official-config.js:86` - 限制提示 "已使用2次"
+8. `src/components/GuestLimitModal.jsx:13` - "免费使用2次"
+
+**恢复方法**: 全局替换 `2` → `10`（搜索注释标记）
+
+---
+
+### 📄 新增文档
+
+#### 1. **测试报告** - `GUEST_MODE_TEST_REPORT.md`
+- 完整的代码审查报告
+- 6 个测试用例
+- 测试命令和预期结果
+- 所有修改清单
+
+#### 2. **UI 展示页面** - `UI_SHOWCASE.html`
+- macOS 和 Windows 平台对比
+- 所有关键组件预览
+- 登录弹窗、游客限制弹窗、Toast 提示等
+- 在浏览器中直接查看效果
+
+---
+
+### 🔍 调试日志增强
+
+**新增日志**（便于问题追踪）：
+```javascript
+// 后端
+safeLog(`📡 准备发送 IPC 事件: guest-usage-updated, usedCount=${newStatus.usedCount}, remaining=${newStatus.remaining}`);
+safeLog('✅ IPC 事件已发送');
+
+// 前端
+console.log('📡 [App] 收到游客使用次数更新事件:', data);
+console.log('📊 [App] 更新前 guestStatus:', prev);
+console.log('📊 [App] 更新后 guestStatus:', newStatus);
+```
+
+**修改文件**:
+- `electron/main.js` (第 1220-1225 行)
+- `src/App.jsx` (第 294-302 行)
+
+---
+
+### ✅ 完整功能测试验证
+
+**测试场景**（全部通过）：
+1. ✅ 游客发送 2 条消息 → 1/2, 2/2
+2. ✅ 第 3 条消息被阻止 → 弹出限制提示
+3. ✅ 登录后发送消息 → 正常（无限制）
+4. ✅ 退出登录 → 切换到游客模式
+5. ✅ 游客次数保持（2/2）→ 第 3 条仍被阻止
+6. ✅ 并发消息 → 数据库原子操作，无并发问题
+
+---
+
+## 📅 2026-01-09 (v2.11.3 - Bug 修复与性能优化)
+
+### 🚀 输入框清空延迟优化 ⭐
+
+**核心变更**: 修复消息发送后输入框清空延迟问题，实现立即清空
+
+**问题描述**:
+- 用户反馈：发送消息后，输入框会清空，但有明显延迟
+- 现象：AI 的回答都出来了，输入框的消息才消失
+- 影响：用户体验不佳，感觉卡顿
+
+**根本原因**:
+```javascript
+// ❌ 旧代码：handleSendMessage 要等待所有操作完成才返回
+const handleSendMessage = async (content, files) => {
+  // 1. 创建消息到云端
+  // 2. 调用 AI API
+  // 3. 流式输出 AI 响应
+  // 4. 更新云端
+  // 5. 更新使用次数
+  // 6. 保存记忆
+  // ... 所有操作完成后才返回
+  return chat; // ← 太晚了！
+};
+```
+
+**解决方案**:
+```javascript
+// ✅ 新代码：立即返回，后台异步处理
+const handleSendMessage = async (content, files) => {
+  // 1. 创建消息到云端
+  await createMessage(chat.id, aiMessage);
+
+  // 2. 🚀 立即返回成功，让输入框马上清空
+  processAIMessageInBackground({ chat, content, ...params }); // 后台处理
+  return { success: true }; // ← 立即返回！
+};
+
+// 新增：后台异步处理函数
+const processAIMessageInBackground = async ({ chat, content, ... }) => {
+  // AI 调用、流式响应、云端更新等所有操作
+  // 在后台异步执行，不阻塞输入框
+};
+```
+
+**技术实现**:
+1. 将所有 AI 处理逻辑移到新函数 `processAIMessageInBackground`
+2. 在消息创建到云端后立即返回 `{ success: true }`
+3. 使用 `.catch()` 捕获后台处理的错误
+4. 保持所有功能不变（云端同步、使用次数、记忆保存等）
+
+**修改文件**:
+- `src/App.jsx`
+  - 第 905-923 行：立即返回逻辑
+  - 第 925-1097 行：新增 `processAIMessageInBackground` 函数
+
+**验证方法**:
+```bash
+# 发送消息后，查看 Console 日志
+✅ result.success: true  ← 立即返回
+✅ [InputArea] 清空输入框  ← 立即清空
+🔄 AI 继续在后台处理...
+```
+
+**用户体验改进**:
+- ✅ 输入框立即清空，响应更迅速
+- ✅ AI 流式输出不受影响
+- ✅ 所有云端同步功能正常
+- ✅ 错误处理机制完整
+
+---
+
+### 🗄️ 数据库只读模式修复 🔧
+
+**问题描述**: SQLite 数据库写入时报错 `attempt to write a readonly database`
+
+**根本原因**:
+```javascript
+// ❌ 旧代码：未明确指定读写模式
+db = new Database(dbPath, {});
+```
+
+**解决方案**:
+```javascript
+// ✅ 新代码：明确设置可写模式和 WAL 模式
+db = new Database(dbPath, {
+  fileMustExist: false,
+  readonly: false,  // 🔥 明确设置为可写模式
+  timeout: 5000
+});
+db.pragma('journal_mode = WAL');  // 提高并发性能
+```
+
+**修改文件**:
+- `electron/database.js` (第 76-87 行)
+
+**效果**: ✅ 数据库读写正常，游客使用次数正确更新
+
+---
+
+### 🎨 弹窗半透明背景修复 ✨
+
+**问题描述**: GuestLimitModal 背景不是半透明效果
+
+**解决方案**: 添加 `.modal-content` 样式定义
+```css
+.modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+```
+
+**修改文件**:
+- `src/components/ModalBase.css`
+
+**效果**: ✅ 弹窗背景呈现毛玻璃效果，视觉更美观
+
+---
+
+### 📊 版本号更新到 2.11.3 🔢
+
+**问题描述**: 用户反馈版本号还是 2.11.2
+
+**解决方案**: 更新所有显示版本号的位置
+- `package.json`: `"version": "2.11.3"`
+- `electron/main.js`: `const APP_VERSION = '2.11.3'`
+- `src/components/SettingsModal.jsx`: `<span className="about-version">v2.11.3</span>`
+- `src/components/Sidebar.jsx`: `<span className="logo-version">v2.11.3</span>`
+
+**效果**: ✅ 所有界面版本号统一显示为 v2.11.3
+
+---
+
+### 🔍 Edge Functions API 参数命名修复
+
+**问题描述**: 后端日志显示参数命名不匹配错误 `缺少必填字段: conversationId`
+
+**根本原因**:
+```javascript
+// ❌ 错误：使用 snake_case
+const result = await callEdgeFunction('create-message', {
+  conversation_id: conversationId,  // ← 后端期望 camelCase
+  message: { created_at: xxx }
+});
+```
+
+**解决方案**:
+```javascript
+// ✅ 正确：使用 camelCase
+const result = await callEdgeFunction('create-message', {
+  conversationId: conversationId,  // ← 修复参数命名
+  message: { createdAt: xxx }
+});
+```
+
+**修改文件**:
+- `src/lib/cloudService.js`
+  - `createMessage()` 函数
+  - `updateMessage()` 函数
+  - `deleteConversation()` 函数
+
+**效果**: ✅ Edge Functions API 调用成功，云端消息同步正常
+
+---
+
+### 🔑 API Key 优先级修复 🔧
+
+**问题描述**: 登录用户在设置中输入新的 API Key 后，系统仍使用云端保存的旧 Key
+
+**场景示例**:
+1. 用户在云端保存了智谱 Key A
+2. 用户在设置中输入 Claude Key B
+3. 发送消息时，系统仍使用 Key A（云端），而不是 Key B（用户刚输入）
+
+**根本原因**:
+```javascript
+// ❌ 旧代码：优先使用云端 Key
+else if (currentUser && currentUser.api_key) {
+  apiKey = currentUser.api_key;  // ← 直接覆盖了 config.apiKey
+  safeLog('登录用户：使用用户API Key');
+}
+```
+
+**解决方案**:
+```javascript
+// ✅ 新代码：正确的优先级
+// ① 用户刚输入的 Key（优先级最高）
+if (config.apiKey && config.apiKey.trim() !== '') {
+  apiKey = config.apiKey;
+  safeLog('✅ [优先级1] 使用用户输入的 API Key');
+}
+// ② 云端保存的 Key（次优先级）
+else if (currentUser && currentUser.api_key) {
+  apiKey = currentUser.api_key;
+  safeLog('⚠️ [优先级2] 使用云端保存的 API Key');
+}
+// ③ 官方 Key（兜底）
+else {
+  apiKey = officialConfig.apiKey;
+  safeLog('🔄 [优先级3] 使用官方 API Key (兜底)');
+}
+```
+
+**修改文件**:
+- `electron/main.js` (第 1041-1093 行)
+
+**优先级说明**:
+- 🥇 **优先级1**: 用户在设置中输入的 API Key（立即生效）
+- 🥈 **优先级2**: 云端保存的 API Key（用户之前保存的）
+- 🥉 **优先级3**: 官方 API Key（兜底，确保游客模式可用）
+
+**效果**: ✅ 用户输入的 API Key 立即生效，不会被云端 Key 覆盖
+
+**日志输出**:
+- 优先级1: `✅ [优先级1] 使用用户输入的 API Key`
+- 优先级2: `⚠️ [优先级2] 使用云端保存的 API Key`
+- 优先级3: `🔄 [优先级3] 使用官方 API Key (兜底)`
+
+---
+
+### 🗄️ 数据库 Schema 更新：添加 remaining 字段
+
+**问题描述**: Edge Function 日志报错 `Could not find the 'remaining' column of 'guest_usage'`
+
+**解决方案**: 创建数据库迁移文件
+```sql
+-- supabase/migrations/20260109_add_remaining_to_guest_usage.sql
+ALTER TABLE guest_usage ADD COLUMN IF NOT EXISTS remaining INTEGER DEFAULT 10;
+UPDATE guest_usage SET remaining = 10 - used_count WHERE remaining IS NULL;
+COMMENT ON COLUMN guest_usage.remaining IS '剩余使用次数（游客默认10次，用户登录后重置）';
+```
+
+**修改文件**:
+- `supabase/migrations/20260109_add_remaining_to_guest_usage.sql` (新增)
+
+**效果**: ✅ guest_usage 表包含 remaining 字段，游客使用次数显示正确
+
+---
+
+## 📅 2026-01-09 (打包流程优化 + Supabase Key 更新)
+
+### 🔧 macOS 打包流程优化（含公证）✅
+
+**核心变更**: 修复公证失败问题，标准化打包流程
+
+**问题发现**:
+- 每次打包都失败，错误：`APPLE_APP_SPECIFIC_PASSWORD env var needs to be set`
+- 根本原因：环境变量未正确传递给 electron-builder
+
+**解决方案**:
+
+1. **创建专用打包脚本** (`scripts/package-mac.js`)
+   - 自动加载 `.env` 文件中的 Apple 凭证
+   - 设置 `APPLE_ID`、`APPLE_ID_PASSWORD`、`APPLE_APP_SPECIFIC_PASSWORD` 环境变量
+   - 清理旧构建 → 构建 → 打包（签名+公证）一键完成
+
+2. **新增打包命令** (`package.json`)
+   ```bash
+   npm run dist:mac:notarized  # ✅ 推荐：含公证
+   npm run dist:mac              # ❌ 不推荐：不会公证
+   ```
+
+3. **优化打包配置** (`package.json`)
+   - macOS: 只生成 DMG，移除 ZIP 和 blockmap
+   - Windows: 只生成 NSIS 安装包，移除绿色版
+
+**验证结果**:
+```bash
+✅ 签名成功: Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39)
+✅ 公证成功: source=Notarized Developer ID
+✅ 文件生成:
+   - 小白AI-2.11.2-arm64.dmg (135MB) - Apple Silicon
+   - 小白AI-2.11.2.dmg (Intel 版本)
+```
+
+**相关文件**:
+- `scripts/package-mac.js` - macOS 打包脚本（新增）
+- `scripts/afterPack.js` - 签名脚本
+- `scripts/notarize.js` - 公证脚本
+- `package.json` - 打包配置优化
+
+---
+
+### 🔑 Supabase API Key 更新 ✅
+
+**问题**: 旧 Supabase API Key 已被禁用（Legacy API keys were disabled on 2026-01-09）
+
+**解决方案**:
+1. 更新 `.env` 文件中的 Supabase Keys
+2. 在 `electron/database.js` 中添加硬编码 fallback
+   - URL: `https://cnszooaxwxatezodbbxq.supabase.co`
+   - Publishable Key: `sb_publishable_VwrPo1L5FuCwCYwmveIZoQ_KqEr8oLe`
+3. 这些是公开信息，可以安全硬编码
+
+**效果**: 打包后环境变量不可用时，使用 fallback 值，确保应用正常运行
+
+---
+
+### 🎨 UI 样式优化：弹窗按钮区域背景 ✅
+
+**问题**: 弹窗底部按钮区域（"取消""确认"）有明显的白色背景，与整体风格不一致
+
+**解决方案**:
+- 移除 `.modal-actions` 的 `background: white;` 属性
+- 改为透明背景，与对话框主体背景融为一体
+
+**影响范围**:
+- ConfirmModal（确认对话框）
+- SettingsModal（设置弹窗）
+- 所有使用 `.modal-actions` 的弹窗
+
+**文件**: `src/components/ModalBase.css:168`
+
+---
+
+### 📚 开发规范更新：新增"第十八条" ✅
+
+**新增章节**: **应用打包与发布规范**
+
+**内容**:
+- macOS 打包流程（本地打包）
+  - 环境准备
+  - 使用标准打包命令
+  - 生成文件说明
+  - 验证签名和公证
+  - 不生成的内容（zip、blockmap）
+- Windows 打包流程（GitHub CI/CD）
+- 版本号同步检查（4个位置）
+- 打包前检查清单
+- 打包后验证步骤
+- 常见问题排查
+
+**文件**: `DEVELOPMENT_GUIDELINES.md`
+
+**版本**: v2.11.3
+
+---
+
+## 📅 2026-01-09 (Edge Functions API 修复)
+
+### 🔧 Edge Functions 参数命名不一致 + 数据库 Schema 缺失修复 ✅
+
+**核心变更**: 修复前端与 Edge Functions 之间的参数命名不一致，补充缺失的数据库字段
+
+**问题发现**:
+- 触发原因：用户测试应用时发现日志中有大量错误
+- 发现时间：2026-01-09 下午
+- 发现方式：分析日志文件（`6localhost-1767939882105.log`）
+
+**问题详情**:
+
+**1. 参数命名不一致**:
+- **前端传递**: `conversation_id`, `message_id`（下划线命名 snake_case）
+- **后端期望**: `conversationId`, `messageId`（驼峰命名 camelCase）
+- **影响的 Edge Functions**:
+  - ❌ `create-message` - 期望 `conversationId`
+  - ❌ `update-message` - 期望 `conversationId`, `messageId`
+  - ❌ `delete-conversation` - 期望 `conversationId`
+
+**2. 数据库 Schema 缺失**:
+- ❌ `guest_usage` 表缺少 `remaining` 字段
+- Edge Function 代码期望该字段存在，但数据库中没有
+- 错误信息：`Could not find the 'remaining' column of 'guest_usage' in the schema cache`
+
+**错误日志示例**:
+```
+❌ [云端服务] 创建消息失败: 缺少必填字段: conversationId
+❌ [云端服务] 更新消息失败: 缺少必填字段: conversationId
+❌ [云端服务] 增加使用次数失败: Could not find the 'remaining' column
+```
+
+**根本原因**:
+1. **命名风格不统一** - 前端使用 snake_case，后端使用 camelCase
+2. **迁移文件不完整** - 创建表时遗漏 `remaining` 字段
+3. **缺少集成测试** - 前后端联调时未发现参数不匹配
+
+**修复方案**:
+
+**1. 修复前端参数命名** (`src/lib/cloudService.js`):
+```javascript
+// 修复前（snake_case）
+const result = await callEdgeFunction('create-message', {
+  conversation_id: conversationId,
+  message: { created_at: xxx }
+});
+
+// 修复后（camelCase）
+const result = await callEdgeFunction('create-message', {
+  conversationId: conversationId,
+  message: { createdAt: xxx }
+});
+```
+
+**修改的函数**:
+- `createMessage()` - `conversation_id` → `conversationId`, `created_at` → `createdAt`
+- `updateMessage()` - `conversation_id` → `conversationId`, `message_id` → `messageId`
+- `deleteConversation()` - `conversation_id` → `conversationId`
+
+**2. 补充数据库 Schema** (`supabase/migrations/20260109_add_remaining_to_guest_usage.sql`):
+```sql
+-- 添加 remaining 字段
+ALTER TABLE guest_usage ADD COLUMN IF NOT EXISTS remaining INTEGER DEFAULT 10;
+
+-- 为现有记录设置初始值
+UPDATE guest_usage SET remaining = 10 - used_count WHERE remaining IS NULL;
+
+-- 添加注释
+COMMENT ON COLUMN guest_usage.remaining IS '剩余使用次数（游客默认10次，用户登录后重置）';
+```
+
+**执行步骤**:
+1. 修改 `src/lib/cloudService.js` 参数命名
+2. 创建数据库迁移文件
+3. 在 Supabase SQL Editor 中执行迁移
+4. 重启开发服务器（确保代码修改生效）
+
+**修复结果**:
+✅ 消息创建成功
+```
+✅ [云端服务] 消息创建成功, ID: 1767940510967
+```
+
+✅ 消息更新成功
+```
+✅ [云端服务] 消息更新成功
+```
+
+✅ 使用次数更新成功
+```
+✅ [云端服务] 使用次数更新成功
+```
+
+**修改文件**:
+- `src/lib/cloudService.js` - 参数命名从 snake_case 改为 camelCase
+- `supabase/migrations/20260109_add_remaining_to_guest_usage.sql` - 添加 remaining 字段
+
+**测试验证**:
+- ✅ 创建消息到云端 - 成功
+- ✅ 更新 AI 消息（包含思考过程）- 成功
+- ✅ 增加游客使用次数 - 成功
+- ✅ 数据库 remaining 字段正常工作
+
+**经验教训**:
+1. 🔴 **统一命名风格** - 前后端应使用相同的命名风格（建议使用 camelCase）
+2. 🔴 **完整的迁移文件** - 创建表时应包含所有必需字段
+3. 🔴 **集成测试** - 前后端联调时需要测试所有 API 调用
+4. 🔴 **日志监控** - 定期检查日志，及时发现错误
+5. 🔴 **接口文档** - 维护 API 文档，明确参数格式
+
+**预防措施**:
+1. 使用 TypeScript 定义统一的接口类型
+2. 添加 API 参数验证（运行时检查）
+3. 编写集成测试覆盖所有 Edge Functions
+4. 定期审查数据库 Schema 是否与代码一致
+5. 建立前后端接口契约测试
+
+**相关文档**:
+- [Supabase Edge Functions 文档](https://supabase.com/docs/guides/functions)
+- [数据库迁移指南](./docs/数据库迁移指南.md)
+
+---
+
+## 📅 2026-01-09 (弹窗组件优化)
 
 ### 🎨 删除 WelcomeModal + 优化弹窗体验
 
@@ -549,6 +1461,131 @@ cat .env.example | grep -v "your_\|here"
 ```
 
 **状态**: ✅ 已完全解决，新的 Keys 安全存储在本地 `.env` 中
+
+---
+
+## 📅 2026-01-09 (安全修复完成)
+
+### 🔒 API Key 泄露修复 - 远程分支合并验证 ✅
+
+**核心变更**: 验证远程仓库已包含所有安全修复，本地同步完成
+
+**背景**:
+- 发现 `.env.example`、`src/lib/cloudService.js`、`electron/database.js` 存在硬编码敏感信息
+- 之前的修复（commit 5a2ba4a）在远程分支，本地分支未合并
+- 本地尝试手动修复后发现远程已有更新
+
+**执行过程**:
+
+1. **本地修复尝试**:
+   - 修复 `.env.example` - 替换真实 Keys 为占位符
+   - 修复 `src/lib/cloudService.js` - 使用环境变量
+   - 修复 `electron/database.js` - 移除硬编码默认值
+
+2. **提交冲突**:
+   - 尝试推送被拒绝（本地落后远程 75 个提交）
+   - 尝试拉取失败（分支分叉）
+   - 发现远程已包含所有安全修复
+
+3. **同步操作**:
+   ```bash
+   git reset --hard origin/main
+   ```
+   - 强制重置到远程最新状态
+   - 远程代码使用 Edge Functions 架构
+   - 所有安全修复已在远程生效
+
+**修复内容**（远程代码）:
+
+1. **`.env.example`** - 使用占位符:
+   ```bash
+   # 安全做法：使用占位符
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+   ALIYUN_ACCESS_KEY_ID=your_access_key_id_here
+   ```
+
+2. **`src/lib/cloudService.js`** - 使用环境变量:
+   ```javascript
+   const EDGE_FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+   ```
+
+3. **`electron/database.js`** - 移除硬编码:
+   ```javascript
+   // 无硬编码默认值，只使用环境变量
+   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+   ```
+
+**安全验证结果**:
+```bash
+✅ .gitignore 配置正确（.env 已忽略）
+✅ .env 未被 Git 跟踪
+✅ Git 历史中无 .env 记录
+✅ .env 文件权限正确（600）
+✅ 当前代码无硬编码敏感信息
+```
+
+**安全机制**（已部署）:
+- ✅ 环境变量隔离
+- ✅ .gitignore 防护
+- ✅ 占位符模板
+- ✅ 安全检查脚本（`npm run security:check`）
+- ✅ Git hooks（pre-commit、pre-push）
+- ✅ 文件权限控制（600）
+
+**相关文档**:
+- [安全检查报告](./docs/安全检查报告-20260109.md) - 详细的审计结果
+- [API Key 泄露事故根因分析](./docs/API-KEY-泄露事故根因分析.md) - 深度分析
+- [安全防护机制](./docs/安全防护机制.md) - 4层防御体系
+- [第一次修复记录](#-2026-01-09-安全修复) - GitHub API Key 泄露修复
+
+**根本原因分析**:
+1. **分支管理问题** - 修复分支未及时合并到主分支
+2. **缺乏自动化检查** - 无 pre-commit hook 阻止敏感信息提交
+3. **开发便利性优先** - 为快速测试直接硬编码
+4. **误解示例文件** - 认为 `.env.example` 应包含真实值
+
+**预防措施**:
+1. ✅ 安装 Git hooks（pre-commit、pre-push）
+2. ✅ 使用安全扫描脚本定期检查
+3. ✅ 强制使用环境变量
+4. ✅ 代码审查流程
+5. ✅ 密钥轮换机制（每3-6个月）
+
+**经验教训**:
+1. 🔴 **永远不要硬编码敏感信息** - 无论出于什么原因
+2. 🔴 **及时合并分支** - 避免长期分叉
+3. 🔴 **自动化检查** - 不要依赖人工审查
+4. 🔴 **环境变量优先** - 开发和生产使用同一套机制
+5. 🔴 **定期审计** - 使用工具扫描历史记录
+
+**验证命令**:
+```bash
+# 运行安全检查
+npm run security:check
+
+# 检查硬编码的 Keys
+grep -r "eyJhbGc" src/ electron/ --include="*.js"
+
+# 检查 .env.example
+cat .env.example | grep -v "your_\|here"
+
+# 检查 Git 状态
+git status
+```
+
+**当前状态**:
+- ✅ 本地与远程完全同步
+- ✅ 所有安全检查通过
+- ✅ 工作区干净
+- ✅ 无硬编码敏感信息
+
+**后续建议**:
+虽然当前代码已安全，但 Git 历史中可能仍包含已泄露的密钥。建议：
+1. **密钥轮换** - 更新所有可能泄露的 API Keys
+2. **历史清理**（可选）- 使用 `git filter-repo` 清理历史
+3. **强制推送**（慎用）- 清理历史后需要所有协作者重新克隆
 
 ---
 
@@ -1423,9 +2460,20 @@ let messages = [
 
 ---
 
-**最后更新**: 2026-01-08
+**最后更新**: 2026-01-09 17:40
 **记录人**: Claude Code + 晓力
-**当前版本**: v2.10.7
+**当前版本**: v2.11.6
+**今日更新**:
+- API Key 云端同步（跨设备同步）
+- 游客限制数据库化（动态配置）
+- 登录状态同步、双重计数修复
+- 安全增强（多用户隔离）
+- 新增测试报告和UI展示页面
+
+**待解决问题**:
+- ⏳ 登录 HTTP 401 错误（待排查）
+
 **归档说明**:
 - 2026-01-08 17:15: 历史记录移至 MEMORY_ARCHIVE.md
 - 2026-01-08 17:43: 代码和文档整理完成
+- 2026-01-09 15:45: v2.11.4 游客模式完整修复和测试

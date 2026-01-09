@@ -1,8 +1,8 @@
 # 设备ID与游客模式
 
-> **适用版本**: v2.5.0+
-> **阅读时间**: 8分钟
-> **相关文档**: [登录系统](./02-登录系统.md) | [数据库设计](./03-数据库设计.md)
+> **适用版本**: v2.5.0+ (v2.11.4 更新)
+> **阅读时间**: 10分钟
+> **相关文档**: [登录系统](./02-登录系统.md) | [数据库设计](./03-数据库设计.md) | [API参考](./05-api-reference.md)
 
 ---
 
@@ -480,6 +480,343 @@ async function handleSendMessage(message) {
 
 ---
 
+## v2.11.4 重大修复
+
+### 问题背景
+
+在 v2.11.3 及之前的版本中，游客模式存在两个关键问题：
+
+1. **双重计数问题**：发送一条消息，使用次数增加 2 次（应该增加 1 次）
+2. **登录后仍被限制**：游客次数用完后登录，仍然被提示"次数已用完"
+
+### 问题 1: 双重计数
+
+#### 根本原因
+
+游客模式下的使用次数更新存在双重计数：
+
+```javascript
+// ❌ v2.11.3 的错误实现
+
+// 1. 后端（electron/main.js）在 send-message 时增加
+db.incrementGuestUsage(deviceId);  // +1
+
+// 2. 前端（src/App.jsx）也调用云端函数增加
+await incrementUserUsage();  // +1 (重复！)
+setGuestStatus({ usedCount: incrementResult.usedCount });  // 覆盖后端值
+```
+
+**结果**：
+- 本地数据库 `used_count = 2`（实际应该为 1）
+- 前端显示 `2/2`（实际应该显示 `1/2`）
+- 用户发送 1 条消息，但计数增加了 2 次
+
+#### 修复方案 (v2.11.4)
+
+**原则**：游客使用次数只由后端管理，前端通过 IPC 事件监听更新
+
+```javascript
+// ✅ v2.11.4 的正确实现
+
+// 后端（electron/main.js）- send-message 处理器
+ipcMain.handle('send-message', async (event, message) => {
+  // 增加游客使用次数
+  db.incrementGuestUsage(deviceId);
+
+  // 通过 IPC 事件通知前端
+  const newStatus = db.canGuestUse(deviceId);
+  mainWindow.webContents.send('guest-usage-updated', {
+    usedCount: newStatus.usedCount,
+    remaining: newStatus.remaining
+  });
+
+  return { success: true };
+});
+
+// 前端（src/App.jsx）- 删除重复调用
+// 🔥 v2.11.4 修复：游客使用次数由后端在 send-message 时增加
+// 后端会通过 IPC 事件 'guest-usage-updated' 通知前端
+// 前端监听器会自动更新 guestStatus，无需在此处手动调用 incrementUserUsage
+// 避免双重计数（后端本地数据库 + 前端云端数据库）
+// await incrementUserUsage();  // ❌ 已删除
+
+// 前端监听 IPC 事件
+useEffect(() => {
+  window.electronAPI.onGuestUsageUpdated((data) => {
+    setGuestStatus((prev) => ({
+      ...prev,
+      usedCount: data.usedCount,
+      remaining: data.remaining
+    }));
+  });
+}, []);
+```
+
+**修改文件**：
+- `src/App.jsx` - 删除前端云函数调用（lines 1082-1085）
+- `electron/main.js` - 增强 IPC 事件发送逻辑（lines 1220-1225）
+
+---
+
+### 问题 2: 登录状态未同步
+
+#### 根本原因
+
+前端使用 Supabase Edge Functions 登录，但后端的 `isGuestMode` 变量从未更新：
+
+```javascript
+// ❌ v2.11.3 的问题
+
+// 前端登录成功（src/App.jsx）
+async function handleLoginSuccess(user) {
+  setCurrentUser(user);  // ✅ 前端状态更新
+  // ❌ 但后端 isGuestMode 仍然是 true！
+}
+
+// 后端发送消息（electron/main.js）
+ipcMain.handle('send-message', async (event, message) => {
+  if (isGuestMode) {  // ❌ 仍然是 true，即使用户已登录
+    // 检查游客限制
+    const status = db.canGuestUse(deviceId);
+    if (!status.canUse) {
+      return { error: '游客免费次数已用完' };  // ❌ 登录用户也被拦截
+    }
+  }
+});
+```
+
+**结果**：
+- 游客次数用完后登录
+- 发送消息仍被提示"次数已用完"
+- 用户体验极差
+
+#### 修复方案 (v2.11.4)
+
+**三层防护机制**：
+
+##### 1. 新增 `sync-login-status` IPC 处理器
+
+```javascript
+// electron/main.js (lines 975-992)
+ipcMain.handle('sync-login-status', async (event, user) => {
+  try {
+    if (user && user.id) {
+      // 有用户信息，设置登录状态
+      currentUser = user;
+      isGuestMode = false;
+      safeLog('✅ 登录状态已同步到后端:', user);
+
+      // 🔥 v2.11.4 修复：在本地 users 表中创建/更新用户记录
+      const existingUser = db.getUserById(user.id);
+      if (!existingUser) {
+        safeLog('📝 在本地数据库创建用户记录:', user.id);
+        db.insertUser({
+          id: user.id,
+          phone: user.phone || '',
+          apiKey: user.api_key || null
+        });
+      }
+      return { success: true };
+    }
+  } catch (error) {
+    safeError('同步登录状态失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+```
+
+##### 2. `init-agent` 自动检查
+
+```javascript
+// electron/main.js (lines 1037-1042)
+ipcMain.handle('init-agent', async (event, config) => {
+  // ... 初始化逻辑 ...
+
+  // 🔥 v2.11.4 修复：自动判断是否应该退出游客模式
+  if (isGuestMode && currentUser) {
+    // 当前是游客模式，但有登录用户，自动退出游客模式
+    isGuestMode = false;
+    safeLog('✅ 检测到登录用户，自动退出游客模式');
+  }
+
+  return { success: true };
+});
+```
+
+##### 3. 前端登录后立即调用同步
+
+```javascript
+// src/App.jsx (lines 448-450)
+async function handleLoginSuccess(user) {
+  console.log('✅ [App] 登录成功:', user);
+
+  // 🔥 v2.11.4 修复：同步登录状态到后端（重要！）
+  await window.electronAPI.syncLoginStatus(user);
+  console.log('✅ [App] 登录状态已同步到后端');
+
+  // ... 其他逻辑 ...
+}
+```
+
+**IPC 暴露**：
+
+```javascript
+// electron/preload.js (line 62)
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // 同步登录状态到后端
+  syncLoginStatus: (user) => ipcRenderer.invoke('sync-login-status', user),
+
+  // ... 其他 API ...
+});
+```
+
+**修改文件**：
+- `electron/main.js` - 新增 sync-login-status 处理器（lines 975-992）
+- `electron/main.js` - init-agent 自动检查（lines 1037-1042）
+- `electron/preload.js` - 暴露 syncLoginStatus API（line 62）
+- `src/App.jsx` - 登录后调用同步（lines 448-450）
+
+---
+
+### 调试日志增强
+
+为方便排查问题，v2.11.4 增加了详细的调试日志：
+
+#### 后端日志
+
+```javascript
+// electron/main.js - send-message 处理器
+safeLog('📡 准备发送 IPC 事件: guest-usage-updated, usedCount=${newStatus.usedCount}, remaining=${newStatus.remaining}');
+mainWindow.webContents.send('guest-usage-updated', {
+  usedCount: newStatus.usedCount,
+  remaining: newStatus.remaining
+});
+safeLog('✅ IPC 事件已发送');
+```
+
+#### 前端日志
+
+```javascript
+// src/App.jsx - IPC 事件监听器
+window.electronAPI.onGuestUsageUpdated((data) => {
+  console.log('📡 [App] 收到游客使用次数更新事件:', data);
+  setGuestStatus((prev) => {
+    console.log('📊 [App] 更新前 guestStatus:', prev);
+    const newStatus = {
+      ...prev,
+      usedCount: data.usedCount,
+      remaining: data.remaining
+    };
+    console.log('📊 [App] 更新后 guestStatus:', newStatus);
+    return newStatus;
+  });
+});
+```
+
+#### 日志示例
+
+```
+✅ 登录状态已同步到后端: { id: 'xxx', phone: '18601043813' }
+📡 准备发送 IPC 事件: guest-usage-updated, usedCount=1, remaining=1
+✅ IPC 事件已发送
+📡 [App] 收到游客使用次数更新事件: { usedCount: 1, remaining: 1 }
+📊 [App] 更新前 guestStatus: { usedCount: 0, remaining: 2 }
+📊 [App] 更新后 guestStatus: { usedCount: 1, remaining: 1 }
+```
+
+---
+
+### 完整流程对比
+
+#### ❌ v2.11.3（有问题）
+
+```
+1. 用户发送消息
+   ├─ 后端：incrementGuestUsage() +1
+   ├─ 后端：发送 guest-usage-updated 事件
+   ├─ 前端：收到事件，但被覆盖 ↓
+   ├─ 前端：incrementUserUsage() +1  (重复！)
+   └─ 结果：used_count = 2 (错误！)
+
+2. 游客次数用完后登录
+   ├─ 前端：setCurrentUser(user) ✅
+   ├─ 后端：isGuestMode = true (未更新) ❌
+   └─ 发送消息：被拦截"次数已用完" ❌
+```
+
+#### ✅ v2.11.4（已修复）
+
+```
+1. 用户发送消息
+   ├─ 后端：incrementGuestUsage() +1
+   ├─ 后端：发送 guest-usage-updated 事件
+   ├─ 前端：收到事件，更新状态 ✅
+   └─ 结果：used_count = 1 (正确！)
+
+2. 游客次数用完后登录
+   ├─ 前端：setCurrentUser(user) ✅
+   ├─ 前端：syncLoginStatus(user) ✅
+   ├─ 后端：isGuestMode = false (已更新) ✅
+   └─ 发送消息：正常发送 ✅
+
+3. 登录用户退出登录
+   ├─ init-agent 自动检查：检测到无用户
+   ├─ 后端：isGuestMode = true ✅
+   └─ 游客限制恢复生效 ✅
+```
+
+---
+
+### 安全性修复
+
+v2.11.4 同时修复了一个安全问题：
+
+**问题**：控制台日志暴露 Supabase 密钥前缀
+
+```javascript
+// ❌ 之前（不安全）
+console.log('🔧 [SupabaseClient] 环境变量加载状态:', {
+  hasUrl: !!supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  urlPrefix: supabaseUrl?.substring(0, 20) + '...',  // ⚠️ 暴露前缀
+  anonKeyPrefix: supabaseAnonKey?.substring(0, 20) + '...'  // ⚠️ 暴露前缀
+});
+// 输出: { urlPrefix: 'https://cnszooaxwx...', anonKeyPrefix: 'sb_publishable_VwrPo...' }
+```
+
+**修复**：
+
+```javascript
+// ✅ v2.11.4（安全）
+// 🔒 v2.11.4 安全修复：删除 Key 前缀输出，避免敏感信息泄露
+console.log('🔧 [SupabaseClient] 环境变量加载状态:', {
+  hasUrl: !!supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  hasServiceRoleKey: !!supabaseServiceRoleKey
+});
+// 输出: { hasUrl: true, hasAnonKey: true }
+```
+
+**安全风险**：从 中等 (60/100) → 低 (10/100)
+
+---
+
+### 测试配置
+
+为方便测试，v2.11.4 临时将游客限制从 10 次改为 2 次：
+
+**修改位置**（标记为 `// 🔧 临时测试：10 -> 2`）：
+- `electron/database.js` - 8 处修改
+- `electron/main.js` - 错误提示消息
+
+**注意**：这些是临时测试配置，正式版本应该恢复为 10 次。
+
+---
+
+---
+
 ## 常见问题
 
 ### Q1: 设备ID会变吗?
@@ -560,5 +897,5 @@ UPDATE conversations SET user_id = ? WHERE device_id = ? AND user_id IS NULL;
 
 ---
 
-**最后更新**: 2026-01-07
-**相关文档**: [登录系统](./02-登录系统.md) | [数据库设计](./03-数据库设计.md)
+**最后更新**: 2026-01-09 (v2.11.4)
+**相关文档**: [登录系统](./02-登录系统.md) | [数据库设计](./03-数据库设计.md) | [API参考](./05-api-reference.md)

@@ -6,13 +6,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 // 调试输出
+// 🔒 v2.11.4 安全修复：删除 Key 前缀输出，避免敏感信息泄露
 console.log('🔧 [SupabaseClient] 环境变量加载状态:', {
   hasUrl: !!supabaseUrl,
   hasAnonKey: !!supabaseAnonKey,
-  hasServiceRoleKey: !!supabaseServiceRoleKey,
-  urlPrefix: supabaseUrl?.substring(0, 20) + '...',
-  anonKeyPrefix: supabaseAnonKey?.substring(0, 20) + '...',
-  serviceRoleKeyPrefix: supabaseServiceRoleKey?.substring(0, 20) + '...'
+  hasServiceRoleKey: !!supabaseServiceRoleKey
 });
 
 // 🔥 v2.10.18 修复：检查环境变量是否存在

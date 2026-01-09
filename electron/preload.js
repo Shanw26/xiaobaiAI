@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendVerificationCode: (phone) => ipcRenderer.invoke('send-verification-code', phone),
   loginWithCode: (phone, code) => ipcRenderer.invoke('login-with-code', phone, code),
   logout: () => ipcRenderer.invoke('logout'),
+  syncLoginStatus: (user) => ipcRenderer.invoke('sync-login-status', user),
   getCurrentUser: () => ipcRenderer.invoke('get-current-user'),
   updateUserApiKey: (apiKey) => ipcRenderer.invoke('update-user-api-key', apiKey),
   useGuestMode: () => ipcRenderer.invoke('use-guest-mode'),

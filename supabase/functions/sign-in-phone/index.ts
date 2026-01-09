@@ -32,6 +32,7 @@ interface UserProfile {
   id: string
   phone: string
   has_api_key: boolean
+  api_key?: string
   created_at: string
 }
 
@@ -146,7 +147,8 @@ serve(async (req) => {
     const result = {
       id: user.id,
       phone: user.phone,
-      has_api_key: user.has_api_key || false
+      has_api_key: user.has_api_key || false,
+      api_key: user.api_key || null  // 🔥 v2.11.5 新增：返回 api_key
     }
 
     logSuccess(FUNCTION_NAME, { user_id: user.id })
