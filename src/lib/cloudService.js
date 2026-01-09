@@ -95,7 +95,8 @@ export async function sendVerificationCode(phone) {
 
     // 保存验证码到数据库（验证码表）
     console.log('💾 [云端服务] 保存验证码到数据库...');
-    const { error: dbError } = await supabaseAdmin
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
+    const { error: dbError } = await supabase
       .from('verification_codes')
       .insert({
         phone,
@@ -132,7 +133,8 @@ export async function signInWithPhone(phone, code) {
 
     // 1. 验证验证码（使用 admin 客户端绕过 RLS）
     console.log('\n📋 [云端服务] 步骤1: 验证验证码...');
-    const { data: codeRecord, error: codeError } = await supabaseAdmin
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
+    const { data: codeRecord, error: codeError } = await supabase
       .from('verification_codes')
       .select('*')
       .eq('phone', phone)
@@ -155,7 +157,8 @@ export async function signInWithPhone(phone, code) {
     console.log('\n👤 [云端服务] 步骤2: 查询或创建用户...');
 
     // 先查询用户资料
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('phone', phone)
@@ -170,7 +173,8 @@ export async function signInWithPhone(phone, code) {
       const userId = crypto.randomUUID();
 
       // 创建新用户（使用 admin 客户端）
-      const { data: newProfile, error: createError } = await supabaseAdmin
+      // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
+      const { data: newProfile, error: createError } = await supabase
         .from('user_profiles')
         .insert([{
           id: userId,
@@ -195,7 +199,8 @@ export async function signInWithPhone(phone, code) {
 
     // 3. 标记验证码已使用（使用 admin 客户端）
     console.log('\n✅ [云端服务] 步骤3: 标记验证码已使用...');
-    await supabaseAdmin
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
+    await supabase
       .from('verification_codes')
       .update({ used: true })
       .eq('id', codeRecord.id);
@@ -269,11 +274,11 @@ export async function getUserUsageCount() {
     const user = getCurrentUserSync();
     const deviceId = await getDeviceId();
 
-    // 🔥 关键修复：游客模式下也要查询使用次数
+    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
     if (!user) {
       console.log('ℹ️  [云端服务] 游客模式，查询设备使用次数');
 
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await supabase
         .from('guest_usage')
         .select('used_count')
         .eq('device_id', deviceId)
@@ -297,7 +302,7 @@ export async function getUserUsageCount() {
     // 登录用户：查询 user_id 的使用次数
     console.log('ℹ️  [云端服务] 登录用户，查询用户使用次数');
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('guest_usage')
       .select('used_count')
       .eq('user_id', user.id)
@@ -342,7 +347,7 @@ export async function incrementUserUsage() {
       console.log('ℹ️  [云端服务] 游客模式，记录设备使用次数');
 
       // 查询或创建游客使用记录（基于 device_id）
-      const { data: existing } = await supabaseAdmin
+      const { data: existing } = await supabase
         .from('guest_usage')
         .select('used_count, remaining')
         .eq('device_id', deviceId)
@@ -354,7 +359,7 @@ export async function incrementUserUsage() {
         const newUsedCount = existing.used_count + 1;
         const newRemaining = Math.max(0, existing.remaining - 1);
 
-        const { data: updated, error: updateError } = await supabaseAdmin
+        const { data: updated, error: updateError } = await supabase
           .from('guest_usage')
           .update({
             used_count: newUsedCount,
@@ -375,7 +380,7 @@ export async function incrementUserUsage() {
         return { success: true, usedCount: newUsedCount, remaining: newRemaining };
       } else {
         // 创建新记录（游客模式：user_id = NULL, device_id 有值）
-        const { data: created, error: createError } = await supabaseAdmin
+        const { data: created, error: createError } = await supabase
           .from('guest_usage')
           .insert({
             user_id: null,  // 🔥 游客模式：user_id 为 NULL
@@ -401,7 +406,7 @@ export async function incrementUserUsage() {
     console.log('ℹ️  [云端服务] 登录用户，记录用户使用次数');
 
     // 使用数据库函数来增加使用次数
-    const { data, error } = await supabaseAdmin.rpc('increment_user_usage', {
+    const { data, error } = await supabase.rpc('increment_user_usage', {
       p_user_id: user.id,
       p_device_id: deviceId
     });
@@ -410,7 +415,7 @@ export async function incrementUserUsage() {
       console.error('❌ [云端服务] 增加使用次数失败:', error);
 
       // 如果函数不存在，手动实现
-      const { data: existing } = await supabaseAdmin
+      const { data: existing } = await supabase
         .from('guest_usage')
         .select('used_count, remaining')
         .eq('user_id', user.id)
@@ -420,7 +425,7 @@ export async function incrementUserUsage() {
         const newUsedCount = existing.used_count + 1;
         const newRemaining = Math.max(0, existing.remaining - 1);
 
-        const { data: updated, error: updateError } = await supabaseAdmin
+        const { data: updated, error: updateError } = await supabase
           .from('guest_usage')
           .update({
             used_count: newUsedCount,
@@ -442,7 +447,7 @@ export async function incrementUserUsage() {
         const newUsedCount = 1;
         const newRemaining = 9;
 
-        const { data: created, error: createError } = await supabaseAdmin
+        const { data: created, error: createError } = await supabase
           .from('guest_usage')
           .insert({
             user_id: user.id,
@@ -498,7 +503,7 @@ export async function loadConversations() {
       // 不应该查询 device_id，否则会包含其他用户在该设备上的对话
       console.log('✅ [云端服务] 当前用户ID:', user.id);
 
-      const { data: userConvs, error: error1 } = await supabaseAdmin
+      const { data: userConvs, error: error1 } = await supabase
         .from('conversations')
         .select('*')
         .eq('user_id', user.id)  // 只查询 user_id 匹配的对话
@@ -511,7 +516,7 @@ export async function loadConversations() {
       // 游客模式：只获取该设备的对话
       console.log('👤 [云端服务] 游客模式，加载设备对话');
 
-      const { data: guestConvs, error: error2 } = await supabaseAdmin
+      const { data: guestConvs, error: error2 } = await supabase
         .from('conversations')
         .select('*')
         .eq('device_id', deviceId)
@@ -534,7 +539,7 @@ export async function loadConversations() {
     // 为每个对话获取消息
     const conversationsWithMessages = await Promise.all(
       (conversations || []).map(async (conv) => {
-        const { data: messages } = await supabaseAdmin
+        const { data: messages } = await supabase
           .from('messages')
           .select('*')
           .eq('conversation_id', conv.id)
@@ -603,7 +608,7 @@ export async function createConversation(conversation) {
     console.log('   准备插入数据:', JSON.stringify(insertData, null, 2));
 
     // 创建对话
-    const { data: newConv, error: convError } = await supabaseAdmin
+    const { data: newConv, error: convError } = await supabase
       .from('conversations')
       .insert(insertData)
       .select()
@@ -647,7 +652,7 @@ export async function createMessage(conversationId, message) {
     console.log('   消息角色:', message.role);
     console.log('   内容长度:', message.content?.length || 0);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('messages')
       .insert({
         id: message.id || Date.now().toString(),
@@ -698,7 +703,7 @@ export async function updateMessage(conversationId, messageId, updates) {
       updateData.thinking = updates.thinking;
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('messages')
       .update(updateData)
       .eq('id', messageId)
@@ -725,7 +730,7 @@ export async function deleteConversation(conversationId) {
   try {
     console.log('🗑️  [云端服务] 删除对话:', conversationId);
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('conversations')
       .update({ is_deleted: true })
       .eq('id', conversationId);
@@ -762,7 +767,7 @@ export async function mergeGuestConversations(userId) {
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
     // 使用数据库函数来合并（避免 RLS 递归问题）
-    const { data, error } = await supabaseAdmin.rpc('merge_guest_conversations_to_user', {
+    const { data, error } = await supabase.rpc('merge_guest_conversations_to_user', {
       p_device_id: deviceId,
       p_user_id: userId
     });
@@ -1038,7 +1043,7 @@ export async function mergeGuestUserInfo(userId) {
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
     // 1. 查询游客时期的用户信息（device_id 有值，user_id 为 null）
-    const { data: guestData, error: guestError } = await supabaseAdmin
+    const { data: guestData, error: guestError } = await supabase
       .from('user_info')
       .select('*')
       .eq('device_id', deviceId)
@@ -1057,7 +1062,7 @@ export async function mergeGuestUserInfo(userId) {
     }
 
     // 2. 查询登录用户是否已有用户信息（user_id 有值，device_id 为 null）
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('user_info')
       .select('*')
       .eq('user_id', userId)
@@ -1072,7 +1077,7 @@ export async function mergeGuestUserInfo(userId) {
     if (userData) {
       // 登录用户已有数据，删除游客数据（保留登录用户的）
       console.log('🗑️  [云端服务] 登录用户已有数据，删除游客数据');
-      const { error: deleteError } = await supabaseAdmin
+      const { error: deleteError } = await supabase
         .from('user_info')
         .delete()
         .eq('id', guestData.id);
@@ -1084,7 +1089,7 @@ export async function mergeGuestUserInfo(userId) {
     } else {
       // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
       console.log('🔄 [云端服务] 将游客数据关联到登录用户');
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('user_info')
         .update({ user_id: userId, device_id: null })
         .eq('id', guestData.id);
@@ -1117,7 +1122,7 @@ export async function mergeGuestAiMemory(userId) {
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
     // 1. 查询游客时期的AI记忆（device_id 有值，user_id 为 null）
-    const { data: guestData, error: guestError } = await supabaseAdmin
+    const { data: guestData, error: guestError } = await supabase
       .from('ai_memory')
       .select('*')
       .eq('device_id', deviceId)
@@ -1136,7 +1141,7 @@ export async function mergeGuestAiMemory(userId) {
     }
 
     // 2. 查询登录用户是否已有AI记忆（user_id 有值，device_id 为 null）
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('ai_memory')
       .select('*')
       .eq('user_id', userId)
@@ -1151,7 +1156,7 @@ export async function mergeGuestAiMemory(userId) {
     if (userData) {
       // 登录用户已有数据，删除游客数据（保留登录用户的）
       console.log('🗑️  [云端服务] 登录用户已有AI记忆，删除游客数据');
-      const { error: deleteError } = await supabaseAdmin
+      const { error: deleteError } = await supabase
         .from('ai_memory')
         .delete()
         .eq('id', guestData.id);
@@ -1163,7 +1168,7 @@ export async function mergeGuestAiMemory(userId) {
     } else {
       // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
       console.log('🔄 [云端服务] 将游客AI记忆关联到登录用户');
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('ai_memory')
         .update({ user_id: userId, device_id: null })
         .eq('id', guestData.id);
