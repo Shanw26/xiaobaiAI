@@ -80,3 +80,7 @@ diagnose-*.js
 verify-*.js
 compare-*.js
 *-fix-guide.md
+
+# 安全检查报告（可能包含临时敏感信息）
+security-check-report-*.md
+security-audit-*.md
