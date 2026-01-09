@@ -34,6 +34,148 @@
 
 ---
 
+## 📅 2026-01-09 (弹窗组件优化)
+
+### 🎨 删除 WelcomeModal + 优化弹窗体验
+
+**核心变更**: 简化登录流程、优化弹窗布局、创建预览工具
+
+**原因**:
+- WelcomeModal 功能已废弃，但代码未删除
+- LoginModal 分步表单体验不佳（需要点击"获取验证码"才能看到验证码输入框）
+- UpdateAvailableModal 可能因内容过多导致按钮不可见
+- 需要弹窗预览工具，方便开发时对比 macOS 和 Windows 风格
+
+**实施方案**:
+
+#### 1. 删除 WelcomeModal ✅
+- **删除文件**:
+  - `src/components/WelcomeModal.jsx` - 组件代码
+  - `src/components/WelcomeModal.css` - 样式文件
+- **更新文档**:
+  - `docs/modal-component-spec.md` - 移除所有 WelcomeModal 引用
+  - `docs/13-troubleshooting.md` - 更新故障排查示例
+  - `docs/17-troubleshooting.md` - 同步更新
+
+#### 2. 优化 LoginModal ✅
+**变更内容**: 改为同时显示手机号和验证码输入框
+
+**优化前**（分步表单）:
+```
+步骤1: 输入手机号 → 点击"获取验证码" → 步骤2: 输入验证码
+```
+
+**优化后**（同时显示）:
+```
+手机号输入框
+验证码输入框 | [获取验证码] 按钮
+[登录] 按钮
+```
+
+**修改文件**:
+- `src/components/LoginModal.jsx`
+  - 移除 `step` 状态（不再分步）
+  - 移除 `setStep('code')` 逻辑
+  - 同时显示两个字段
+  - 倒计时逻辑保持不变
+
+**用户体验提升**:
+- ✅ 减少操作步骤
+- ✅ 更直观的界面
+- ✅ 验证码倒计时更明显
+
+#### 3. 优化 UpdateAvailableModal ✅
+**问题**: 更新日志内容过多时，弹窗可能被撑开，导致"立即更新"按钮不可见
+
+**解决方案**: 限制弹窗最大高度，使用 Flex 布局
+
+**修改文件**: `src/components/UpdateAvailableModal.css`
+
+**关键代码**:
+```css
+.update-modal {
+  max-height: 85vh; /* 限制最大高度为屏幕的85% */
+  display: flex;
+  flex-direction: column;
+}
+
+.update-body {
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto; /* 内容超出时可滚动 */
+  min-height: 0; /* 允许 flex 子元素收缩 */
+}
+
+.update-actions {
+  flex-shrink: 0; /* 确保按钮区域始终可见 */
+}
+```
+
+**效果**:
+- ✅ 弹窗最大高度为屏幕的 85%
+- ✅ 更新日志过长时，body 区域出现滚动条
+- ✅ 按钮始终可见，不会被遮挡
+
+#### 4. 创建弹窗预览工具 ✅
+**目的**: 方便对比 macOS 和 Windows 风格，调试弹窗样式
+
+**创建文件**:
+- `modals-preview.html` - macOS 风格预览
+- `modals-preview-windows.html` - Windows Fluent Design 风格预览
+
+**包含的弹窗**:
+1. AlertModal - 警告提示（xsmall，有图标）
+2. ConfirmModal - 确认对话框（xsmall，无图标）
+3. LoginModal - 手机号登录（small）
+4. GuestLimitModal - 游客限制（modal-content）
+5. UpdateAvailableModal - 版本更新（medium）
+6. ToastModal - 右上角通知（浮动）
+
+**平台差异对比**:
+
+| 特性 | macOS (苹果风格) | Windows (Fluent Design) |
+|-----|----------------|----------------------|
+| 背景渐变 | 紫色 (#667eea → #764ba2) | 蓝色 (#0078D4 → #005A9E) |
+| 弹窗背景 | 白色 + 毛玻璃 (blur 40px) | 纯白色 |
+| 圆角大小 | 20px | 8px |
+| 字体 | SF Pro Display | Segoe UI Variable |
+| 按钮高度 | 48px | 32px |
+| 按钮圆角 | 12px | 4px |
+| 动画时长 | 0.35s | 0.15s (更快) |
+| 边框 | 无 | 1px solid rgba(0,0,0,0.12) |
+
+**使用方法**:
+```bash
+# macOS 预览
+open modals-preview.html
+
+# Windows 预览
+open modals-preview-windows.html
+```
+
+**修改文件清单**:
+1. **删除文件**:
+   - `src/components/WelcomeModal.jsx`
+   - `src/components/WelcomeModal.css`
+
+2. **修改文件**:
+   - `src/components/LoginModal.jsx` - 改为同时显示手机号和验证码
+   - `src/components/UpdateAvailableModal.css` - 限制弹窗高度，优化滚动
+   - `docs/modal-component-spec.md` - 移除 WelcomeModal
+   - `docs/13-troubleshooting.md` - 更新示例代码
+   - `docs/17-troubleshooting.md` - 同步更新
+
+3. **新增文件**:
+   - `modals-preview.html` - macOS 风格弹窗预览
+   - `modals-preview-windows.html` - Windows 风格弹窗预览
+
+**测试结果**: 待测试
+
+**相关文档**:
+- [弹窗组件设计规范](./docs/modal-component-spec.md) - ModalBase.css 使用指南
+- [系统提示词与工具优先级 (v2.10.27)](./docs/v2.10.27-系统提示词与工具优先级.md)
+
+---
+
 ## 📅 2026-01-09 (安全修复)
 
 ### 🔒 GitHub API Key 泄露事故 - 紧急修复 ⚠️✅

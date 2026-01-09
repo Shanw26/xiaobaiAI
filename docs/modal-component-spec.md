@@ -123,7 +123,7 @@
 
 | 层级 | z-index | 使用场景 | 示例 |
 |------|---------|---------|------|
-| 普通弹窗 | 1000 | 一般弹窗 | LoginModal, WelcomeModal |
+| 普通弹窗 | 1000 | 一般弹窗 | LoginModal, GuestLimitModal |
 | 重要提示 | 2000 | 需要用户注意 | ToastModal, UpdateAvailableModal |
 | 强制更新 | 9999 | 阻断式弹窗 | ForceUpdateModal |
 
@@ -190,7 +190,6 @@ border-radius: 12px;
 | ToastModal | ToastModal.jsx | small | 2000 | 简单提示 |
 | GuestLimitModal | GuestLimitModal.jsx | small | 1000 | 游客限制提示 |
 | LoginModal | LoginModal.jsx | small | 1000 | 手机验证码登录 |
-| WelcomeModal | WelcomeModal.jsx | medium | 1000 | 分步引导 |
 | ForceUpdateModal | ForceUpdateModal.jsx | small | 9999 | 强制更新（不可关闭） |
 | UpdateAvailableModal | UpdateAvailableModal.jsx | medium | 2000 | 可选更新 |
 | UpdateDownloadedModal | UpdateDownloadedModal.jsx | small | 2000 | 更新完成提醒 |
@@ -318,8 +317,6 @@ src/components/
 ├── GuestLimitModal.css     # 样式（优化后 67 行）
 ├── LoginModal.jsx          # 登录弹窗
 ├── LoginModal.css          # 样式（优化后 149 行）
-├── WelcomeModal.jsx        # 欢迎弹窗
-├── WelcomeModal.css        # 样式（优化后 154 行）
 ├── ForceUpdateModal.jsx    # 强制更新弹窗
 ├── ForceUpdateModal.css    # 样式（优化后保留特殊功能）
 ├── UpdateAvailableModal.jsx
@@ -558,7 +555,6 @@ background: #00cc66; /* 应该用 var(--primary) */
 - ForceUpdateModal
 - UpdateDownloadedModal
 - UpdateAvailableModal
-- WelcomeModal
 - LoginModal
 
 ---

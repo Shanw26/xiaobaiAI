@@ -36,9 +36,12 @@
   border-radius: var(--radius-lg);
   width: 90%;
   max-width: 500px;
+  max-height: 85vh; /* ✅ 限制弹窗最大高度为屏幕高度的85% */
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.3s ease-out;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .update-header {
@@ -84,6 +87,9 @@
 
 .update-body {
   padding: 24px;
+  flex: 1; /* ✅ 占据剩余空间 */
+  overflow-y: auto; /* ✅ 内容超出时可滚动 */
+  min-height: 0; /* ✅ 允许 flex 子元素收缩 */
 }
 
 .update-version {
@@ -171,8 +177,7 @@
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.6;
-  max-height: 300px;
-  overflow-y: auto;
+  /* ✅ 移除 max-height 和 overflow，让整个 body 区域滚动 */
 }
 
 .notes-html-content {
@@ -449,6 +454,7 @@
   padding: 20px 24px;
   background: var(--bg-secondary);
   justify-content: flex-end;
+  flex-shrink: 0; /* ✅ 确保按钮区域始终可见，不被滚动 */
 }
 
 .btn-update {

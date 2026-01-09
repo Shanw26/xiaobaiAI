@@ -85,15 +85,15 @@ HTTP 401 Unauthorized
 ```
 
 **症状**:
-- 悬浮框（WelcomeModal）保存用户信息时报错
-- 设置页面保存也可能失败
+- 设置页面保存用户信息时报错
+- 其他用户信息保存入口失败
 
 **原因分析**:
 
-多个入口访问同一份数据，但使用了不同的保存方法：
-- WelcomeModal 使用本地保存 API：`window.electronAPI.saveUserInfo()`
-- SettingsModal 使用云端保存 API：`cloudService.saveUserInfo()`
-- 数据格式不一致（Object vs Markdown String）
+数据保存方法不一致：
+- 早期版本使用本地保存 API：`window.electronAPI.saveUserInfo()`
+- 当前版本使用云端保存 API：`cloudService.saveUserInfo()`
+- 数据格式可能不一致（Object vs Markdown String）
 
 **解决方案**:
 
@@ -225,7 +225,7 @@ HTTP 401 Unauthorized
    ```javascript
    // 确认组件导入了正确的 CSS
    import './ModalBase.css';  // 基础样式
-   import './WelcomeModal.css';  // 组件特定样式
+   import './LoginModal.css';  // 组件特定样式
    ```
 
 3. **检查浏览器控制台**：
