@@ -3,21 +3,68 @@
 
 const db = require('./database');
 
+// v2.10.26 - 容错机制：防止重复从 Supabase 获取
+let isFetchingFromSupabase = false;
+let cachedApiKey = null;
+
 module.exports = {
   // 模型提供商：'anthropic' (Claude) 或 'zhipu' (智谱GLM)
   provider: 'zhipu',
 
-  // ✨ v2.10.9 安全改进：只从数据库读取 API Key
+  // ✨ v2.10.26 容错机制：如果数据库中没有 API Key，自动从 Supabase 重新获取
   // 官方 API Key 在首次启动时写入数据库（database.js: initOfficialConfig）
   // 之后所有请求都从数据库读取，确保安全性
   get apiKey() {
-    const key = db.getOfficialApiKey();
-
-    if (!key) {
-      console.error('❌ 官方 API Key 未找到，请检查数据库初始化');
+    // 1. 先尝试从缓存获取
+    if (cachedApiKey) {
+      return cachedApiKey;
     }
 
-    return key;
+    // 2. 从数据库读取
+    const key = db.getOfficialApiKey();
+
+    if (key) {
+      cachedApiKey = key;
+      return key;
+    }
+
+    // 3. 如果数据库中没有，且没有正在获取，启动异步获取
+    if (!key && !isFetchingFromSupabase) {
+      console.warn('⚠️ 官方 API Key 未找到，尝试从 Supabase 重新获取...');
+      isFetchingFromSupabase = true;
+
+      // 异步从 Supabase 获取并写入数据库
+      db.fetchOfficialConfigFromSupabase().then(config => {
+        if (config && config.apiKey) {
+          console.log('✅ 从 Supabase 重新获取官方配置成功');
+          // 写入数据库
+          db.setSystemConfig('official_api_key', config.apiKey, '官方智谱GLM API Key（游客模式使用）');
+          db.setSystemConfig('official_provider', config.provider, '官方模型提供商');
+          db.setSystemConfig('official_model', config.model, '官方默认模型');
+          db.setSystemConfig('free_usage_limit', config.limit, '游客免费使用次数限制');
+          db.setSystemConfig('official_config_initialized', 'true', '配置已初始化标记');
+          console.log('✅ 官方配置已写入数据库');
+          // 更新缓存
+          cachedApiKey = config.apiKey;
+        } else {
+          console.error('❌ 从 Supabase 获取配置失败');
+        }
+        isFetchingFromSupabase = false;
+      }).catch(error => {
+        console.error('❌ 从 Supabase 获取配置出错:', error.message);
+        isFetchingFromSupabase = false;
+      });
+
+      console.warn('⚠️ 正在从 Supabase 获取配置，请稍后重试...');
+    }
+
+    return null;
+  },
+
+  // 重置缓存（用于测试或强制刷新）
+  resetCache() {
+    cachedApiKey = null;
+    isFetchingFromSupabase = false;
   },
 
   // 游客免费使用次数限制（从数据库读取）

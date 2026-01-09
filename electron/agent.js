@@ -12,9 +12,9 @@ const db = require('./database');
 let supabaseAdmin = null;
 try {
   const { createClient } = require('@supabase/supabase-js');
-  // 从环境变量或官方配置获取 Supabase URL 和 Key
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://cnszooaxwxatezodbbxq.supabase.co';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+  // 从环境变量获取 Supabase URL 和 Key
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (supabaseKey) {
     supabaseAdmin = createClient(supabaseUrl, supabaseKey, {

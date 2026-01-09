@@ -1,10 +1,10 @@
 import { supabase, supabaseAdmin } from './supabaseClient';
 
-// Edge Function URL
-const EDGE_FUNCTION_URL = 'https://cnszooaxwxatezodbbxq.supabase.co/functions/v1/send-sms';
+// Edge Function URL（从环境变量读取）
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`;
 
-// Supabase Anon Key（用于前端调用 Edge Function）
-const SUPABASE_ANON_KEY = 'REMOVED';
+// Supabase Anon Key（从环境变量读取）
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // ==================== 辅助函数 ====================
 
