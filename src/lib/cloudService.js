@@ -1186,48 +1186,12 @@ export async function mergeGuestAiMemory(userId) {
  * 获取默认用户信息模板
  */
 function getDefaultUserInfoTemplate() {
-  return `# 用户信息
-
-## 基本信息
-- 姓名：
-- 职业：
-- 兴趣爱好：
-
-## 偏好设置
-- 工作时间：
-- 学习风格：
-- 沟通方式：
-
-## 其他信息
-- 特殊需求：
-- 常用工具：
-- 备注信息：
-`;
+  return '';
 }
 
 /**
  * 获取默认AI记忆模板
  */
 function getDefaultAiMemoryTemplate() {
-  return `# AI 记忆
-
-## 对话历史记录
-- 重要对话内容
-- 用户偏好
-- 常见问题
-
-## 用户习惯
-- 工作流程
-- 常用命令
-- 操作习惯
-
-## 重要事项
-- 特殊要求
-- 注意事项
-- 待办事项
-
-## 其他信息
-- 补充记录
-- 备注信息：
-`;
+  return '';
 }
