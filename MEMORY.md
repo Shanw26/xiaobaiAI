@@ -34,7 +34,278 @@
 
 ---
 
-## 📅 2026-01-09 (弹窗组件优化)
+## 📅 2026-01-09
+
+### 🚀 Edge Functions 完整迁移 - 彻底解决浏览器密钥安全问题 ⭐
+
+**版本**: v2.10.27 → v2.10.28
+
+**核心变更**: 将所有前端数据库操作迁移到 Supabase Edge Functions（服务端）
+
+**原因**:
+- 浏览器端使用 service role key 导致 Supabase 报错：`Forbidden use of secret API key in browser`
+- 安全隐患：service role key 不应暴露在浏览器中
+- 需要统一的数据访问层，便于维护和扩展
+
+**实施方案**:
+
+#### 1. 创建共享工具模块 ✅
+**文件**: `supabase/functions/_shared/_supabaseClient.ts` (233 行)
+
+**功能**:
+- 数据库客户端封装（service role 权限）
+- CORS 处理
+- 标准化响应格式（successResponse, errorResponse）
+- 请求验证（validateMethod, validateRequired）
+- 日志辅助函数（logRequest, logSuccess, logError）
+- 智能查询函数（querySmart - 自动判断游客/登录用户）
+
+**关键代码**:
+```typescript
+export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+})
+
+export function validateRequired<T>(body: T, requiredFields: (keyof T)[]) {
+  for (const field of requiredFields) {
+    if (!body[field]) {
+      return { valid: false, missing: String(field) }
+    }
+  }
+  return { valid: true }
+}
+```
+
+#### 2. 创建 16 个 Edge Functions ✅
+
+**分类清单**:
+
+**登录和用量管理（4个）**:
+1. `send-verification-code` - 发送短信验证码
+2. `sign-in-phone` - 手机号登录
+3. `get-user-usage` - 获取使用次数
+4. `increment-usage` - 增加使用次数
+
+**对话管理（5个）**:
+5. `load-conversations` - 加载对话列表
+6. `create-conversation` - 创建新对话
+7. `create-message` - 创建消息
+8. `update-message` - 更新消息
+9. `delete-conversation` - 删除对话
+
+**用户信息（2个）**:
+10. `get-user-info` - 获取用户信息
+11. `save-user-info` - 保存用户信息
+
+**AI记忆（2个）**:
+12. `get-ai-memory` - 获取AI记忆
+13. `save-ai-memory` - 保存AI记忆
+
+**数据合并（3个）**:
+14. `merge-guest-conversations` - 合并游客对话
+15. `merge-guest-user-info` - 合并游客用户信息
+16. `merge-guest-ai-memory` - 合并游客AI记忆
+
+**Edge Function 标准结构**:
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import {
+  supabase, corsHeaders, handleOptions,
+  successResponse, errorResponse,
+  validateMethod, validateRequired,
+  logRequest, logSuccess, logError
+} from '../_shared/_supabaseClient.ts'
+
+serve(async (req) => {
+  const FUNCTION_NAME = 'function-name'
+
+  if (req.method === 'OPTIONS') {
+    return handleOptions()
+  }
+
+  try {
+    if (!validateMethod(req, ['POST'])) {
+      return errorResponse('方法不允许', 405)
+    }
+
+    const { param1, param2 } = await req.json()
+    logRequest(FUNCTION_NAME, { param1, param2 })
+
+    const validation = validateRequired({ param1 }, ['param1'])
+    if (!validation.valid) {
+      return errorResponse(`缺少必填字段: ${validation.missing}`)
+    }
+
+    // 业务逻辑使用 service role key
+    const { data } = await supabase.from('table').select('*')
+
+    logSuccess(FUNCTION_NAME, data)
+    return successResponse(data)
+  } catch (error: any) {
+    logError(FUNCTION_NAME, error)
+    return errorResponse(error.message, 500)
+  }
+})
+```
+
+#### 3. 前端代码改造 ✅
+**文件**: `src/lib/cloudService.js`
+
+**改动统计**:
+- 删除代码：395 行（前端数据库操作逻辑）
+- 新增代码：120 行（Edge Function 调用）
+- 净减少：275 行
+- 代码简化：900+ 行 → 600+ 行
+
+**改造模式**:
+
+**改造前**（直接访问数据库）:
+```javascript
+// ❌ 浏览器端使用 service role key（不安全）
+const { data } = await supabaseAdmin.from('conversations').select('*')
+```
+
+**改造后**（调用 Edge Function）:
+```javascript
+// ✅ 浏览端调用 Edge Function（安全）
+const result = await callEdgeFunction('load-conversations', {
+  user_id: user?.id,
+  device_id: deviceId
+});
+
+if (!result.success) {
+  return { success: false, error: result.error };
+}
+
+return { success: true, data: result.data };
+```
+
+**辅助函数**:
+```javascript
+async function callEdgeFunction(functionName, data) {
+  const response = await fetch(`${EDGE_FUNCTIONS_BASE}/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY
+    },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+  return result;
+}
+```
+
+#### 4. 数据库 Schema 更新 ✅
+**文件**: `supabase/migrations/20260109_add_user_id_to_guest_usage.sql`
+
+**问题**: `guest_usage` 表缺少 `user_id` 列，导致 Edge Function 查询失败
+
+**修复**:
+```sql
+-- 添加 user_id 列
+ALTER TABLE guest_usage ADD COLUMN IF NOT EXISTS user_id TEXT;
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_guest_usage_user_id ON guest_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_guest_usage_device_user ON guest_usage(device_id, user_id);
+```
+
+**手动执行脚本**: `fix_guest_usage_table.sql`
+
+#### 5. Bug 修复 ✅
+
+**问题 1**: `validateRequired is not defined`
+- **原因**: Edge Function 导入语句缺少 `validateRequired`
+- **影响**: `get-user-usage` 等 Edge Function 报错
+- **修复**: 所有 Edge Function 添加 `validateRequired` 导入
+- **部署**: 重新部署所有 16 个 Edge Functions
+
+**问题 2**: `column guest_usage.user_id does not exist`
+- **原因**: 数据库表缺少 `user_id` 列
+- **影响**: 获取使用次数失败
+- **修复**: 创建迁移文件添加列 + 手动执行 SQL
+
+#### 6. 版本发布 ✅
+**版本**: v2.10.28
+**打包内容**:
+- ✅ Windows x64 安装程序（224 MB）
+- ✅ Windows ARM64 安装程序
+- ✅ NSIS 安装向导（可选择安装目录）
+- ✅ 增量更新支持（.blockmap）
+
+**修改文件清单**:
+
+**新增文件** (18个):
+1. `supabase/functions/_shared/_supabaseClient.ts` - 共享工具模块
+2-17. 16 个 Edge Functions 的 `index.ts` 文件
+18. `supabase/migrations/20260109_add_user_id_to_guest_usage.sql`
+
+**修改文件** (1个):
+1. `src/lib/cloudService.js` - 所有函数改为调用 Edge Functions
+
+**部署的 Edge Functions**:
+```
+✅ create-conversation
+✅ create-message
+✅ delete-conversation
+✅ get-ai-memory
+✅ get-user-info
+✅ get-user-usage
+✅ increment-usage
+✅ load-conversations
+✅ merge-guest-ai-memory
+✅ merge-guest-conversations
+✅ merge-guest-user-info
+✅ save-ai-memory
+✅ save-user-info
+✅ send-sms (已存在)
+✅ send-verification-code
+✅ sign-in-phone
+✅ update-message
+```
+
+**测试结果**: ✅ 通过
+
+**架构对比**:
+
+| 方面 | 迁移前 | 迁移后 |
+|-----|--------|--------|
+| 浏览器端密钥 | service role key（不安全） | anon key（安全） |
+| 数据库操作 | 直接调用 | Edge Functions 代理 |
+| 代码位置 | 前端（cloudService.js） | 服务端（Edge Functions） |
+| 代码行数 | 900+ 行 | 600+ 行 |
+| 安全性 | ❌ 密钥暴露 | ✅ 密钥隔离 |
+| 维护性 | ⚠️ 分散 | ✅ 集中 |
+
+**安全架构**:
+```
+迁移前:
+浏览器 → Supabase API（使用 service role key）❌
+
+迁移后:
+浏览器 → Edge Functions（使用 anon key）→ Supabase（使用 service role key）✅
+```
+
+**关键优势**:
+1. ✅ **安全性**: Service role key 永远不暴露在浏览器中
+2. ✅ **简化性**: 前端代码减少 275 行
+3. ✅ **一致性**: 所有数据库操作统一通过 Edge Functions
+4. ✅ **可维护性**: 业务逻辑集中在服务端，易于调试和扩展
+5. ✅ **合规性**: 符合 Supabase 安全最佳实践
+
+**相关文档**:
+- Supabase Edge Functions: https://supabase.com/docs/guides/functions
+- 安全最佳实践: https://supabase.com/docs/guides/functions/security
+
+**Git 提交**:
+- `90ed94d` - 完成 Edge Functions 前端改造（v2.10.27）
+- `22ab115` - 修复 Edge Function 和数据库 schema 问题（v2.10.28）
+- `0b83b21` - 发布版本 2.10.28 - Windows 版本
+
+---
 
 ### 🎨 删除 WelcomeModal + 优化弹窗体验
 
