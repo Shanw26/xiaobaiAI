@@ -189,7 +189,113 @@ export async function signOut() {
 // ==================== 用户使用次数管理 ====================
 
 /**
- * 获取用户使用次数（Edge Function 版本）
+ * 获取登录用户每日使用状态（Edge Function 版本）
+ * @returns {Promise<{success: boolean, data?: {dailyLimit: number, dailyUsed: number, remaining: number, lastResetDate: string}, error?: string}>}
+ */
+export async function getDailyUsage() {
+  try {
+    console.log('📊 [云端服务] 获取登录用户每日使用状态');
+
+    const user = getCurrentUserSync();
+    if (!user || !user.id) {
+      return { success: false, error: '用户未登录' };
+    }
+
+    // 调用 user-daily-usage Edge Function
+    const result = await callEdgeFunction('user-daily-usage', {
+      action: 'get',
+      user_id: user.id
+    });
+
+    if (!result.success) {
+      console.error('❌ [云端服务] 获取每日使用状态失败:', result.error);
+      return { success: false, error: result.error };
+    }
+
+    console.log(`✅ [云端服务] 每日使用 ${result.data.dailyUsed}/${result.data.dailyLimit}，剩余 ${result.data.remaining} 次`);
+    return { success: true, data: result.data };
+  } catch (error) {
+    console.error('❌ [云端服务] 获取每日使用状态异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 增加登录用户每日使用次数（Edge Function 版本）
+ * @returns {Promise<{success: boolean, data?: {dailyLimit: number, dailyUsed: number, remaining: number, lastResetDate: string}, error?: string}>}
+ */
+export async function incrementDailyUsage() {
+  try {
+    console.log('📊 [云端服务] 增加登录用户每日使用次数');
+
+    const user = getCurrentUserSync();
+    if (!user || !user.id) {
+      return { success: false, error: '用户未登录' };
+    }
+
+    // 调用 user-daily-usage Edge Function
+    const result = await callEdgeFunction('user-daily-usage', {
+      action: 'increment',
+      user_id: user.id
+    });
+
+    if (!result.success) {
+      // 如果是 429 错误（超出限制），返回特殊标识
+      if (result.error && result.error.includes('今日使用次数已达上限')) {
+        console.log('⚠️ [云端服务] 今日使用次数已达上限');
+        return { success: false, error: 'DAILY_LIMIT_REACHED', data: result.data };
+      }
+      console.error('❌ [云端服务] 增加使用次数失败:', result.error);
+      return { success: false, error: result.error };
+    }
+
+    console.log('✅ [云端服务] 使用次数更新成功');
+    return { success: true, data: result.data };
+  } catch (error) {
+    console.error('❌ [云端服务] 增加使用次数异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 检查登录用户是否可以使用（Edge Function 版本）
+ * @returns {Promise<{success: boolean, canUse?: boolean, remaining?: number, error?: string}>}
+ */
+export async function checkDailyUsage() {
+  try {
+    console.log('📊 [云端服务] 检查登录用户是否可使用');
+
+    const user = getCurrentUserSync();
+    if (!user || !user.id) {
+      return { success: false, error: '用户未登录' };
+    }
+
+    // 调用 user-daily-usage Edge Function
+    const result = await callEdgeFunction('user-daily-usage', {
+      action: 'check',
+      user_id: user.id
+    });
+
+    if (!result.success) {
+      // 如果是 429 错误（超出限制），返回特殊标识
+      if (result.error && result.error.includes('今日使用次数已达上限')) {
+        console.log('⚠️ [云端服务] 今日使用次数已达上限');
+        return { success: false, error: 'DAILY_LIMIT_REACHED' };
+      }
+      console.error('❌ [云端服务] 检查使用次数失败:', result.error);
+      return { success: false, error: result.error };
+    }
+
+    console.log(`✅ [云端服务] 可以使用，剩余 ${result.data.remaining} 次`);
+    return { success: true, canUse: result.data.canUse, remaining: result.data.remaining };
+  } catch (error) {
+    console.error('❌ [云端服务] 检查使用次数异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 获取用户使用次数（Edge Function 版本）- 游客模式使用
  * @returns {Promise<{success: boolean, usedCount?: number, error?: string}>}
  */
 export async function getUserUsageCount() {
@@ -341,14 +447,14 @@ export async function createMessage(conversationId, message) {
 
     // 🔥 v2.10.27 Edge Function：调用 create-message
     const result = await callEdgeFunction('create-message', {
-      conversation_id: conversationId,
+      conversationId: conversationId,
       message: {
         id: message.id || Date.now().toString(),
         role: message.role,
         content: message.content,
         thinking: message.thinking,
         files: message.files,
-        created_at: message.createdAt || new Date().toISOString()
+        createdAt: message.createdAt || new Date().toISOString()
       }
     });
 
@@ -378,8 +484,8 @@ export async function updateMessage(conversationId, messageId, updates) {
 
     // 🔥 v2.10.27 Edge Function：调用 update-message
     const result = await callEdgeFunction('update-message', {
-      conversation_id: conversationId,
-      message_id: messageId,
+      conversationId: conversationId,
+      messageId: messageId,
       updates: updates
     });
 
@@ -407,7 +513,7 @@ export async function deleteConversation(conversationId) {
 
     // 🔥 v2.10.27 Edge Function：调用 delete-conversation
     const result = await callEdgeFunction('delete-conversation', {
-      conversation_id: conversationId
+      conversationId: conversationId
     });
 
     if (!result.success) {
@@ -701,4 +807,83 @@ function getDefaultUserInfoTemplate() {
  */
 function getDefaultAiMemoryTemplate() {
   return '';
+}
+
+// ==================== API Key 云端同步 ====================
+
+/**
+ * 保存 API Key 到云端
+ * @param {string} apiKey - API Key
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function saveApiKey(apiKey) {
+  try {
+    const user = getCurrentUserSync();
+    if (!user || !user.id) {
+      return { success: false, error: '用户未登录' };
+    }
+
+    console.log('🔑 [云端服务] 保存 API Key 到云端');
+
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({
+        api_key: apiKey,
+        has_api_key: !!apiKey && apiKey.length > 0
+      })
+      .eq('user_id', user.id)
+      .select();
+
+    if (error) {
+      console.error('❌ [云端服务] 保存 API Key 失败:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ [云端服务] API Key 已保存到云端');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [云端服务] 保存 API Key 异常:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 从云端加载 API Key
+ * @returns {Promise<{success: boolean, apiKey?: string, hasApiKey?: boolean, error?: string}>}
+ */
+export async function loadApiKey() {
+  try {
+    const user = getCurrentUserSync();
+    if (!user || !user.id) {
+      return { success: false, error: '用户未登录' };
+    }
+
+    console.log('🔑 [云端服务] 从云端加载 API Key');
+
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('api_key, has_api_key')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [云端服务] 加载 API Key 失败:', error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      console.log('ℹ️ [云端服务] 未找到用户配置');
+      return { success: true, apiKey: null, hasApiKey: false };
+    }
+
+    console.log(`✅ [云端服务] API Key 加载成功 (hasApiKey: ${data.has_api_key})`);
+    return {
+      success: true,
+      apiKey: data.api_key,
+      hasApiKey: data.has_api_key
+    };
+  } catch (error) {
+    console.error('❌ [云端服务] 加载 API Key 异常:', error);
+    return { success: false, error: error.message };
+  }
 }

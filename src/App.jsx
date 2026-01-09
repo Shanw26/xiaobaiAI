@@ -74,13 +74,17 @@ function AppContent() {
 
   // 登录用户的使用次数（从云端读取，10次免费额度）
   const [userUsageCount, setUserUsageCount] = useState(0);
+  // 登录用户的每日使用次数状态
+  const [dailyUsageStatus, setDailyUsageStatus] = useState(null);
 
-  // 当用户登录时，从云端加载使用次数
+  // 当用户登录时，从云端加载使用次数和每日使用状态
   useEffect(() => {
     if (currentUser) {
       loadUserUsageCount();
+      loadDailyUsageStatus();
     } else {
       setUserUsageCount(0);
+      setDailyUsageStatus(null);
     }
   }, [currentUser]);
 
@@ -96,6 +100,28 @@ function AppContent() {
       }
     } catch (error) {
       console.error('❌ [App] 加载使用次数异常:', error);
+    }
+  };
+
+  // 从云端加载每日使用状态
+  const loadDailyUsageStatus = async () => {
+    try {
+      const { getDailyUsage } = await import('./lib/cloudService');
+      const result = await getDailyUsage();
+      if (result.success) {
+        setDailyUsageStatus({
+          dailyLimit: result.data.dailyLimit,
+          dailyUsed: result.data.dailyUsed,
+          remaining: result.data.remaining,
+          lastResetDate: result.data.lastResetDate,
+          hasApiKey: result.data.has_api_key || false  // 🔥 v2.11.5 新增：记录是否有 API Key
+        });
+        console.log(`✅ [App] 每日使用状态: ${result.data.dailyUsed}/${result.data.dailyLimit}，剩余 ${result.data.remaining} 次`);
+      } else {
+        console.error('❌ [App] 获取每日使用状态失败:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ [App] 加载每日使用状态异常:', error);
     }
   };
 
@@ -266,11 +292,18 @@ function AppContent() {
 
     // 监听游客使用次数更新
     window.electronAPI.onGuestUsageUpdated((data) => {
-      setGuestStatus((prev) => ({
-        ...prev,
-        usedCount: data.usedCount,
-        remaining: data.remaining
-      }));
+      console.log('📡 [App] 收到游客使用次数更新事件:', data);
+      setGuestStatus((prev) => {
+        console.log('📊 [App] 更新前 guestStatus:', prev);
+        const newStatus = {
+          ...prev,
+          usedCount: data.usedCount,
+          remaining: data.remaining,
+          limit: data.limit || prev?.limit || 10
+        };
+        console.log('📊 [App] 更新后 guestStatus:', newStatus);
+        return newStatus;
+      });
     });
   }, [currentChatId]); // v2.8.8 - 添加 currentChatId 依赖
 
@@ -352,7 +385,8 @@ function AppContent() {
           setGuestStatus({
             canUse: userStatus.canUse,
             remaining: userStatus.remaining,
-            usedCount: userStatus.usedCount
+            usedCount: userStatus.usedCount,
+            limit: userStatus.limit
           });
 
           // 游客模式直接使用官方Key初始化Agent
@@ -373,9 +407,36 @@ function AppContent() {
           console.log('   hasApiKey:', userStatus.user.hasApiKey);
           auth.login(userStatus.user);
 
-          // 如果用户有API Key，使用用户配置初始化Agent
-          if (userStatus.user.hasApiKey) {
-            console.log('🔑 [App] 用户有API Key，使用用户配置初始化Agent');
+          // 🔥 v2.11.4 修复：先同步登录状态到后端，确保 isGuestMode = false
+          await window.electronAPI.syncLoginStatus(userStatus.user);
+          console.log('✅ [App] 登录状态已同步到后端');
+
+          // 🔥 v2.11.5 修复：先清空本地 API Key，防止其他用户的 Key 泄露
+          savedConfig.apiKey = '';
+          await window.electronAPI.saveConfig(savedConfig);
+          console.log('🔒 [App] 已清空本地 API Key（安全措施）');
+
+          // 🔥 v2.11.5 新增：从云端加载 API Key
+          try {
+            const { loadApiKey } = await import('./lib/cloudService');
+            const apiKeyResult = await loadApiKey();
+            if (apiKeyResult.success && apiKeyResult.apiKey) {
+              // 云端有 API Key，使用云端的
+              savedConfig.apiKey = apiKeyResult.apiKey;
+              await window.electronAPI.saveConfig(savedConfig);
+              setConfig(savedConfig);
+              console.log('✅ [App] 从云端加载 API Key 成功');
+            } else {
+              // 云端没有 API Key，保持空值
+              console.log('ℹ️  [App] 云端未保存 API Key');
+            }
+          } catch (error) {
+            console.error('⚠️  [App] 加载云端 API Key 失败（非致命）:', error);
+          }
+
+          // 如果用户有API Key（云端或本地），使用用户配置初始化Agent
+          if (userStatus.user.hasApiKey || savedConfig.apiKey) {
+            console.log('🔑 [App] 使用用户配置初始化Agent');
             const result = await window.electronAPI.initAgent(savedConfig);
             console.log('   Agent 初始化结果:', result);
             if (result.success) {
@@ -383,7 +444,7 @@ function AppContent() {
               console.log('✅ [App] Agent 初始化成功（用户Key）');
             }
           } else {
-            // 用户没有API Key，使用官方Key初始化Agent（游客模式）
+            // 用户没有API Key，使用官方Key初始化Agent
             console.log('🆓 [App] 用户无API Key，使用官方Key初始化Agent');
             const result = await window.electronAPI.initAgent({
               modelProvider: 'zhipu',
@@ -423,7 +484,8 @@ function AppContent() {
         setGuestStatus({
           canUse: guestStatusResult.canUse,
           remaining: guestStatusResult.remaining,
-          usedCount: guestStatusResult.usedCount
+          usedCount: guestStatusResult.usedCount,
+          limit: guestStatusResult.limit
         });
       }
     } catch (error) {
@@ -438,6 +500,10 @@ function AppContent() {
     // 先登录，这会触发 currentUser 更新
     auth.login(user);
     setShowLoginModal(false);
+
+    // 🔥 v2.11.3 修复：同步登录状态到后端（重要！）
+    await window.electronAPI.syncLoginStatus(user);
+    console.log('✅ [App] 登录状态已同步到后端');
 
     // 🔥 关键修复：清空游客状态
     setGuestStatus(null);
@@ -459,11 +525,36 @@ function AppContent() {
       console.error('⚠️  [App] 获取云端使用次数失败（非致命）:', error);
     }
 
-    // 重新初始化Agent
+    // 🔥 v2.11.5 修复：从云端加载 API Key
+    // 先清空本地 API Key，防止其他用户的 Key 泄露
     const savedConfig = await window.electronAPI.readConfig();
+    savedConfig.apiKey = '';
+    await window.electronAPI.saveConfig(savedConfig);
+    console.log('🔒 [App] 已清空本地 API Key（安全措施）');
 
-    // 如果用户有API Key，使用用户配置初始化Agent
-    if (user.hasApiKey) {
+    let cloudApiKey = null;
+    try {
+      const { loadApiKey } = await import('./lib/cloudService');
+      const apiKeyResult = await loadApiKey();
+      if (apiKeyResult.success && apiKeyResult.apiKey) {
+        cloudApiKey = apiKeyResult.apiKey;
+        console.log('✅ [App] 从云端加载 API Key 成功');
+
+        // 保存到本地配置
+        savedConfig.apiKey = cloudApiKey;
+        await window.electronAPI.saveConfig(savedConfig);
+        setConfig(savedConfig);
+        console.log('✅ [App] 云端 API Key 已保存到本地配置');
+      } else {
+        console.log('ℹ️  [App] 云端未保存 API Key');
+      }
+    } catch (error) {
+      console.error('⚠️  [App] 加载云端 API Key 失败（非致命）:', error);
+    }
+
+    // 重新初始化Agent（savedConfig 已经在上面声明过了）
+    // 优先级：云端的 API Key > 本地配置的 API Key > 官方 API Key
+    if (cloudApiKey || savedConfig.apiKey) {
       const result = await window.electronAPI.initAgent(savedConfig);
       if (result.success) {
         setIsAgentReady(true);
@@ -648,6 +739,13 @@ function AppContent() {
       // 加载全局提示和记忆文件
       await loadGlobalPromptAndMemory(newConfig);
 
+      // 🔥 v2.11.5 修复：在初始化 Agent 前，先同步用户状态到后端
+      // 避免后端误判为游客模式
+      if (currentUser) {
+        await window.electronAPI.syncLoginStatus(currentUser);
+        console.log('✅ [handleSaveConfig] 已同步用户状态到后端');
+      }
+
       // 重新初始化 Agent
       if (newConfig.apiKey && newConfig.apiKey.trim() !== '') {
         // 用户有 API Key，使用用户配置初始化 Agent
@@ -678,6 +776,12 @@ function AppContent() {
       console.error('保存配置失败:', error);
       showAlert('保存配置失败: ' + error.message, 'error');
     }
+  };
+
+  const handleUserUpdate = (updatedUser) => {
+    // 🔥 v2.11.5 新增：更新 currentUser 对象
+    setCurrentUser(updatedUser);
+    console.log('✅ [App] currentUser 已更新:', updatedUser);
   };
 
   const handleSelectChat = (chatId) => {
@@ -828,18 +932,26 @@ function AppContent() {
     if (!currentUser && guestStatus) {
       if (!guestStatus.canUse) {
         setShowGuestLimitModal(true);
-        return;
+        return { success: false }; // 🔥 修复：明确返回失败状态，避免清空输入框
       }
     }
 
-    // ✅ 登录用户无限制使用，不检查使用次数
+    // 🔥 v2.11.5 修复：只有使用官方 API Key 时才检查每日限制
+    // 如果用户输入了自己的 API Key（云端或本地），使用自己的配额，不检查每日限制
+    const userHasApiKey = config?.apiKey || dailyUsageStatus?.hasApiKey;
+    if (currentUser && dailyUsageStatus && !userHasApiKey) {
+      if (dailyUsageStatus.remaining <= 0) {
+        showAlert('今日使用已达上限，请使用自己的key，或联系晓力', 'warning');
+        return { success: false };
+      }
+    }
 
     if (!isAgentReady) {
       console.log('⚠️ [App] Agent 未就绪，isAgentReady =', isAgentReady);
       console.log('   currentUser:', currentUser);
       console.log('   config:', config);
       showAlert('AI 正在初始化中，请稍候...', 'info');
-      return;
+      return { success: false }; // 🔥 修复：明确返回失败状态，避免清空输入框
     }
 
     // 创建新对话或追加到现有对话
@@ -902,6 +1014,31 @@ function AppContent() {
 
     setConversations(updated);
 
+    // 🔥 v2.11.3 优化：立即返回成功，让输入框立即清空
+    // 后续的 AI 调用、云端更新等操作在后台异步执行
+    const chatClone = chat; // 保存 chat 引用用于后续异步操作
+
+    // 🚀 立即返回，让输入框马上清空
+    // 后续所有 AI 处理在后台异步执行
+    processAIMessageInBackground({
+      chat: chatClone,
+      content,
+      globalPrompt,
+      files,
+      aiMessageId,
+      currentUser
+    }).catch(error => {
+      console.error('❌ [App] 后台 AI 处理失败:', error);
+    });
+
+    return { success: true };
+  };
+
+  // 🔥 v2.11.3 新增：后台异步处理 AI 消息
+  // 这样可以让输入框立即清空，不需要等待 AI 响应
+  const processAIMessageInBackground = async ({
+    chat, content, globalPrompt, files, aiMessageId, currentUser
+  }) => {
     // 构建完整的消息内容（只包含全局提示，记忆由AI通过工具调用获取）
     let fullContent = content;
     if (globalPrompt) {
@@ -947,8 +1084,15 @@ function AppContent() {
         setShowGuestLimitModal(true);
         // 移除 AI 消息占位符
         chat.messages.pop();
-        setConversations([...conversations]);
-        return chat;
+        setConversations((prev) => {
+          const newConversations = [...prev];
+          const targetChat = newConversations.find((c) => c.id === chat.id);
+          if (targetChat) {
+            targetChat.messages = [...chat.messages];
+          }
+          return newConversations;
+        });
+        return;
       }
 
       if (!result.success) {
@@ -983,21 +1127,36 @@ function AppContent() {
         thinking: result.thinking || null
       });
 
-      // 增加游客使用次数（登录用户无限制，不计数）
-      if (!currentUser) {
-        const incrementResult = await incrementUserUsage();
-        if (incrementResult.success) {
-          console.log(`📊 [App] 游客使用次数更新: ${incrementResult.usedCount}/10, 剩余: ${incrementResult.remaining}`);
-          // 🔥 关键修复：同步更新本地状态，确保前端显示正确
-          setGuestStatus(prev => ({
-            ...prev,
-            usedCount: incrementResult.usedCount,
-            remaining: incrementResult.remaining
-          }));
-        } else {
-          console.error('❌ [App] 更新游客使用次数失败:', incrementResult.error);
+      // 🔥 v2.11.5 修复：只有使用官方 API Key 时才增加每日使用次数
+      // 如果用户输入了自己的 API Key（云端或本地），使用自己的配额，不统计每日使用次数
+      const userHasApiKey = config?.apiKey || dailyUsageStatus?.hasApiKey;
+      if (currentUser && !userHasApiKey) {
+        try {
+          const { incrementDailyUsage } = await import('./lib/cloudService');
+          const incrementResult = await incrementDailyUsage();
+          if (incrementResult.success) {
+            // 更新每日使用状态
+            setDailyUsageStatus({
+              dailyLimit: incrementResult.data.dailyLimit,
+              dailyUsed: incrementResult.data.dailyUsed,
+              remaining: incrementResult.data.remaining,
+              lastResetDate: incrementResult.data.lastResetDate,
+              hasApiKey: incrementResult.data.has_api_key || false  // 🔥 v2.11.5 新增
+            });
+            console.log('✅ [App] 每日使用次数已更新');
+          } else if (incrementResult.error !== 'DAILY_LIMIT_REACHED') {
+            // 如果不是达到限制的错误，记录日志
+            console.error('❌ [App] 增加每日使用次数失败:', incrementResult.error);
+          }
+        } catch (error) {
+          console.error('❌ [App] 增加每日使用次数异常:', error);
         }
       }
+
+      // 🔥 v2.11.3 修复：游客使用次数由后端在 send-message 时增加
+      // 后端会通过 IPC 事件 'guest-usage-updated' 通知前端
+      // 前端监听器会自动更新 guestStatus，无需在此处手动调用 incrementUserUsage
+      // 避免双重计数（后端本地数据库 + 前端云端数据库）
 
       // 自动更新记忆文件
       await updateMemoryFile(content, result.content);
@@ -1035,7 +1194,7 @@ function AppContent() {
         // 不阻塞聊天流程
       }
     } catch (error) {
-      console.error('发送消息失败:', error);
+      console.error('❌ [App] 后台处理 AI 消息失败:', error);
 
       // 检查是否是频率限制错误
       const errorMessage = error.message || '';
@@ -1051,12 +1210,17 @@ function AppContent() {
 
       // 移除 AI 消息占位符
       chat.messages.pop();
-      await saveConversations([...conversations]);
+      setConversations((prev) => {
+        const newConversations = [...prev];
+        const targetChat = newConversations.find((c) => c.id === chat.id);
+        if (targetChat) {
+          targetChat.messages = [...chat.messages];
+        }
+        return newConversations;
+      });
     } finally {
       streamingMessageRef.current = null;
     }
-
-    return chat;
   };
 
   // 显示启动动画
@@ -1117,6 +1281,7 @@ function AppContent() {
           currentUser={currentUser}
           guestStatus={guestStatus}
           userUsageCount={userUsageCount}
+          dailyUsageStatus={dailyUsageStatus}
           onLoginClick={() => setShowLoginModal(true)}
           onOpenSettings={() => {
             console.log('打开设置窗口');
@@ -1131,6 +1296,7 @@ function AppContent() {
           currentUser={currentUser}
           onLogout={handleLogout}
           onSave={handleSaveConfig}
+          onUserUpdate={handleUserUpdate}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -1149,6 +1315,7 @@ function AppContent() {
             setShowGuestLimitModal(false);
             setShowLoginModal(true);
           }}
+          limit={guestStatus?.limit || 10}
         />
       )}
 

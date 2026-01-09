@@ -953,6 +953,130 @@ function BadModal({ isOpen, onClose }) {
 
 ---
 
+### 第十八条：应用打包与发布规范 📦
+
+**核心原则**: 打包流程必须标准化，确保每个版本都能正确签名和公证
+
+**macOS 打包流程**（本地打包）:
+
+1. **环境准备**
+   - 确保 `.env` 文件配置正确
+   - 检查 Apple Developer 证书有效
+   - 确认应用专用密码未过期
+
+2. **使用标准打包命令**
+   ```bash
+   # ✅ 正确：使用带公证的打包脚本
+   npm run dist:mac:notarized
+
+   # ❌ 错误：不要使用这个命令（不会公证）
+   npm run dist:mac
+   ```
+
+3. **生成的文件**
+   - `release/小白AI-{version}-arm64.dmg` - Apple Silicon 版本（推荐）
+   - `release/mac/小白AI.app` - Intel 版本（已签名并公证）
+   - `release/mac-arm64/小白AI.app` - Apple Silicon 版本（已签名并公证）
+
+4. **验证签名和公证**
+   ```bash
+   # 检查公证状态
+   spctl -a -vvv -t execute release/mac-arm64/小白AI.app
+
+   # 应该显示：
+   # source=Notarized Developer ID
+   # origin=Developer ID Application: Beijing Principle Technology Co., Ltd. (666P8DEX39)
+   ```
+
+5. **不生成的内容**
+   - ❌ 不生成 `.zip` 文件（不需要）
+   - ❌ 不生成 `.blockmap` 文件（不需要）
+   - ❌ 不生成绿色版（只有 dmg 安装包）
+
+**Windows 打包流程**（GitHub CI/CD）:
+
+1. **触发 CI/CD**
+   ```bash
+   # 推送 tag 到 GitHub
+   git tag -a v2.11.2 -m "版本说明"
+   git push origin v2.11.2
+
+   # GitHub Actions 会自动构建 Windows 版本
+   ```
+
+2. **生成的文件**
+   - `小白AI-{version}-setup.exe` - Windows 安装包（NSIS）
+   - ❌ 不生成绿色版（portable）
+
+3. **下载位置**
+   - GitHub Release 页面
+   - Actions Artifacts（临时）
+
+**版本号同步检查**:
+
+打包前必须确认以下 4 个位置的版本号一致：
+
+```bash
+# 1. package.json
+grep "version" package.json
+
+# 2. electron/main.js
+grep "APP_VERSION" electron/main.js
+
+# 3. src/components/Sidebar.jsx
+grep "logo-version" src/components/Sidebar.jsx
+
+# 4. src/components/SettingsModal.jsx
+grep "about-version" src/components/SettingsModal.jsx
+```
+
+**打包前检查清单**:
+
+- [ ] 版本号已更新（4 个位置一致）
+- [ ] `.env` 文件配置正确（Apple ID、密码、Team ID）
+- [ ] 代码已提交到 Git（或至少已暂存）
+- [ ] 本地测试通过
+- [ ] MEMORY.md 已记录本次变更
+- [ ] 预计 5-10 分钟完成（含公证时间）
+
+**打包后验证**:
+
+- [ ] DMG 文件生成成功
+- [ ] 双击 DMG 可以正常安装
+- [ ] 应用可以正常启动
+- [ ] 签名验证通过（`spctl -a -vvv`）
+- [ ] 公证状态为 "Notarized Developer ID"
+- [ ] 游客模式可以正常使用
+- [ ] 登录功能正常
+- [ ] AI 对话功能正常
+
+**常见问题排查**:
+
+1. **公证失败**
+   - 错误：`APPLE_APP_SPECIFIC_PASSWORD env var needs to be set`
+   - 原因：环境变量未正确加载
+   - 解决：使用 `npm run dist:mac:notarized` 而不是 `npm run dist:mac`
+
+2. **签名失败**
+   - 错误：`code signature invalid`
+   - 原因：证书过期或不存在
+   - 解决：检查 Apple Developer 证书
+
+3. **版本号不一致**
+   - 错误：打包后发现版本号不对
+   - 解决：打包前检查 4 个位置的版本号
+
+**相关文件**:
+- `scripts/package-mac.js` - macOS 打包脚本（含公证）
+- `scripts/afterPack.js` - 签名脚本
+- `scripts/notarize.js` - 公证脚本
+- `.github/workflows/build-windows.yml` - Windows CI/CD 配置
+
+**相关文档**:
+- `docs/12-macos-code-signing.md` - macOS 代码签名指南
+
+---
+
 ## 🎯 开发流程检查清单
 
 ### 开始开发前

@@ -3,7 +3,7 @@ import ScreenshotPreview from './ScreenshotPreview';
 import './InputArea.css';
 import { showAlert } from '../lib/alertService';
 
-function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsageCount = 0, onLoginClick, onOpenSettings }) {
+function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsageCount = 0, dailyUsageStatus, onLoginClick, onOpenSettings }) {
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
@@ -73,13 +73,22 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
       // ✨ v2.10.8 改进：等待发送结果
       const result = await onSendMessage(messageContent, allFiles);
 
+      // 🔍 调试：查看返回值
+      console.log('📤 [InputArea] 发送结果:', result);
+      console.log('   result.success:', result?.success);
+      console.log('   result.type:', result?.id ? 'chat对象' : typeof result);
+      console.log('   result所有字段:', Object.keys(result || {}));
+
       // 只有发送成功才清空输入框
       // 检查返回值或是否抛出错误
       if (result === undefined || result === null || result.success !== false) {
         // 发送成功（或者没有明确的失败标记）
+        console.log('✅ [InputArea] 清空输入框');
         setMessage('');
         setFiles([]);
         setScreenshots([]);
+      } else {
+        console.log('❌ [InputArea] 保留输入框内容');
       }
       // 如果 result.success === false，保留消息和文件，让用户重试
     } catch (error) {
@@ -227,6 +236,13 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
           <div className="guest-status-bar">
             <span className="guest-status-text">
               游客模式 - 剩余 <strong>{guestStatus.remaining}</strong> 次（<a className="login-link" onClick={onLoginClick}>登录</a>可同步对话历史）
+            </span>
+          </div>
+        )}
+        {currentUser && dailyUsageStatus && (
+          <div className="guest-status-bar">
+            <span className="guest-status-text">
+              今日使用 <strong>{dailyUsageStatus.dailyUsed}/{dailyUsageStatus.dailyLimit}</strong> 次，剩余 <strong>{dailyUsageStatus.remaining}</strong> 次
             </span>
           </div>
         )}

@@ -17,6 +17,7 @@
    - 架构相关 → `./07-system-architecture.md`
    - 部署相关 → `./08-deployment-config.md`
    - macOS 签名 → `./12-macos-code-signing.md`
+   - Edge Functions API → `./edge-functions-api.md`
 
 3. **读取开发规范**（开发任务）：
    - 路径：`./09-development-guidelines.md`
@@ -51,6 +52,7 @@
 ### 架构与部署
 - **[System Architecture](./07-system-architecture.md)** - 整体架构、技术选型、模块关系
 - **[Deployment & Config](./08-deployment-config.md)** - 环境配置、密钥管理、常见问题
+- **[Edge Functions API](./edge-functions-api.md)** - Supabase Edge Functions 接口文档、参数规范、命名约定
 
 ### 开发指南
 - **[Development Guidelines](./09-development-guidelines.md)** - 代码风格、Git流程、测试规范
@@ -160,6 +162,7 @@
 | Thinking Process | ✅ 完成 | 2026-01-07 |
 | System Architecture | ✅ 完成 | 2026-01-07 |
 | Deployment & Config | ✅ 完成 | 2026-01-09 |
+| Edge Functions API | ✅ 完成 | 2026-01-09 |
 | Development Guidelines | ✅ 完成 | 2026-01-07 |
 | Changelog | ✅ 完成 | 2026-01-09 |
 | macOS Code Signing | ✅ 完成 | 2026-01-07 |
