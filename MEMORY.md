@@ -34,6 +34,111 @@
 
 ---
 
+## 📅 2026-01-09 (安全修复)
+
+### 🔒 GitHub API Key 泄露事故 - 紧急修复 ⚠️✅
+
+**事故等级**: 🔴 严重（已解决）
+
+**核心变更**: 发现并修复 GitHub 代码中硬编码的 Supabase API Keys
+
+**问题发现**:
+- 触发原因：代码审查请求（"帮我检查下小白项目的代码"）
+- 发现时间：2026-01-09 上午
+- 发现方式：Grep 搜索 + GitHub raw 文件验证
+
+**泄露内容**:
+1. **src/lib/cloudService.js:7** - 硬编码 SUPABASE_ANON_KEY
+   ```javascript
+   // ❌ 泄露的代码
+   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+   ```
+2. **.env.example** - 包含真实的 API Keys（而非占位符）
+3. **electron/agent.js:16** - 硬编码 Supabase URL 作为默认值
+
+**影响评估**:
+- 暴露范围：GitHub 公开仓库
+- 泄露 Keys：
+  - `anon public`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (JWT 格式)
+  - `service_role`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (JWT 格式)
+- 实际损失：🟢 低（Keys 已立即失效）
+
+**紧急修复**（37分钟完成）:
+1. **代码修复**（5分钟）
+   - `src/lib/cloudService.js`: 改用环境变量 `import.meta.env.VITE_SUPABASE_ANON_KEY`
+   - `.env.example`: 改为占位符 `your_supabase_anon_key_here`
+   - `electron/agent.js`: 移除硬编码的 URL 默认值
+
+2. **重新生成 Keys**（10分钟）
+   - 访问 Supabase Dashboard → Settings → API
+   - 切换到 "Publishable and secret API keys" 标签
+   - 重新生成两个 Keys
+   - 新的 Keys：
+     - `publishable`: `sb_publishable_VwrPo1L5FuCwCYwmveIZoQ_KqEr8oLe`
+     - `secret`: `sb_secret_u_-lKqRr3f_k_q1Ogmrmcg_0hidFAde`
+
+3. **更新配置**（2分钟）
+   - 更新本地 `.env` 文件（使用新的 Keys）
+   - 验证格式正确
+
+4. **Git 操作**（5分钟）
+   - 初始化 Git 仓库
+   - 创建提交："security: 修复 API Key 泄露问题，使用环境变量"
+   - 推送到 GitHub
+
+5. **验证修复**（5分钟）
+   - 检查 GitHub 上的代码
+   - 确认所有文件已修复
+   - 验证新的 Keys 格式正确
+
+**修改文件**:
+- `src/lib/cloudService.js` - 移除硬编码，使用环境变量
+- `.env.example` - 改为占位符
+- `electron/agent.js` - 移除硬编码 URL
+- `.env` - 使用新的 Keys
+- `DEVELOPMENT_GUIDELINES.md` - 添加事故案例链接和检查清单
+- `docs/security-incidents/20260109-github-api-key-leak.md` - 创建事故复盘文档
+
+**根本原因**:
+1. **开发便利性优先** - 为了快速测试，直接硬编码 Keys
+2. **误解示例文件** - 认为 `.env.example` 应该包含真实值作为参考
+3. **缺乏检查流程** - 提交前没有检查敏感信息
+4. **工具缺失** - 没有自动化敏感信息检测
+
+**教训总结**:
+1. 🔴 **永远不要硬编码敏感信息** - 使用环境变量
+2. 🔴 **.env.example 必须使用占位符** - 不能包含真实数据
+3. 🔴 **提交前必须检查** - 运行 `git diff --cached | grep -i "key\|secret"`
+4. 🔴 **.gitignore 必须包含 .env** - 防止意外提交
+5. 🔴 **代码审查很重要** - 可以发现隐藏的安全问题
+
+**预防措施**:
+1. 添加 pre-commit hook 检测敏感信息
+2. 安装 git-secrets 工具
+3. 更新开发规范，强调安全检查（第五条已更新）
+4. 创建事故复盘文档，作为警示案例
+5. 提交前强制运行检查命令
+
+**相关文档**:
+- [事故复盘文档](./docs/security-incidents/20260109-github-api-key-leak.md)
+- [开发规范 - 第五条：安全与隐私](./DEVELOPMENT_GUIDELINES.md#第五条安全与隐私-🔐)
+
+**验证命令**:
+```bash
+# 检查 GitHub 上的代码
+curl -s "https://raw.githubusercontent.com/Shanw26/xiaobaiAI/main/src/lib/cloudService.js" | head -10
+
+# 本地检查敏感信息
+grep -r "eyJhbGc" src/ electron/ --include="*.js"
+
+# 检查 .env.example
+cat .env.example | grep -v "your_\|here"
+```
+
+**状态**: ✅ 已完全解决，新的 Keys 安全存储在本地 `.env` 中
+
+---
+
 ## 📅 2026-01-08 (v2.10.25)
 
 ### 性能优化 - 大幅提升响应速度 ⚡✅

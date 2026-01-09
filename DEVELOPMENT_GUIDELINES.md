@@ -157,23 +157,62 @@ console.log('📝 [模块] 普通信息');
 
 ### 第五条：安全与隐私 🔐
 
+**⚠️ 血的教训：必须避免的安全事故**
+
+> **事故案例**: 2026-01-09 GitHub API Key 泄露事故
+> - **问题**: 代码中硬编码了 Supabase API Keys，`.env.example` 包含真实密钥
+> - **影响**: Keys 暴露在 GitHub 公开仓库，任何人都可以看到
+> - **处理**: 紧急修复代码、重新生成 Keys、推送更新
+> - **复盘**: [完整事故报告](./docs/security-incidents/20260109-github-api-key-leak.md)
+> - **教训**: 永远不要在代码中硬编码敏感信息！
+
 **绝对禁止**:
-1. **密钥泄露**: Service Role Key、Access Key Secret 不能暴露在客户端代码中
+1. **密钥泄露**: Service Role Key、Access Key Secret 不能暴露在客户端代码中 🔴
 2. **明文密码**: 不存储任何密码（本项目就没有密码）
 3. **敏感日志**: 日志中不能包含手机号、验证码等敏感信息
 4. **SQL 注入**: 使用参数化查询，防止 SQL 注入
+5. **硬编码 Keys**: 代码中永远不能硬编码任何 API Key、密码、Token 🔴
 
 **密钥管理**:
 - **Service Role Key**: 仅在服务端使用（Edge Function、Electron 主进程）
 - **Anon Key**: 可以在客户端使用，但受 RLS 限制
 - **Access Key Secret**: 仅存储在 Supabase Secrets 中
 - **用户 API Key**: 仅存储在用户本地（localStorage），不上传云端
+- **环境变量**: 所有敏感信息必须通过环境变量配置（`.env` 文件）
+
+**代码规范**:
+```javascript
+// ❌ 错误：硬编码 API Key
+const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+
+// ✅ 正确：使用环境变量
+const API_KEY = import.meta.env.VITE_API_KEY;
+```
+
+**配置文件规范**:
+```bash
+# ❌ 错误：.env.example 包含真实 Keys
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# ✅ 正确：.env.example 使用占位符
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+```
 
 **检查清单**:
-- [ ] 代码中没有硬编码的密钥
-- [ ] Git 提交前检查是否有敏感信息
-- [ ] `.env` 文件在 `.gitignore` 中
+- [ ] 代码中没有硬编码的密钥、密码、Token 🔴 **必须检查**
+- [ ] `.env.example` 只包含占位符，不包含真实数据 🔴 **必须检查**
+- [ ] Git 提交前检查是否有敏感信息 🔴 **必须检查**
+- [ ] `.env` 文件在 `.gitignore` 中 🔴 **必须检查**
 - [ ] 日志输出不包含敏感信息
+- [ ] 运行 `git diff --cached | grep -i "key\|secret\|token\|password"` 扫描
+
+**提交前检查命令**:
+```bash
+# 每次提交前必须运行这些命令
+git diff --cached | grep -i "key\|secret\|token\|password"
+git diff --cached | grep "eyJ"  # JWT token 检测
+git status  # 确认 .env 不会被提交
+```
 
 ---
 
