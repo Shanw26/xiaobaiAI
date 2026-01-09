@@ -150,6 +150,88 @@
 
 ---
 
+## 📅 2026-01-09 (v2.20.1 → v2.20.2 - 打包策略调整) 📦✅
+
+### 🎯 打包规范完善 + 策略调整
+
+**核心变更**: 整合打包经验，完善打包分发指南，明确平台打包策略
+
+**用户要求**:
+- Windows 用 GitHub CI/CD 打包
+- Mac 用本机打包
+- 遵守打包规范
+
+**实施方案**:
+- ✅ 完善 GitHub Actions workflow
+- ✅ 更新 BUILD.md 文档，明确打包策略
+- ✅ 添加打包流程对比表
+- ✅ 添加详细的触发和下载说明
+
+**修改文件**:
+1. `.github/workflows/build.yml` - 完善 Windows CI/CD 配置
+2. `docs/BUILD.md` - 添加打包策略章节，更新 Windows 打包流程
+
+**核心变更 1：打包策略** ⭐
+
+| 平台 | 打包方式 | 负责方 | 原因 |
+|------|---------|--------|------|
+| **macOS** | 本地打包 | 开发者（晓力） | 需要 Apple Developer 证书和公证 |
+| **Windows** | GitHub CI/CD | GitHub Actions | 无需本地 Windows 环境，自动化 |
+| **Linux** | 按需打包 | 开发者或 CI/CD | 用户量少，按需打包 |
+
+**核心变更 2：GitHub Actions 完善**
+
+**文件**: `.github/workflows/build.yml`
+
+**优化内容**:
+- 移除硬编码的 API Key（安全增强）
+- 添加清晰的步骤说明（带表情符号）
+- 简化构建流程
+- 添加构建信息输出
+
+**触发方式**:
+1. **推送 Git Tag**（推荐）
+   ```bash
+   git tag -a v2.20.1 -m "版本 v2.20.1"
+   git push origin v2.20.1
+   ```
+
+2. **手动触发**
+   - 访问：https://github.com/Shanw26/xiaobaiAI/actions
+   - 选择 "Build Windows" workflow
+   - 点击 "Run workflow"
+
+**下载构建产物**:
+- 访问：https://github.com/Shanw26/xiaobaiAI/actions/workflows/build.yml
+- 点击最新的构建任务
+- 在 "Artifacts" 区域下载 `windows-installer`
+- 解压后得到 `小白AI Setup 2.20.1.exe`
+
+**核心变更 3：BUILD.md 文档更新**
+
+**新增内容**:
+- **打包策略**章节（新增）
+  - 平台分工表
+  - macOS 本地打包优势
+  - Windows CI/CD 优势
+  - 触发方式和下载方法
+
+- **Windows 打包流程**章节（更新）
+  - 方式一：GitHub Actions 自动打包（推荐）⭐
+  - 方式二：本地打包（不推荐）
+  - 详细的构建流程说明
+  - 下载构建产物步骤
+
+**测试结果**: 待测试（下次打包时验证）
+
+**后续工作**:
+- 根据 GitHub Actions 进行 Windows 打包测试
+- 验证 macOS 本地打包流程
+- 根据实际情况继续完善文档
+
+---
+---
+
 ## 📅 2026-01-09 (v2.20.1 - 打包规范完善) 📦✅
 
 ### 📚 打包文档完善

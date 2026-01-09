@@ -1,5 +1,10 @@
 name: Build Windows
 
+# 🎯 打包策略：Windows 使用 GitHub CI/CD 自动打包
+# 触发方式：
+# 1. 推送 Git Tag（如 v2.20.1）
+# 2. 手动触发（在 GitHub Actions 页面）
+
 on:
   push:
     tags:
@@ -9,24 +14,38 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: 创建 .env 文件（打包时包含 API Key）
-        run: |
-          echo "ZHIPU_OFFICIAL_API_KEY=${{ secrets.ZHIPU_OFFICIAL_API_KEY }}" > .env
-          echo ".env 文件已创建"
-        shell: bash
-      - run: npm install
-      - run: npm run build
-      - run: npx electron-builder --win --publish never
-        env:
-          ZHIPU_OFFICIAL_API_KEY: ${{ secrets.ZHIPU_OFFICIAL_API_KEY }}
-      - uses: actions/upload-artifact@v4
-        if: always()
+
+      - name: 📦 安装依赖
+        run: npm install
+
+      - name: 🏗️ 构建前端
+        run: npm run build
+
+      - name: 🔨 打包 Windows 应用
+        run: npx electron-builder --win --publish never
+
+      - name: 📤 上传安装包
+        uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: windows-installer
           path: release/*.exe
           retention-days: 30
+
+      - name: 📊 构建信息
+        if: success()
+        run: |
+          echo "✅ Windows 打包完成！"
+          echo "📦 安装包："
+          ls -lh release/
+        shell: bash
+

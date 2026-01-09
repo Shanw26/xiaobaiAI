@@ -6,7 +6,7 @@
 
 // 🔥 从 package.json 读取版本号（自动同步）
 // 注意：这里的版本号会在构建时由 Vite 注入
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '2.20.1';
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '2.20.2';
 
 // 应用信息
 export const APP_NAME = '小白AI';
