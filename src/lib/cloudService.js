@@ -256,8 +256,7 @@ export async function incrementUserUsage() {
 // ==================== 对话历史云端操作 ====================
 
 /**
- * 加载所有对话历史（从云端）
- * 支持游客模式（通过 device_id）和登录用户（通过 user_id）
+ * 加载所有对话历史（Edge Function 版本）
  * @returns {Promise<{success: boolean, data?: Array, error?: string}>}
  */
 export async function loadConversations() {
@@ -265,82 +264,21 @@ export async function loadConversations() {
     console.log('📥 [云端服务] 加载对话历史...');
 
     const deviceId = await getDeviceId();
-    console.log('📱 [云端服务] 设备ID:', deviceId);
-
-    // 从 localStorage 获取用户信息
     const user = getCurrentUserSync();
 
-    // 获取对话：优先加载登录用户的，其次是该设备的游客对话
-    let conversations = [];
-    let conversationsError = null;
+    // 🔥 v2.10.27 Edge Function：调用 load-conversations
+    const result = await callEdgeFunction('load-conversations', {
+      user_id: user?.id,
+      device_id: deviceId
+    });
 
-    if (user) {
-      // 🔥 关键修复：登录用户只查询 user_id 匹配的对话
-      // 合并后的游客对话已经设置了 user_id，会被查询到
-      // 不应该查询 device_id，否则会包含其他用户在该设备上的对话
-      console.log('✅ [云端服务] 当前用户ID:', user.id);
-
-      const { data: userConvs, error: error1 } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('user_id', user.id)  // 只查询 user_id 匹配的对话
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
-
-      conversations = userConvs;
-      conversationsError = error1;
-    } else {
-      // 游客模式：只获取该设备的对话
-      console.log('👤 [云端服务] 游客模式，加载设备对话');
-
-      const { data: guestConvs, error: error2 } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('device_id', deviceId)
-        .is('user_id', null)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
-
-      conversations = guestConvs;
-      conversationsError = error2;
+    if (!result.success) {
+      console.error('❌ [云端服务] 加载对话失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    if (conversationsError) {
-      console.error('❌ [云端服务] 加载对话失败:', conversationsError);
-      console.error('   错误详情:', JSON.stringify(conversationsError, null, 2));
-      return { success: false, error: conversationsError.message };
-    }
-
-    console.log(`✅ [云端服务] 找到 ${conversations?.length || 0} 个对话`);
-
-    // 为每个对话获取消息
-    const conversationsWithMessages = await Promise.all(
-      (conversations || []).map(async (conv) => {
-        const { data: messages } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: true });
-
-        return {
-          id: conv.id,
-          title: conv.title,
-          createdAt: conv.created_at,
-          model: conv.model,
-          messages: (messages || []).map(msg => ({
-            id: msg.id,
-            role: msg.role,
-            content: msg.content,
-            thinking: msg.thinking,
-            files: msg.files ? JSON.parse(msg.files) : undefined,
-            createdAt: msg.created_at
-          }))
-        };
-      })
-    );
-
-    console.log(`✅ [云端服务] 成功加载 ${conversationsWithMessages.length} 个对话`);
-    return { success: true, data: conversationsWithMessages };
+    console.log(`✅ [云端服务] 成功加载 ${result.data?.length || 0} 个对话`);
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ [云端服务] 加载对话异常:', error);
     return { success: false, error: error.message };
@@ -348,7 +286,7 @@ export async function loadConversations() {
 }
 
 /**
- * 创建新对话（保存到云端）
+ * 创建新对话（Edge Function 版本）
  * @param {object} conversation - 对话数据
  * @returns {Promise<{success: boolean, data?: object, error?: string}>}
  */
@@ -358,58 +296,30 @@ export async function createConversation(conversation) {
     console.log('   对话ID:', conversation.id);
 
     const deviceId = await getDeviceId();
-    console.log('   设备ID:', deviceId);
-
-    // 从 localStorage 获取用户信息
     const user = getCurrentUserSync();
 
-    console.log('   登录状态:', user ? '已登录 (' + user.id + ')' : '游客模式');
+    // 🔥 v2.10.27 Edge Function：调用 create-conversation
+    const result = await callEdgeFunction('create-conversation', {
+      conversation,
+      user_id: user?.id,
+      device_id: deviceId
+    });
 
-    // 准备插入数据
-    const insertData = {
-      id: conversation.id,
-      title: conversation.title,
-      model: conversation.model || 'claude-3-5-sonnet-20241022',
-      created_at: conversation.createdAt || new Date().toISOString(),
-      device_id: deviceId  // 始终记录设备ID
-    };
-
-    // 如果用户已登录，添加 user_id
-    if (user) {
-      insertData.user_id = user.id;
-      console.log('✅ [云端服务] 用户ID:', user.id);
-    } else {
-      console.log('👤 [云端服务] 游客模式，仅记录设备ID');
+    if (!result.success) {
+      console.error('❌ [云端服务] 创建对话失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log('   准备插入数据:', JSON.stringify(insertData, null, 2));
-
-    // 创建对话
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (convError) {
-      console.error('❌ [云端服务] 创建对话失败:', convError);
-      console.error('   错误代码:', convError.code);
-      console.error('   错误详情:', JSON.stringify(convError, null, 2));
-      console.error('   错误提示:', convError.message);
-      console.error('   错误提示:', convError.hint);
-      return { success: false, error: convError.message };
-    }
-
-    console.log('✅ [云端服务] 对话创建成功, ID:', newConv.id);
+    console.log('✅ [云端服务] 对话创建成功, ID:', result.data.id);
 
     // 如果有消息，保存消息
     if (conversation.messages && conversation.messages.length > 0) {
       for (const message of conversation.messages) {
-        await createMessage(newConv.id, message);
+        await createMessage(result.data.id, message);
       }
     }
 
-    return { success: true, data: newConv };
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ [云端服务] 创建对话异常:', error);
     return { success: false, error: error.message };
@@ -429,31 +339,26 @@ export async function createMessage(conversationId, message) {
     console.log('   消息角色:', message.role);
     console.log('   内容长度:', message.content?.length || 0);
 
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
+    // 🔥 v2.10.27 Edge Function：调用 create-message
+    const result = await callEdgeFunction('create-message', {
+      conversation_id: conversationId,
+      message: {
         id: message.id || Date.now().toString(),
-        conversation_id: conversationId,
         role: message.role,
         content: message.content,
         thinking: message.thinking,
-        files: message.files ? JSON.stringify(message.files) : null,
+        files: message.files,
         created_at: message.createdAt || new Date().toISOString()
-      })
-      .select()
-      .single();
+      }
+    });
 
-    if (error) {
-      console.error('❌ [云端服务] 创建消息失败:', error);
-      console.error('   错误代码:', error.code);
-      console.error('   错误详情:', JSON.stringify(error, null, 2));
-      console.error('   错误提示:', error.message);
-      console.error('   错误提示:', error.hint);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('❌ [云端服务] 创建消息失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log('✅ [云端服务] 消息创建成功, ID:', data.id);
-    return { success: true, data };
+    console.log('✅ [云端服务] 消息创建成功, ID:', result.data.id);
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ [云端服务] 创建消息异常:', error);
     return { success: false, error: error.message };
@@ -469,28 +374,21 @@ export async function createMessage(conversationId, message) {
  */
 export async function updateMessage(conversationId, messageId, updates) {
   try {
-    const updateData = {};
+    console.log('📝 [云端服务] 更新消息:', messageId);
 
-    // 只更新提供的字段
-    if (updates.content !== undefined) {
-      updateData.content = updates.content;
+    // 🔥 v2.10.27 Edge Function：调用 update-message
+    const result = await callEdgeFunction('update-message', {
+      conversation_id: conversationId,
+      message_id: messageId,
+      updates: updates
+    });
+
+    if (!result.success) {
+      console.error('❌ [云端服务] 更新消息失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    if (updates.thinking !== undefined) {
-      updateData.thinking = updates.thinking;
-    }
-
-    const { error } = await supabase
-      .from('messages')
-      .update(updateData)
-      .eq('id', messageId)
-      .eq('conversation_id', conversationId);
-
-    if (error) {
-      console.error('❌ [云端服务] 更新消息失败:', error);
-      return { success: false, error: error.message };
-    }
-
+    console.log('✅ [云端服务] 消息更新成功');
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 更新消息异常:', error);
@@ -507,14 +405,14 @@ export async function deleteConversation(conversationId) {
   try {
     console.log('🗑️  [云端服务] 删除对话:', conversationId);
 
-    const { error } = await supabase
-      .from('conversations')
-      .update({ is_deleted: true })
-      .eq('id', conversationId);
+    // 🔥 v2.10.27 Edge Function：调用 delete-conversation
+    const result = await callEdgeFunction('delete-conversation', {
+      conversation_id: conversationId
+    });
 
-    if (error) {
-      console.error('❌ [云端服务] 删除对话失败:', error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('❌ [云端服务] 删除对话失败:', result.error);
+      return { success: false, error: result.error };
     }
 
     console.log('✅ [云端服务] 对话删除成功');
@@ -543,20 +441,19 @@ export async function mergeGuestConversations(userId) {
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
-    // 使用数据库函数来合并（避免 RLS 递归问题）
-    const { data, error } = await supabase.rpc('merge_guest_conversations_to_user', {
-      p_device_id: deviceId,
-      p_user_id: userId
+    // 🔥 v2.10.27 Edge Function：调用 merge-guest-conversations
+    const result = await callEdgeFunction('merge-guest-conversations', {
+      user_id: userId,
+      device_id: deviceId
     });
 
-    if (error) {
-      console.error('❌ [云端服务] 合并游客对话失败:', error);
-      console.error('   错误详情:', JSON.stringify(error, null, 2));
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error('❌ [云端服务] 合并游客对话失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    console.log(`✅ [云端服务] 成功合并 ${data || 0} 个游客对话`);
-    return { success: true, count: data || 0 };
+    console.log(`✅ [云端服务] 成功合并 ${result.data.count || 0} 个游客对话`);
+    return { success: true, count: result.data.count || 0 };
   } catch (error) {
     console.error('❌ [云端服务] 合并游客对话异常:', error);
     return { success: false, error: error.message };
@@ -585,33 +482,20 @@ export async function getUserInfo() {
     const user = getCurrentUserSync();
     let userId = user?.id;
 
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    // 从 Supabase 查询
-    let query = supabase.from('user_info').select('content');
+    // 🔥 v2.10.27 Edge Function：调用 get-user-info
+    const result = await callEdgeFunction('get-user-info', {
+      user_id: userId,
+      device_id: deviceId
+    });
 
-    if (userId) {
-      // 登录用户：查询用户的数据
-      query = query.eq('user_id', userId);
-    } else {
-      // 游客：查询设备的数据
-      query = query.eq('device_id', deviceId);
+    if (!result.success) {
+      console.error('❌ [云端服务] 获取用户信息失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    const { data, error } = await query.maybeSingle();
-
-    if (error) {
-      console.error('❌ [云端服务] 获取用户信息失败:', error);
-      // 如果是记录不存在，返回默认模板
-      if (error.code === 'PGRST116') {
-        console.log('ℹ️ [云端服务] 用户信息不存在，返回默认模板');
-        return { success: true, content: getDefaultUserInfoTemplate() };
-      }
-      return { success: false, error: error.message };
-    }
-
-    if (data && data.content) {
+    if (result.data && result.data.content) {
       console.log('✅ [云端服务] 获取用户信息成功');
-      return { success: true, content: data.content };
+      return { success: true, content: result.data.content };
     }
 
     console.log('ℹ️ [云端服务] 用户信息为空，返回默认模板');
@@ -639,46 +523,19 @@ export async function saveUserInfo(content) {
 
     console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
-    if (userId) {
-      // 登录用户：删除该用户的所有记录
-      await supabase
-        .from('user_info')
-        .delete()
-        .eq('user_id', userId);
-    } else {
-      // 游客：删除该设备的所有记录
-      await supabase
-        .from('user_info')
-        .delete()
-        .eq('device_id', deviceId);
+    // 🔥 v2.10.27 Edge Function：调用 save-user-info
+    const result = await callEdgeFunction('save-user-info', {
+      user_id: userId,
+      device_id: deviceId,
+      content: content
+    });
+
+    if (!result.success) {
+      console.error('❌ [云端服务] 保存用户信息失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    // 插入新记录
-    const insertData = {
-      user_id: userId || null,
-      device_id: userId ? null : deviceId,
-      content: content,
-      updated_at: new Date().toISOString()
-    };
-
-    console.log('📊 [云端服务] 插入数据:', insertData);
-
-    const { data, error } = await supabase
-      .from('user_info')
-      .insert(insertData)
-      .select();
-
-    if (error) {
-      console.error('❌ [云端服务] 保存用户信息失败:', error);
-      console.error('   错误详情:', JSON.stringify(error, null, 2));
-      console.error('   错误代码:', error.code);
-      console.error('   错误提示:', error.hint);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ [云端服务] 保存用户信息成功, data:', data);
+    console.log('✅ [云端服务] 保存用户信息成功');
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 保存用户信息异常:', error);
@@ -706,31 +563,20 @@ export async function getAiMemory() {
     const user = getCurrentUserSync();
     const userId = user?.id;
 
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    // 从 Supabase 查询
-    let query = supabase.from('ai_memory').select('content');
+    // 🔥 v2.10.27 Edge Function：调用 get-ai-memory
+    const result = await callEdgeFunction('get-ai-memory', {
+      user_id: userId,
+      device_id: deviceId
+    });
 
-    if (userId) {
-      query = query.eq('user_id', userId);
-    } else {
-      query = query.eq('device_id', deviceId);
+    if (!result.success) {
+      console.error('❌ [云端服务] 获取AI记忆失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    const { data, error } = await query.maybeSingle();
-
-    if (error) {
-      console.error('❌ [云端服务] 获取AI记忆失败:', error);
-      // 如果是记录不存在，返回默认模板
-      if (error.code === 'PGRST116') {
-        console.log('ℹ️ [云端服务] AI记忆不存在，返回默认模板');
-        return { success: true, content: getDefaultAiMemoryTemplate() };
-      }
-      return { success: false, error: error.message };
-    }
-
-    if (data && data.content) {
+    if (result.data && result.data.content) {
       console.log('✅ [云端服务] 获取AI记忆成功');
-      return { success: true, content: data.content };
+      return { success: true, content: result.data.content };
     }
 
     console.log('ℹ️ [云端服务] AI记忆为空，返回默认模板');
@@ -758,46 +604,19 @@ export async function saveAiMemory(content) {
 
     console.log('📊 [云端服务] 当前状态:', { userId, deviceId });
 
-    // 🔥 v2.10.27 修复：浏览器端使用 supabase 而不是 supabaseAdmin
-    // 先尝试删除可能存在的旧记录（避免 UNIQUE 冲突）
-    if (userId) {
-      // 登录用户：删除该用户的所有记录
-      await supabase
-        .from('ai_memory')
-        .delete()
-        .eq('user_id', userId);
-    } else {
-      // 游客：删除该设备的所有记录
-      await supabase
-        .from('ai_memory')
-        .delete()
-        .eq('device_id', deviceId);
+    // 🔥 v2.10.27 Edge Function：调用 save-ai-memory
+    const result = await callEdgeFunction('save-ai-memory', {
+      user_id: userId,
+      device_id: deviceId,
+      content: content
+    });
+
+    if (!result.success) {
+      console.error('❌ [云端服务] 保存AI记忆失败:', result.error);
+      return { success: false, error: result.error };
     }
 
-    // 插入新记录
-    const insertData = {
-      user_id: userId || null,
-      device_id: userId ? null : deviceId,
-      content: content,
-      updated_at: new Date().toISOString()
-    };
-
-    console.log('📊 [云端服务] 插入 AI 记忆数据:', insertData);
-
-    const { data, error } = await supabase
-      .from('ai_memory')
-      .insert(insertData)
-      .select();
-
-    if (error) {
-      console.error('❌ [云端服务] 保存AI记忆失败:', error);
-      console.error('   错误详情:', JSON.stringify(error, null, 2));
-      console.error('   错误代码:', error.code);
-      console.error('   错误提示:', error.hint);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ [云端服务] 保存AI记忆成功, data:', data);
+    console.log('✅ [云端服务] 保存AI记忆成功');
     return { success: true };
   } catch (error) {
     console.error('❌ [云端服务] 保存AI记忆异常:', error);
@@ -819,62 +638,15 @@ export async function mergeGuestUserInfo(userId) {
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
-    // 1. 查询游客时期的用户信息（device_id 有值，user_id 为 null）
-    const { data: guestData, error: guestError } = await supabase
-      .from('user_info')
-      .select('*')
-      .eq('device_id', deviceId)
-      .is('user_id', null)
-      .maybeSingle();
+    // 🔥 v2.10.27 Edge Function：调用 merge-guest-user-info
+    const result = await callEdgeFunction('merge-guest-user-info', {
+      user_id: userId,
+      device_id: deviceId
+    });
 
-    if (guestError) {
-      console.error('❌ [云端服务] 查询游客用户信息失败:', guestError);
-      return { success: false, error: guestError.message };
-    }
-
-    // 如果没有游客数据，直接返回成功
-    if (!guestData) {
-      console.log('ℹ️  [云端服务] 没有游客用户信息需要合并');
-      return { success: true };
-    }
-
-    // 2. 查询登录用户是否已有用户信息（user_id 有值，device_id 为 null）
-    const { data: userData, error: userError } = await supabase
-      .from('user_info')
-      .select('*')
-      .eq('user_id', userId)
-      .is('device_id', null)
-      .maybeSingle();
-
-    if (userError) {
-      console.error('❌ [云端服务] 查询登录用户信息失败:', userError);
-      return { success: false, error: userError.message };
-    }
-
-    if (userData) {
-      // 登录用户已有数据，删除游客数据（保留登录用户的）
-      console.log('🗑️  [云端服务] 登录用户已有数据，删除游客数据');
-      const { error: deleteError } = await supabase
-        .from('user_info')
-        .delete()
-        .eq('id', guestData.id);
-
-      if (deleteError) {
-        console.error('❌ [云端服务] 删除游客数据失败:', deleteError);
-        return { success: false, error: deleteError.message };
-      }
-    } else {
-      // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
-      console.log('🔄 [云端服务] 将游客数据关联到登录用户');
-      const { error: updateError } = await supabase
-        .from('user_info')
-        .update({ user_id: userId, device_id: null })
-        .eq('id', guestData.id);
-
-      if (updateError) {
-        console.error('❌ [云端服务] 更新游客数据失败:', updateError);
-        return { success: false, error: updateError.message };
-      }
+    if (!result.success) {
+      console.error('❌ [云端服务] 合并游客用户信息失败:', result.error);
+      return { success: false, error: result.error };
     }
 
     console.log('✅ [云端服务] 成功合并游客用户信息');
@@ -898,62 +670,15 @@ export async function mergeGuestAiMemory(userId) {
     const deviceId = await getDeviceId();
     console.log('📱 [云端服务] 设备ID:', deviceId);
 
-    // 1. 查询游客时期的AI记忆（device_id 有值，user_id 为 null）
-    const { data: guestData, error: guestError } = await supabase
-      .from('ai_memory')
-      .select('*')
-      .eq('device_id', deviceId)
-      .is('user_id', null)
-      .maybeSingle();
+    // 🔥 v2.10.27 Edge Function：调用 merge-guest-ai-memory
+    const result = await callEdgeFunction('merge-guest-ai-memory', {
+      user_id: userId,
+      device_id: deviceId
+    });
 
-    if (guestError) {
-      console.error('❌ [云端服务] 查询游客AI记忆失败:', guestError);
-      return { success: false, error: guestError.message };
-    }
-
-    // 如果没有游客数据，直接返回成功
-    if (!guestData) {
-      console.log('ℹ️  [云端服务] 没有游客AI记忆需要合并');
-      return { success: true };
-    }
-
-    // 2. 查询登录用户是否已有AI记忆（user_id 有值，device_id 为 null）
-    const { data: userData, error: userError } = await supabase
-      .from('ai_memory')
-      .select('*')
-      .eq('user_id', userId)
-      .is('device_id', null)
-      .maybeSingle();
-
-    if (userError) {
-      console.error('❌ [云端服务] 查询登录用户AI记忆失败:', userError);
-      return { success: false, error: userError.message };
-    }
-
-    if (userData) {
-      // 登录用户已有数据，删除游客数据（保留登录用户的）
-      console.log('🗑️  [云端服务] 登录用户已有AI记忆，删除游客数据');
-      const { error: deleteError } = await supabase
-        .from('ai_memory')
-        .delete()
-        .eq('id', guestData.id);
-
-      if (deleteError) {
-        console.error('❌ [云端服务] 删除游客AI记忆失败:', deleteError);
-        return { success: false, error: deleteError.message };
-      }
-    } else {
-      // 登录用户没有数据，将游客数据的 user_id 更新为登录用户
-      console.log('🔄 [云端服务] 将游客AI记忆关联到登录用户');
-      const { error: updateError } = await supabase
-        .from('ai_memory')
-        .update({ user_id: userId, device_id: null })
-        .eq('id', guestData.id);
-
-      if (updateError) {
-        console.error('❌ [云端服务] 更新游客AI记忆失败:', updateError);
-        return { success: false, error: updateError.message };
-      }
+    if (!result.success) {
+      console.error('❌ [云端服务] 合并游客AI记忆失败:', result.error);
+      return { success: false, error: result.error };
     }
 
     console.log('✅ [云端服务] 成功合并游客AI记忆');
