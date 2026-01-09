@@ -1,0 +1,28 @@
+# 将 loadConversations 改为调用 Edge Function
+/export async function loadConversations()/,/^export async function loadConversations() {/c\
+export async function loadConversations() {\
+  try {\
+    console.log('📥 [云端服务] 加载对话历史...');\
+\
+    const deviceId = await getDeviceId();\
+    const user = getCurrentUserSync();\
+\
+    // 🔥 v2.10.27 Edge Function：调用 load-conversations\
+    const result = await callEdgeFunction('load-conversations', {\
+      user_id: user?.id,\
+      device_id: deviceId\
+    });\
+\
+    if (!result.success) {\
+      console.error('❌ [云端服务] 加载对话失败:', result.error);\
+      return { success: false, error: result.error };\
+    }\
+\
+    console.log(`✅ [云端服务] 成功加载 ${result.data?.length || 0} 个对话`);\
+    return { success: true, data: result.data };\
+  } catch (error) {\
+    console.error('❌ [云端服务] 加载对话异常:', error);\
+    return { success: false, error: error.message };\
+  }\
+}
+/export async function createConversation/

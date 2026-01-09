@@ -477,59 +477,12 @@
             background: var(--bg-secondary);
             color: var(--text);
         }
-
-        /* WelcomeModal */
-        .welcome-modal {
-            padding: 0;
-        }
-
-        .welcome-header {
-            padding: 24px 28px 16px;
-        }
-
-        .welcome-progress {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-        }
-
-        .progress-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--border);
-            transition: all 0.3s;
-        }
-
-        .progress-dot.active {
-            background: var(--primary);
-            width: 24px;
-            border-radius: 4px;
-        }
-
-        .welcome-content {
-            padding: 28px;
-        }
-
-        .welcome-title {
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0 0 12px 0;
-            text-align: center;
-        }
-
-        .welcome-description {
-            font-size: 15px;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-bottom: 24px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎨 小白AI 弹窗样式预览</h1>
-        <p class="subtitle">点击卡片预览实际组件效果（完全按照项目代码）</p>
+        <p class="subtitle">点击卡片预览实际组件效果（v2.10.27）</p>
 
         <div class="modal-grid">
             <div class="modal-card" onclick="showModal('alert')">
@@ -555,11 +508,6 @@
             <div class="modal-card" onclick="showModal('update')">
                 <h3>UpdateAvailableModal</h3>
                 <p>版本更新提示，medium</p>
-            </div>
-
-            <div class="modal-card" onclick="showModal('welcome')">
-                <h3>WelcomeModal</h3>
-                <p>多步表单，进度指示器</p>
             </div>
 
             <div class="modal-card" onclick="showModal('toast')">
@@ -668,27 +616,6 @@
             <div class="update-actions">
                 <button class="btn-update secondary" onclick="closeModal('update')">稍后提醒</button>
                 <button class="btn-update primary" onclick="closeModal('update')">立即更新</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- WelcomeModal -->
-    <div class="modal-overlay" id="welcome-modal" onclick="closeModal('welcome')">
-        <div class="modal welcome-modal" onclick="event.stopPropagation()">
-            <div class="welcome-header">
-                <div class="welcome-progress">
-                    <div class="progress-dot active"></div>
-                    <div class="progress-dot active"></div>
-                    <div class="progress-dot active"></div>
-                    <div class="progress-dot active"></div>
-                </div>
-            </div>
-            <div class="welcome-content">
-                <h2 class="welcome-title">嗨，你好 👋</h2>
-                <p class="welcome-description">先告诉我一点关于你的事，这样我能更懂你</p>
-            </div>
-            <div class="modal-actions">
-                <button class="btn-modal primary" onclick="closeModal('welcome')">开始使用</button>
             </div>
         </div>
     </div>
