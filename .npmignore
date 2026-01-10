@@ -1,0 +1,5 @@
+# ✨ v2.10.13: 忽略预编译的原生模块，强制在打包时重新编译
+node_modules/better-sqlite3/build
+node_modules/better-sqlite3/build/**
+node_modules/better-sqlite3/src
+node_modules/better-sqlite3/src/**

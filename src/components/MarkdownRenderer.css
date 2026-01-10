@@ -1,0 +1,278 @@
+/* Markdown 渲染器样式 */
+
+.markdown-paragraph {
+  margin: 0.5em 0;
+  line-height: 1.6;
+}
+
+.markdown-h1,
+.markdown-h2,
+.markdown-h3,
+.markdown-h4 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown-h1 {
+  font-size: 2em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-h3 {
+  font-size: 1.25em;
+}
+
+.markdown-h4 {
+  font-size: 1em;
+}
+
+.markdown-list,
+.markdown-list-ordered {
+  margin: 0.5em 0;
+  padding-left: 2em;
+}
+
+.markdown-list-item {
+  margin: 0.25em 0;
+  line-height: 1.6;
+}
+
+.markdown-blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--border);
+  background: var(--bg-secondary, #f5f5f5);
+  color: var(--text-secondary, #666);
+}
+
+.markdown-link {
+  color: #1890ff;
+  text-decoration: none;
+}
+
+.markdown-link:hover {
+  text-decoration: underline;
+}
+
+/* 代码块样式 */
+.code-block {
+  margin: 1em 0;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  overflow-x: auto;
+}
+
+.code-block pre {
+  margin: 0 !important;
+  padding: 1em !important;
+  background: transparent !important;
+}
+
+/* 行内代码样式 */
+.inline-code {
+  background: var(--bg-secondary, #f5f5f5);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  color: var(--text, #333);
+}
+
+/* 包含文件路径的行内代码样式 */
+.inline-code-with-path {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  color: #16a34a;
+  background: transparent;
+  padding: 0;
+}
+
+/* 表格样式 */
+.markdown-table-wrapper {
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.markdown-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.markdown-thead {
+  background: var(--bg-secondary, #f5f5f5);
+}
+
+.markdown-th,
+.markdown-td {
+  padding: 0.5em 1em;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.markdown-th {
+  font-weight: 600;
+}
+
+.markdown-tr:hover {
+  background: var(--bg-hover, #f9f9f9);
+}
+
+/* 分隔线 */
+.markdown-hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+
+/* 图片 */
+.markdown-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+/* 文件路径链接样式 */
+.file-path-link {
+  color: #16a34a;
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #16a34a;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.95em;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.file-path-link:hover {
+  color: #15803d;
+  text-decoration-color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.file-path-link:active {
+  color: #166534;
+  background: rgba(22, 163, 74, 0.2);
+}
+
+/* 思考过程样式 */
+.thinking-process {
+  margin: 1em 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75em 1em;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.thinking-header:hover {
+  background: linear-gradient(135deg, #e8e8e8 0%, #e0e0e0 100%);
+}
+
+.thinking-icon {
+  font-size: 1.2em;
+  margin-right: 0.5em;
+}
+
+.thinking-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: #666;
+}
+
+.thinking-content {
+  padding: 1em;
+  font-size: 0.95em;
+  line-height: 1.4;
+  color: #555;
+  background: #fafafa;
+}
+
+.thinking-content strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.thinking-content p {
+  margin: 0.8em 0;
+}
+
+.thinking-content p:first-child {
+  margin-top: 0;
+}
+
+.thinking-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 无效文件路径样式（不存在） */
+.file-path-invalid {
+  color: inherit;
+  text-decoration: none;
+  cursor: text;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.95em;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+
+/* 执行过程样式（v2.10.1） */
+.markdown-paragraph {
+  position: relative;
+}
+
+/* ⏺ 主要步骤标记 */
+.execution-step {
+  display: flex;
+  align-items: flex-start;
+  margin: 0.8em 0;
+  padding: 0.5em 0;
+  line-height: 1.5;
+}
+
+.execution-step::before {
+  content: '⏺ ';
+  color: var(--primary, #1890ff);
+  margin-right: 0.3em;
+  flex-shrink: 0;
+}
+
+/* ⎿ 子步骤/结果标记 */
+.execution-substep {
+  display: flex;
+  align-items: flex-start;
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+  line-height: 1.4;
+  font-size: 0.95em;
+  color: var(--text-secondary, #666);
+}
+
+.execution-substep::before {
+  content: '⎿ ';
+  color: var(--text-tertiary, #999);
+  margin-right: 0.3em;
+  flex-shrink: 0;
+}

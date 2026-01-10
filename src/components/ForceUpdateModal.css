@@ -1,0 +1,254 @@
+/* 强制更新弹窗样式 */
+@import './ModalBase.css';
+
+/* 强制更新弹窗 - 使用最高优先级遮罩和居中弹窗 */
+.modal-overlay.force-update {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.force-update-modal {
+  text-align: center;
+  max-width: 420px;
+  width: 90%;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(220, 38, 38, 0.3), 0 0 1px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 100000;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.force-update-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  75% { transform: rotate(10deg); }
+}
+
+.force-update-modal h2 {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.force-update-text {
+  margin: 0 0 24px 0;
+  font-size: 16px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.update-notes {
+  background: #fef2f2;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  text-align: left;
+  font-size: 14px;
+  color: #7f1d1d;
+  line-height: 1.6;
+}
+
+.update-progress {
+  margin: 24px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+  transition: width 0.3s ease-out;
+  border-radius: 12px;
+}
+
+.progress-info {
+  text-align: center;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.update-complete {
+  margin-top: 24px;
+  padding: 16px;
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* 🔥 新增：强制更新按钮样式 */
+.force-update-btn {
+  margin-top: 24px;
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.force-update-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+}
+
+.force-update-btn:active {
+  transform: translateY(0);
+}
+
+/* ✨ v2.10.1 新增：Markdown 渲染样式 */
+.update-notes .markdown-content {
+  font-size: 14px;
+  color: #7f1d1d;
+  line-height: 1.7;
+}
+
+.update-notes .markdown-content h1,
+.update-notes .markdown-content h2,
+.update-notes .markdown-content h3,
+.update-notes .markdown-content h4 {
+  font-weight: 600;
+  color: #dc2626;
+  margin: 12px 0 8px 0;
+}
+
+.update-notes .markdown-content h1 {
+  font-size: 18px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #fecaca;
+}
+
+.update-notes .markdown-content h2 {
+  font-size: 16px;
+}
+
+.update-notes .markdown-content h3 {
+  font-size: 15px;
+  color: #ef4444;
+}
+
+.update-notes .markdown-content p {
+  margin: 8px 0;
+}
+
+.update-notes .markdown-content ul,
+.update-notes .markdown-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.update-notes .markdown-content li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.update-notes .markdown-content code {
+  background: #fecaca;
+  color: #991b1b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.update-notes .markdown-content pre {
+  background: #7f1d1d;
+  color: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.update-notes .markdown-content pre code {
+  background: transparent;
+  color: #fff;
+  padding: 0;
+}
+
+.update-notes .markdown-content strong,
+.update-notes .markdown-content b {
+  font-weight: 600;
+  color: #7f1d1d;
+}
+
+.update-notes .markdown-content a {
+  color: #dc2626;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.update-notes .markdown-content a:hover {
+  color: #b91c1c;
+  text-decoration: underline;
+}

@@ -1,0 +1,375 @@
+/* ===================================
+   弹窗统一设计规范 - 苹果风格
+   =================================== */
+
+/* ==================== 遮罩层 ==================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+  padding: 24px;
+}
+
+/* 高优先级弹窗（如 ToastModal、UpdateAvailableModal） */
+.modal-overlay.priority-high {
+  z-index: 2000;
+}
+
+/* 强制更新弹窗 */
+.modal-overlay.force-update {
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ==================== 弹窗容器 ==================== */
+.modal,
+.modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-content {
+  padding: 40px;
+  max-width: 480px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 超小尺寸弹窗（用于简单提示） */
+.modal.xsmall {
+  max-width: 320px;
+  width: 90%;
+  padding: 24px;
+}
+
+/* 小尺寸弹窗 */
+.modal.small {
+  max-width: 420px;
+  width: 90%;
+  padding: 32px;
+}
+
+/* 中尺寸弹窗 */
+.modal.medium {
+  max-width: 540px;
+  width: 90%;
+  padding: 40px;
+}
+
+/* 大尺寸弹窗（如设置） */
+.modal.large {
+  max-width: 920px;
+  width: 90%;
+  max-height: 85vh;
+}
+
+/* ==================== 关闭按钮 ==================== */
+.modal-close,
+.btn-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover,
+.btn-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+  transform: scale(1.05);
+}
+
+.modal-close:active,
+.btn-close:active {
+  transform: scale(0.95);
+}
+
+.modal-close svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+/* ==================== 头部 ==================== */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.4px;
+}
+
+/* ==================== 内容区域 ==================== */
+.modal-body {
+  padding: 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ==================== 底部操作区 ==================== */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 28px 24px;
+  border-top: 1px solid var(--border);
+}
+
+/* ==================== 按钮 ==================== */
+.btn-modal {
+  flex: 1;
+  height: 48px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+/* 保持项目主色调：绿色 */
+.btn-modal.primary {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 204, 102, 0.2);
+}
+
+.btn-modal.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 16px rgba(0, 204, 102, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-modal.secondary {
+  background: rgba(118, 118, 128, 0.12);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.btn-modal.secondary:hover {
+  background: rgba(118, 118, 128, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-modal:active {
+  transform: translateY(0);
+}
+
+.btn-modal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 小尺寸按钮 */
+.btn-modal.small {
+  height: 38px;
+  font-size: 14px;
+}
+
+/* ==================== 表单元素 ==================== */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.form-hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: normal;
+  margin-top: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  background: white;
+  color: var(--text);
+}
+
+.form-input:hover {
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(0, 204, 102, 0.1);
+}
+
+.form-input::placeholder {
+  color: var(--text-light);
+}
+
+.form-textarea {
+  width: 100%;
+  min-height: 120px;
+  max-height: 300px;
+  padding: 12px;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.form-textarea:hover {
+  border-color: var(--text-light);
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+/* ==================== 图标 ==================== */
+.modal-icon {
+  font-size: 56px;
+  line-height: 1;
+  margin-top: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* ==================== 文本 ==================== */
+.modal-description {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  text-align: center;
+  margin: 0 0 24px 0;
+}
+
+.modal-error {
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  color: #dc2626;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 16px 0;
+}
+
+/* ==================== 动画辅助类 ==================== */
+.animate-in {
+  animation: fadeInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 768px) {
+  .modal.small,
+  .modal.medium,
+  .modal.large {
+    width: 95%;
+    max-width: none;
+  }
+
+  .modal {
+    max-height: 90vh;
+  }
+
+  .modal-header {
+    padding: 20px;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-actions {
+    padding: 16px 20px 20px;
+  }
+
+  .btn-modal {
+    height: 42px;
+    font-size: 14px;
+  }
+}

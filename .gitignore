@@ -1,0 +1,92 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+*.dmg
+*.exe
+*.apk
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.bak
+.env.backup.*
+
+# GitHub Actions (临时忽略，手动添加)
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Sensitive information
+key.md
+*.key
+token.json
+secrets/
+
+# Electron
+out/
+app/
+
+# Cache
+.cache/
+temp/
+.tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.log
+localhost-*.log
+
+# 登录问题排查工具（2026-01-09）- 包含敏感密钥
+401-fix-guide.md
+check-keys.js
+compare-functions.js
+diagnose-login.js
+local-login-fallback.js
+test-complete-login.js
+test-login-test.js
+test-signin.js
+verify-edge-function.js
+test-login.html
+supabase/functions/login-test/
+
+# 通用测试和诊断工具（防止硬编码密钥）
+test-*.js
+test-*.html
+check-*.js
+diagnose-*.js
+verify-*.js
+compare-*.js
+*-fix-guide.md
+
+# 安全检查报告（可能包含临时敏感信息）
+security-check-report-*.md
+security-audit-*.md
+supabase/.temp/
+
+# 项目记忆文件（内部文档，不公开）
+MEMORY.md
+MEMORY_ARCHIVE.md
+

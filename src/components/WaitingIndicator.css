@@ -1,0 +1,75 @@
+/* 等待指示器 - v2.8.7 组合提示版 */
+
+/* 组合模式：动画 + 文字 */
+.waiting-indicator-combined {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  padding: 4px 12px;
+  background: rgba(22, 163, 74, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.waiting-dots-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.waiting-dot {
+  width: 4px;
+  height: 4px;
+  background: var(--primary, #16a34a);
+  border-radius: 50%;
+  animation: dot-bounce 1.4s infinite ease-in-out;
+  display: inline-block;
+}
+
+.waiting-dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.waiting-dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.waiting-dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+.waiting-text {
+  font-size: 13px;
+  color: var(--primary, #16a34a);
+  font-weight: 500;
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes dot-bounce {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes pulse-text {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* 兼容旧版内联模式 */
+.waiting-indicator-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="小白AI - 操作系统级AI助手，智能对话，文件操作，简单易用">
+    <title>下载小白AI - 操作系统级AI助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #00cc66;
+            --primary-hover: #00b359;
+            --primary-light: rgba(0, 204, 102, 0.08);
+            --bg: #ffffff;
+            --bg-secondary: #f5f6f7;
+            --bg-hover: #eef0f2;
+            --border: #e1e4e8;
+            --text: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-light: #9ca3af;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 12px rgba(0, 204, 102, 0.12);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial,
+                'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: var(--primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 80px 0 60px;
+            text-align: center;
+            background: linear-gradient(180deg, var(--bg) 0%, var(--bg-secondary) 100%);
+        }
+
+        .hero-title {
+            font-size: 56px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, #00a050 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            border-radius: var(--radius-md);
+            font-size: 16px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--primary);
+        }
+
+        .version-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .version-badge {
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: var(--bg);
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 48px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            transition: all 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-light);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .feature-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Download Cards */
+        .downloads {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 32px;
+        }
+
+        .platform-card {
+            background: var(--bg);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .platform-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .platform-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+        }
+
+        .platform-info h3 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .platform-info p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .download-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .download-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            transition: all 0.2s;
+        }
+
+        .download-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .download-info {
+            flex: 1;
+        }
+
+        .download-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .download-size {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .download-action {
+            color: var(--primary);
+            font-weight: 500;
+            text-decoration: none;
+            padding: 8px 20px;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .download-action:hover {
+            background: var(--primary-light);
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            padding: 48px 0;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        .footer-copyright {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 40px;
+            }
+
+            .hero-subtitle {
+                font-size: 18px;
+            }
+
+            .nav {
+                display: none;
+            }
+
+            .download-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .features-grid,
+            .platform-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Icons */
+        .icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero > * {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .hero-title {
+            animation-delay: 0.1s;
+        }
+
+        .hero-subtitle {
+            animation-delay: 0.2s;
+        }
+
+        .download-buttons {
+            animation-delay: 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-content">
+            <div class="logo">
+                <div class="logo-icon">白</div>
+                <span>小白AI</span>
+            </div>
+            <nav class="nav">
+                <a href="#features">功能特点</a>
+                <a href="#downloads">下载安装</a>
+                <a href="https://github.com/Shanw26/xiaobaiAI" target="_blank">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">操作系统级AI助手</h1>
+            <p class="hero-subtitle">
+                简单易用，智能对话，文件操作，让你的电脑更智能
+            </p>
+            <div class="download-buttons">
+                <a href="#downloads" class="btn btn-primary">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    立即下载
+                </a>
+                <a href="https://github.com/Shanw26/xiaobaiAI" target="_blank" class="btn btn-secondary">
+                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+            <div class="version-info">
+                <span class="version-badge">v2.20.2</span>
+                <span>最新版本 · 2026年1月发布</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2 class="section-title">核心功能</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3 class="feature-title">智能对话</h3>
+                    <p class="feature-desc">支持多种AI模型，自然流畅的对话体验，理解上下文，智能回复</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <h3 class="feature-title">文件操作</h3>
+                    <p class="feature-desc">直接操作本地文件，读取、写入、管理文件，像使用命令一样简单</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">安全可靠</h3>
+                    <p class="feature-desc">API Key加密存储，本地数据保护，完全掌控你的隐私安全</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">快速响应</h3>
+                    <p class="feature-desc">优化性能，快速启动，流畅运行，不占用系统资源</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3 class="feature-title">简洁设计</h3>
+                    <p class="feature-desc">清爽界面，操作简单，无需学习即可上手，专注核心功能</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3 class="feature-title">自动更新</h3>
+                    <p class="feature-desc">内置自动更新机制，及时获取最新功能和修复</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Downloads Section -->
+    <section class="downloads" id="downloads">
+        <div class="container">
+            <h2 class="section-title">下载安装</h2>
+            <div class="platform-grid">
+                <!-- macOS -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">🍎</div>
+                        <div class="platform-info">
+                            <h3>macOS</h3>
+                            <p>macOS 11+ (Intel & Apple Silicon)</p>
+                        </div>
+                    </div>
+                    <div class="download-list">
+                        <div class="download-item">
+                            <div class="download-info">
+                                <div class="download-name">小白AI-2.20.2.dmg</div>
+                                <div class="download-size">Intel x64 · 约135 MB</div>
+                            </div>
+                            <a href="https://xiaobai-ai.oss-cn-hangzhou.aliyuncs.com/mac/%E5%B0%8F%E7%99%BDAI-2.20.2.dmg" class="download-action">下载</a>
+                        </div>
+                        <div class="download-item">
+                            <div class="download-info">
+                                <div class="download-name">小白AI-2.20.2-arm64.dmg</div>
+                                <div class="download-size">Apple Silicon · 约130 MB</div>
+                            </div>
+                            <a href="https://xiaobai-ai.oss-cn-hangzhou.aliyuncs.com/mac/%E5%B0%8F%E7%99%BDAI-2.20.2-arm64.dmg" class="download-action">下载</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">🪟</div>
+                        <div class="platform-info">
+                            <h3>Windows</h3>
+                            <p>Windows 10/11 (x64)</p>
+                        </div>
+                    </div>
+                    <div class="download-list">
+                        <div class="download-item">
+                            <div class="download-info">
+                                <div class="download-name">小白AI Setup 2.20.2.exe</div>
+                                <div class="download-size">安装程序 · 约125 MB</div>
+                            </div>
+                            <a href="https://xiaobai-ai.oss-cn-hangzhou.aliyuncs.com/win/%E5%B0%8F%E7%99%BDAI%20Setup%202.20.2.exe" class="download-action">下载</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linux -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">🐧</div>
+                        <div class="platform-info">
+                            <h3>Linux</h3>
+                            <p>Ubuntu 20.04+, Debian 11+</p>
+                        </div>
+                    </div>
+                    <div class="download-list">
+                        <div class="download-item">
+                            <div class="download-info">
+                                <div class="download-name">小白AI-2.20.2.AppImage</div>
+                                <div class="download-size">通用版本 · 约140 MB</div>
+                            </div>
+                            <a href="https://xiaobai-ai.oss-cn-hangzhou.aliyuncs.com/linux/%E5%B0%8F%E7%99%BDAI-2.20.2.AppImage" class="download-action">下载</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GitHub Actions Download Notice -->
+            <div style="margin-top: 32px; padding: 24px; background: var(--primary-light); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                <p style="margin-bottom: 8px; font-weight: 500;">💡 提示</p>
+                <p style="color: var(--text-secondary); font-size: 14px;">
+                    Windows 版本正在构建中，你也可以从 <a href="https://github.com/Shanw26/xiaobaiAI/actions" target="_blank" style="color: var(--primary);">GitHub Actions</a> 下载最新构建产物。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/Shanw26/xiaobaiAI" target="_blank">GitHub</a>
+                <a href="https://github.com/Shanw26/xiaobaiAI/issues" target="_blank">问题反馈</a>
+                <a href="https://github.com/Shanw26/xiaobaiAI/blob/main/README.md" target="_blank">使用文档</a>
+            </div>
+            <p class="footer-copyright">
+                © 2026 小白AI · Made with ❤️ by 晓力
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

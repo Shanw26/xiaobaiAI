@@ -1,0 +1,150 @@
+{
+  "name": "xiaobai-ai",
+  "version": "2.20.2",
+  "description": "小白AI - 操作系统级AI助手",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
+    "build": "vite build",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac:notarized": "node scripts/package-mac.js",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "release": "npm run build && electron-builder --publish=never",
+    "upload:oss": "node scripts/upload-to-oss.js",
+    "upload:all": "node scripts/upload-all-to-oss.js",
+    "release:oss": "npm run dist:mac && npm run upload:oss",
+    "release:force": "FORCE_UPDATE=true npm run dist:mac && npm run upload:oss",
+    "release:notes": "npm run dist:mac && RELEASE_NOTES=\"$NOTES\" npm run upload:oss",
+    "config:load": "node scripts/load-from-key.js",
+    "config:sync": "node scripts/sync-config.js",
+    "security:check": "node scripts/security-check.js",
+    "security:check-imports": "node scripts/security-check-imports.js",
+    "certs:check": "bash scripts/check-certs.sh",
+    "signing:verify": "bash scripts/verify-signing.sh",
+    "signing:build": "bash build-mac-signed.sh"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "electron",
+    "desktop"
+  ],
+  "author": "晓力",
+  "license": "MIT",
+  "dependencies": {
+    "@alicloud/dysmsapi20170525": "^2.0.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.76",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.89.0",
+    "better-sqlite3": "^12.5.0",
+    "dotenv": "^17.2.3",
+    "electron-updater": "^6.6.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "unist-util-visit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^3.1.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "ali-oss": "^6.23.0",
+    "concurrently": "^9.1.2",
+    "cross-env": "^10.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-icon-builder": "^2.0.1",
+    "sharp": "^0.34.5",
+    "vite": "^6.0.11",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.xiaobai.ai",
+    "productName": "小白AI",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json",
+      ".env"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "npmRebuild": true,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "identity": "666P8DEX39",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "afterPack": "scripts/afterPack.js",
+    "afterSign": "scripts/notarize.js",
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Utility",
+      "maintainer": "晓力"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+/* AlertModal 使用 ModalBase.css 的所有样式 */
+@import './ModalBase.css';
+
+/* 苹果风格：单按钮时使用主色调，按钮更大更易点击 */
+/* 保持项目主色调：绿色 */
+.alert-modal .btn-modal.primary {
+  height: 50px;
+  font-size: 17px;
+  font-weight: 600;
+  border-radius: 14px;
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 204, 102, 0.25);
+}
+
+.alert-modal .btn-modal.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 16px rgba(0, 204, 102, 0.35);
+}
+
+/* 错误类型使用红色 */
+.alert-modal .modal-icon {
+  font-size: 48px;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.alert-modal[data-type="error"] .modal-icon {
+  font-size: 52px;
+}
+
+.alert-modal[data-type="success"] .modal-icon {
+  font-size: 52px;
+}

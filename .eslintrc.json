@@ -1,0 +1,42 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "name": "supabaseAdmin",
+        "importNames": ["supabaseAdmin"],
+        "message": "🔴 安全警告：不允许导入 supabaseAdmin！\n\n   supabaseAdmin 使用 Service Role Key，可以绕过 RLS 访问所有数据。\n   它只能在 Electron 主进程中使用，不能在 React 组件中使用。\n\n   ✅ 正确用法：import { supabase } from './lib/supabaseClient';\n   ❌ 错误用法：import { supabaseAdmin } from './lib/supabaseClient';\n\n   📖 文档：docs/02-login-system.md"
+      },
+      {
+        "name": "supabaseServiceKey",
+        "importNames": ["supabaseServiceKey"],
+        "message": "🔴 安全警告：不允许导入 supabaseServiceKey！\n\n   supabaseServiceKey 是 supabaseAdmin 的别名，同样使用 Service Role Key。\n   请使用 supabase（Anon Key）代替。\n\n   ✅ 正确用法：import { supabase } from './lib/supabaseClient';"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/lib/cloudService.js"],
+      "rules": {
+        "no-restricted-imports": "off"
+      },
+      "settings": {
+        "internal": {
+          "allowImportingEverywhere": true
+        }
+      }
+    }
+  ]
+}

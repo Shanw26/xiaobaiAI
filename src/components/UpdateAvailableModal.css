@@ -1,0 +1,490 @@
+/* 更新可用弹窗样式 */
+@import './ModalBase.css';
+
+/* 遮罩层 - 确保有居中和背景 */
+.update-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+  padding: 24px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 使用 priority-high z-index (2000) */
+
+.update-modal {
+  /* 继承基础样式，自定义大小和 overflow */
+  background: white;
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 500px;
+  max-height: 85vh; /* ✅ 限制弹窗最大高度为屏幕高度的85% */
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.update-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  color: white;
+}
+
+.update-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.update-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.update-header .btn-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.update-header .btn-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.update-body {
+  padding: 24px;
+  flex: 1; /* ✅ 占据剩余空间 */
+  overflow-y: auto; /* ✅ 内容超出时可滚动 */
+  min-height: 0; /* ✅ 允许 flex 子元素收缩 */
+}
+
+.update-version {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  text-align: center;
+  margin-bottom: 20px;
+  user-select: none;
+  position: relative;
+}
+
+.update-version.clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.update-version.clickable:hover {
+  transform: scale(1.05);
+}
+
+.update-version.clickable:active {
+  transform: scale(0.98);
+}
+
+.click-hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-light);
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+.update-preparing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 0;
+}
+
+.preparing-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.preparing-text {
+  margin-top: 16px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.preparing-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.update-notes {
+  margin-top: 16px;
+}
+
+.update-notes h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.notes-content {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  /* ✅ 移除 max-height 和 overflow，让整个 body 区域滚动 */
+}
+
+.notes-html-content {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.notes-html-content h1,
+.notes-html-content h2,
+.notes-html-content h3,
+.notes-html-content h4 {
+  font-weight: 600;
+  color: var(--primary);
+  margin: 16px 0 8px 0;
+}
+
+.notes-html-content h1 {
+  font-size: 18px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.notes-html-content h2 {
+  font-size: 16px;
+}
+
+.notes-html-content h3 {
+  font-size: 15px;
+  color: var(--primary-hover);
+}
+
+.notes-html-content p {
+  margin: 8px 0;
+}
+
+.notes-html-content ul,
+.notes-html-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.notes-html-content li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.notes-html-content code {
+  background: #fef3c7;
+  color: #d97706;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.notes-html-content pre {
+  background: var(--text);
+  color: var(--bg);
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.notes-html-content pre code {
+  background: transparent;
+  color: var(--bg);
+  padding: 0;
+}
+
+.notes-html-content a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.notes-html-content a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.notes-html-content strong,
+.notes-html-content b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.notes-html-content em,
+.notes-html-content i {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.notes-html-content blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.notes-html-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+/* ✨ v2.10.1 新增：Markdown 渲染样式 */
+.markdown-content {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  font-weight: 600;
+  color: var(--primary);
+  margin: 16px 0 8px 0;
+}
+
+.markdown-content h1 {
+  font-size: 18px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.markdown-content h2 {
+  font-size: 16px;
+}
+
+.markdown-content h3 {
+  font-size: 15px;
+  color: var(--primary-hover);
+}
+
+.markdown-content p {
+  margin: 8px 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-content li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.markdown-content code {
+  background: #fef3c7;
+  color: #d97706;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.markdown-content pre {
+  background: var(--text);
+  color: var(--bg);
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  color: var(--bg);
+  padding: 0;
+}
+
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.markdown-content a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.markdown-content strong,
+.markdown-content b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.markdown-content em,
+.markdown-content i {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.markdown-content blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.no-notes {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 12px;
+}
+
+.no-notes a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.no-notes a:hover {
+  text-decoration: underline;
+}
+
+.update-progress {
+  margin-top: 16px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-hover) 100%);
+  transition: width 0.3s ease-out;
+  border-radius: 12px;
+}
+
+.progress-info {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.progress-speed {
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+.update-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  background: var(--bg-secondary);
+  justify-content: flex-end;
+  flex-shrink: 0; /* ✅ 确保按钮区域始终可见，不被滚动 */
+}
+
+.btn-update {
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-update.primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 204, 102, 0.25);
+}
+
+.btn-update.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 204, 102, 0.35);
+}
+
+.btn-update.secondary {
+  background: white;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-update.secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--text-light);
+}
