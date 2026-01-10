@@ -4,7 +4,7 @@
 
 **操作系统级的 AI 助手客户端，简单、强大、易用**
 
-[![Version](https://img.shields.io/badge/version-2.20.2-blue.svg)](https://github.com/Shanw26/xiaobaiAI)
+[![Version](https://img.shields.io/badge/version-2.20.5-blue.svg)](https://github.com/Shanw26/xiaobaiAI)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](https://github.com/Shanw26/xiaobaiAI)
 
@@ -251,6 +251,22 @@ npm run dist:win             # Windows
 - Windows：使用 GitHub Actions CI/CD（自动构建）
 
 ## 📝 更新日志
+
+### v2.20.5 (2026-01-10) - Windows 网络和样式优化
+- 🐛 修复 Windows 上 "Failed to fetch" 网络请求失败问题
+- 🎨 优化 Windows 弹窗样式，完全符合 Fluent Design 规范
+- ✨ 实现平台样式隔离（Mac/Windows 互不影响）
+- 🔧 增强错误日志，提供更详细的调试信息
+- 📱 修复所有弹窗组件的平台类名应用
+
+### v2.20.4 (2026-01-10) - Windows 截图修复
+- 🐛 修复 Windows 平台截图功能失效问题
+- 🔧 修复 PowerShell Add-Type 重复加载错误
+
+### v2.20.3 (2026-01-10) - 启动速度优化
+- ⚡ 优化应用启动流程，立即显示主界面
+- 🚀 Supabase 配置后台异步加载
+- ✅ 提升用户体验（启动速度提升 500ms-2s）
 
 ### v2.20.2 (2026-01-09) - 开源版本
 - 🎉 准备开源，完善安全检查

@@ -96,7 +96,10 @@ async function decryptApiKey(encryptedData, iv, userId) {
  */
 async function callEdgeFunction(functionName, data) {
   try {
-    const response = await fetch(`${EDGE_FUNCTIONS_BASE}/${functionName}`, {
+    const url = `${EDGE_FUNCTIONS_BASE}/${functionName}`;
+    console.log(`🌐 [Edge Function] 正在调用: ${url}`);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,12 +112,31 @@ async function callEdgeFunction(functionName, data) {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
+      console.error(`❌ [Edge Function] ${functionName} 返回错误:`, result);
       return { success: false, error: result.error || `HTTP ${response.status}` };
     }
 
     return { success: true, data: result.data };
   } catch (error) {
+    // ✨ v2.20.5 增强：详细的错误日志
     console.error(`❌ [Edge Function] ${functionName} 调用失败:`, error);
+    console.error(`  - 错误名称:`, error.name);
+    console.error(`  - 错误消息:`, error.message);
+    console.error(`  - Edge Function URL: ${EDGE_FUNCTIONS_BASE}/${functionName}`);
+
+    // Windows 常见问题提示
+    if (error.message === 'Failed to fetch') {
+      console.error(`  ⚠️  可能原因：`);
+      console.error(`     1. Windows 防火墙/杀毒软件阻止网络请求`);
+      console.error(`     2. 网络连接问题`);
+      console.error(`     3. SSL 证书验证失败`);
+      console.error(`     4. 代理设置干扰`);
+      return {
+        success: false,
+        error: '网络请求失败（Windows 防火墙或网络问题）'
+      };
+    }
+
     return { success: false, error: error.message };
   }
 }

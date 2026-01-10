@@ -15,9 +15,9 @@ exports.default = async function (context) {
   try {
     // 先对整个 .app 包进行深度签名
     // 使用 --options runtime 确保签名满足 hardened runtime 要求
-    // 使用 --timestamp 添加时间戳，避免签名验证问题
-    // 🔥 使用 Team ID 而不是 SHA1 指纹（更可靠）
-    execSync(`codesign --force --deep --timestamp --options runtime --sign "666P8DEX39" "${appPath}"`, {
+    // 🔥 v2.20.5: 移除 --timestamp 参数（避免网络问题）
+    // 使用 Team ID 而不是 SHA1 指纹（更可靠）
+    execSync(`codesign --force --deep --options runtime --sign "666P8DEX39" "${appPath}"`, {
       stdio: 'inherit'
     });
 

@@ -86,7 +86,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
 
   return (
     <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
-      <div className="modal small" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal small ${getPlatformClassNames().join(' ')}`} onClick={(e) => e.stopPropagation()}>
         {/* 关闭按钮 */}
         <button className="btn-close" onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px' }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

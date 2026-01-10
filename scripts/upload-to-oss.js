@@ -23,6 +23,7 @@ const config = {
   bucket: 'xiaobai-ai-releases',  // Bucket 名称
   accessKeyId: process.env.ALI_OSS_ACCESS_KEY_ID,
   accessKeySecret: process.env.ALI_OSS_ACCESS_KEY_SECRET,
+  timeout: 600000,  // ✨ v2.20.5: 增加超时时间到 10 分钟（用于上传大文件）
 };
 
 // 初始化 OSS 客户端

@@ -38,7 +38,7 @@ function ForceUpdateModal({ version, releaseNotes }) {
 
   return (
     <div className={`modal-overlay force-update ${getPlatformClassNames().join(' ')}`}>
-      <div className="modal small force-update-modal">
+      <div className={`modal small force-update-modal ${getPlatformClassNames().join(' ')}`}>
         <div className="force-update-icon">⚠️</div>
         <h2>需要立即更新</h2>
         <p className="force-update-text">

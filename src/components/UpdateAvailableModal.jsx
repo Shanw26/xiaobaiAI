@@ -36,7 +36,7 @@ function UpdateAvailableModal({ version, releaseNotes, onDownload, onLater, onCl
 
   return (
     <div className={`modal-overlay update-modal-overlay ${getPlatformClassNames().join(' ')}`}>
-      <div className="modal update-modal">
+      <div className={`modal update-modal ${getPlatformClassNames().join(' ')}`}>
         <div className="update-header">
           <h2>发现新版本</h2>
           {!downloading && <button className="btn-close" onClick={onClose}>×</button>}

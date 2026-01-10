@@ -5,21 +5,25 @@
 
 /* ==================== 遮罩层 - Windows 风格 ==================== */
 .modal-overlay.windows-style {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: none; /* Windows 使用简单的半透明背景 */
-  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important; /* Windows 使用简单的半透明背景 */
+  -webkit-backdrop-filter: none !important;
 }
 
 /* ==================== 弹窗容器 - Windows Fluent Design ==================== */
-.modal.windows-style {
-  background: #FFFFFF; /* ✨ Windows 11: 纯白色背景 */
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-radius: 8px; /* Windows Fluent Design: 8px 圆角 */
-  border: 1px solid rgba(0, 0, 0, 0.12); /* ✨ 更明显的边框 */
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.10); /* ✨ 优化阴影 */
-  font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  animation: fadeInWindows 0.15s cubic-bezier(0.16, 1, 0.3, 1); /* ✨ 更快的动画 */
+/* 使用更高优先级的选择器确保覆盖基础样式 */
+.windows-style.modal,
+.windows-style.modal-content,
+.modal.windows-style,
+.modal-content.windows-style {
+  background: #FFFFFF !important; /* ✨ Windows 11: 纯白色背景 */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 8px !important; /* Windows Fluent Design: 8px 圆角 */
+  border: 1px solid rgba(0, 0, 0, 0.12) !important; /* ✨ 更明显的边框 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.10) !important; /* ✨ 优化阴影 */
+  font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei', sans-serif !important;
+  animation: fadeInWindows 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important; /* ✨ 更快的动画 */
 }
 
 @keyframes fadeInWindows {
@@ -34,84 +38,125 @@
 }
 
 /* ==================== 按钮 - Windows Fluent Design ==================== */
-.windows-style .btn-modal {
-  border-radius: 4px;
-  height: 32px;
-  padding: 0 16px; /* ✨ 标准内边距 */
-  font-size: 14px;
-  font-weight: 400;
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1); /* ✨ 更快更流畅的过渡 */
-  letter-spacing: 0.01em; /* ✨ 微妙的字间距 */
+.windows-style .btn-modal,
+.windows-style.btn-modal,
+.modal.windows-style .btn-modal {
+  border-radius: 4px !important;
+  height: 32px !important;
+  padding: 0 16px !important; /* ✨ 标准内边距 */
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important; /* ✨ 更快更流畅的过渡 */
+  letter-spacing: 0.01em !important; /* ✨ 微妙的字间距 */
 }
 
-.windows-style .btn-modal.primary {
-  background: var(--primary);
-  border: none;
-  color: #FFFFFF;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+.windows-style .btn-modal.primary,
+.windows-style.btn-modal.primary,
+.modal.windows-style .btn-modal.primary {
+  background: var(--primary) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  border-radius: 4px !important;
 }
 
-.windows-style .btn-modal.primary:hover {
-  background: var(--primary-hover);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px); /* ✨ 微妙的抬升效果 */
+.windows-style .btn-modal.primary:hover,
+.windows-style.btn-modal.primary:hover,
+.modal.windows-style .btn-modal.primary:hover {
+  background: var(--primary-hover) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-1px) !important; /* ✨ 微妙的抬升效果 */
 }
 
-.windows-style .btn-modal.primary:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+.windows-style .btn-modal.primary:active,
+.windows-style.btn-modal.primary:active,
+.modal.windows-style .btn-modal.primary:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
 }
 
-.windows-style .btn-modal.secondary {
-  background: rgba(255, 255, 255, 1); /* ✨ 纯白背景 */
-  border: 1px solid rgba(0, 0, 0, 0.22); /* ✨ 更明显的边框 */
-  color: #000000;
+.windows-style .btn-modal.secondary,
+.windows-style.btn-modal.secondary,
+.modal.windows-style .btn-modal.secondary {
+  background: rgba(255, 255, 255, 1) !important; /* ✨ 纯白背景 */
+  border: 1px solid rgba(0, 0, 0, 0.22) !important; /* ✨ 更明显的边框 */
+  color: #000000 !important;
+  border-radius: 4px !important;
 }
 
-.windows-style .btn-modal.secondary:hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.30);
-  transform: translateY(-1px);
+.windows-style .btn-modal.secondary:hover,
+.windows-style.btn-modal.secondary:hover,
+.modal.windows-style .btn-modal.secondary:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.30) !important;
+  transform: translateY(-1px) !important;
 }
 
-.windows-style .btn-modal.secondary:active {
-  transform: translateY(0);
+.windows-style .btn-modal.secondary:active,
+.windows-style.btn-modal.secondary:active,
+.modal.windows-style .btn-modal.secondary:active {
+  transform: translateY(0) !important;
 }
 
 /* ==================== 表单元素 - Windows Fluent Design ==================== */
-.windows-style .form-input {
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.22); /* ✨ 更明显的边框 */
-  padding: 8px 12px;
-  font-size: 14px;
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  height: 32px;
-  background: #FFFFFF;
-  transition: all 0.15s ease;
+.windows-style .form-input,
+.windows-style.form-input,
+.modal.windows-style .form-input,
+.windows-style input[type="text"],
+.windows-style input[type="tel"],
+.windows-style input[type="email"],
+.windows-style input[type="password"] {
+  border-radius: 4px !important;
+  border: 1px solid rgba(0, 0, 0, 0.22) !important; /* ✨ 更明显的边框 */
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  height: 32px !important;
+  background: #FFFFFF !important;
+  transition: all 0.15s ease !important;
+  box-shadow: none !important;
 }
 
-.windows-style .form-input:hover {
-  border-color: rgba(0, 0, 0, 0.30); /* ✨ hover 时边框变深 */
+.windows-style .form-input:hover,
+.windows-style.form-input:hover,
+.modal.windows-style .form-input:hover,
+.windows-style input[type="text"]:hover,
+.windows-style input[type="tel"]:hover,
+.windows-style input[type="email"]:hover,
+.windows-style input[type="password"]:hover {
+  border-color: rgba(0, 0, 0, 0.30) !important; /* ✨ hover 时边框变深 */
 }
 
-.windows-style .form-input:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.15); /* ✨ 更明显的焦点环 */
+.windows-style .form-input:focus,
+.windows-style.form-input:focus,
+.modal.windows-style .form-input:focus,
+.windows-style input[type="text"]:focus,
+.windows-style input[type="tel"]:focus,
+.windows-style input[type="email"]:focus,
+.windows-style input[type="password"]:focus {
+  border-color: var(--primary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 204, 102, 0.15) !important; /* ✨ 更明显的焦点环 */
 }
 
-.windows-style .form-textarea {
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  padding: 8px 12px;
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 14px;
+.windows-style .form-textarea,
+.windows-style.form-textarea,
+.modal.windows-style .form-textarea,
+.windows-style textarea {
+  border-radius: 4px !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  padding: 8px 12px !important;
+  font-family: 'Segoe UI', sans-serif !important;
+  font-size: 14px !important;
 }
 
-.windows-style .form-textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0, 204, 102, 0.2);
+.windows-style .form-textarea:focus,
+.windows-style.form-textarea:focus,
+.modal.windows-style .form-textarea:focus,
+.windows-style textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(0, 204, 102, 0.2) !important;
 }
 
 /* ==================== 关闭按钮 - Windows Fluent Design ==================== */
@@ -140,35 +185,48 @@
 }
 
 /* ==================== 头部 - Windows Fluent Design ==================== */
-.windows-style .modal-header {
-  padding: 20px 24px 12px; /* ✨ 调整内边距 */
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+.windows-style .modal-header,
+.modal.windows-style .modal-header {
+  padding: 20px 24px 12px !important; /* ✨ 调整内边距 */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
-.windows-style .modal-title {
-  font-size: 20px; /* ✨ Windows 标准字号 */
-  font-weight: 600; /* Semibold */
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  letter-spacing: -0.01em; /* ✨ 微妙的负字间距 */
-  color: #000000;
+.windows-style .modal-title,
+.modal.windows-style .modal-title {
+  font-size: 20px !important; /* ✨ Windows 标准字号 */
+  font-weight: 600 !important; /* Semibold */
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  letter-spacing: -0.01em !important; /* ✨ 微妙的负字间距 */
+  color: #000000 !important;
 }
 
 /* ==================== 内容区域 - Windows Fluent Design ==================== */
-.windows-style .modal-body {
-  padding: 16px 24px 24px; /* ✨ 调整内边距 */
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  font-size: 14px;
-  line-height: 1.6; /* ✨ 标准 line-height */
-  color: #202020; /* ✨ Windows 标准文字颜色 */
+.windows-style .modal-body,
+.modal.windows-style .modal-body {
+  padding: 16px 24px 24px !important; /* ✨ 调整内边距 */
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important; /* ✨ 标准 line-height */
+  color: #202020 !important; /* ✨ Windows 标准文字颜色 */
 }
 
 /* ==================== 底部操作区 - Windows Fluent Design ==================== */
-.windows-style .modal-actions {
-  padding: 12px 24px 20px; /* ✨ 调整内边距 */
-  gap: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  display: flex;
-  justify-content: flex-end; /* ✨ 按钮右对齐 */
+.windows-style .modal-actions,
+.modal.windows-style .modal-actions {
+  padding: 12px 24px 20px !important; /* ✨ 调整内边距 */
+  gap: 8px !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+  display: flex !important;
+  justify-content: flex-end !important; /* ✨ 按钮右对齐 */
+}
+
+/* ==================== 小尺寸弹窗 - Windows ==================== */
+.windows-style.modal.small,
+.windows-style.modal.xsmall,
+.modal.windows-style.small,
+.modal.windows-style.xsmall {
+  max-width: 420px !important;
+  padding: 24px !important;
 }
 
 /* ==================== 强制更新弹窗 - Windows 风格 ==================== */
@@ -247,35 +305,40 @@
 }
 
 /* ==================== 文本样式 - Windows Fluent Design ==================== */
-.windows-style .modal-description {
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #606060; /* ✨ Windows 标准灰色 */
+.windows-style .modal-description,
+.modal.windows-style .modal-description {
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  color: #606060 !important; /* ✨ Windows 标准灰色 */
 }
 
-.windows-style .form-label {
-  font-size: 12px;
-  font-weight: 600;
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  text-transform: none;
-  letter-spacing: 0.01em;
-  color: #000000;
+.windows-style .form-label,
+.modal.windows-style .form-label,
+.windows-style label {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+  color: #000000 !important;
 }
 
-.windows-style .form-hint {
-  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  font-size: 12px;
-  color: #737373; /* ✨ Windows 标准提示色 */
+.windows-style .form-hint,
+.modal.windows-style .form-hint {
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif !important;
+  font-size: 12px !important;
+  color: #737373 !important; /* ✨ Windows 标准提示色 */
 }
 
 /* ==================== 错误提示 - Windows 风格 ==================== */
-.windows-style .modal-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-left: 3px solid #dc2626; /* 左侧强调线 */
-  border-radius: 4px;
-  font-family: 'Segoe UI', sans-serif;
+.windows-style .modal-error,
+.modal.windows-style .modal-error {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  border-left: 3px solid #dc2626 !important; /* 左侧强调线 */
+  border-radius: 4px !important;
+  font-family: 'Segoe UI', sans-serif !important;
 }
 
 /* ==================== 响应式 - Windows ==================== */

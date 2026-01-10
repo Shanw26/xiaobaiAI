@@ -464,15 +464,14 @@ function AppContent() {
     } catch (error) {
       console.error('加载配置失败:', error);
     } finally {
-      // 🔥 优化：减少启动屏延迟，提升启动速度
-      // 只保留最小延迟（500ms）让启动屏动画可见，避免闪烁
-      setTimeout(() => {
-        setShowStartup(false);
-        // 🔥 关键：通知 Electron 窗口可以显示了
-        if (window.electronAPI && window.electronAPI.readyToShow) {
-          window.electronAPI.readyToShow();
-        }
-      }, 500); // 从 2000ms 减少到 500ms
+      // 🔥 v2.20.3 优化：立即显示主界面，Supabase 配置在后台异步加载
+      // 取消固定延迟，提升启动速度
+      setShowStartup(false);
+
+      // 🔥 关键：通知 Electron 窗口可以显示了
+      if (window.electronAPI && window.electronAPI.readyToShow) {
+        window.electronAPI.readyToShow();
+      }
     }
   };
 

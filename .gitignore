@@ -90,3 +90,11 @@ supabase/.temp/
 MEMORY.md
 MEMORY_ARCHIVE.md
 
+# Tesseract OCR 语言包（自动下载，无需提交）
+*.traineddata
+
+# 测试和扫描报告（临时文件）
+*测试报告*.md
+*扫描报告*.md
+*版本检查报告*.md
+

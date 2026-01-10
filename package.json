@@ -65,6 +65,7 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-icon-builder": "^2.0.1",
+    "electron-rebuild": "^3.2.9",
     "sharp": "^0.34.5",
     "vite": "^6.0.11",
     "wait-on": "^8.0.1"

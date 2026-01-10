@@ -588,7 +588,7 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout, onUserU
 
   return (
     <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
-      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal settings-modal ${getPlatformClassNames().join(' ')}`} onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <h2 className="settings-title">设置</h2>
           <button className="btn-close" onClick={onClose}>

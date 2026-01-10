@@ -4,7 +4,7 @@ import { getPlatformClassNames } from '../lib/platformUtil';
 function AlertModal({ message, type = 'info', onClose }) {
   return (
     <div className={`modal-overlay ${getPlatformClassNames().join(' ')}`} onClick={onClose}>
-      <div className="modal xsmall alert-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal xsmall alert-modal ${getPlatformClassNames().join(' ')}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-icon">
           {type === 'error' && '⚠️'}
           {type === 'success' && '✅'}

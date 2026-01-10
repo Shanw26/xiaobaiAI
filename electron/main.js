@@ -53,7 +53,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.20.2';
+const APP_VERSION = '2.20.5';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
@@ -284,6 +284,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
+      // ✨ v2.20.5 修复：解决 Windows 上 "Failed to fetch" 问题
+      webSecurity: false, // 允许跨域请求（Edge Functions）
+      allowRunningInsecureContent: false, // 仍然禁止不安全内容
     },
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#ffffff',
@@ -1591,11 +1594,15 @@ ipcMain.handle('capture-screen', async () => {
       // -r: 不显示声音
       await execPromise(`screencapture -i -r "${filePath}"`);
     } else if (process.platform === 'win32') {
-      // Windows: 使用 Snipping Tool（截图工具）
-      // 🔥 关键修复：Windows 10/11 自带截图工具
+      // Windows: 使用 PowerShell 截图
+      // 🔥 v2.20.4 修复：避免重复加载程序集导致错误
       const psScript = `
-        Add-Type -AssemblyName System.Windows.Forms
-        Add-Type -AssemblyName System.Drawing
+        try {
+          Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+          Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        } catch {
+          # 程序集已加载，忽略错误
+        }
 
         # 全屏截图
         $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
