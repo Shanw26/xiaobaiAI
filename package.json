@@ -1,6 +1,6 @@
 {
   "name": "xiaobai-ai",
-  "version": "2.20.2",
+  "version": "2.20.5",
   "description": "小白AI - 操作系统级AI助手",
   "main": "electron/main.js",
   "scripts": {
@@ -44,13 +44,17 @@
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "electron-updater": "^6.6.2",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^2.4.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
-    "unist-util-visit": "^5.0.0"
+    "tesseract.js": "^7.0.0",
+    "unist-util-visit": "^5.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",

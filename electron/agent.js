@@ -906,13 +906,18 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
     // 构建消息内容
     let content = [{ type: 'text', text: message }];
 
+    // 🔥 v2.20.5 新增：智能文件解析
     // 添加文件内容
     if (files && files.length > 0) {
+      const fileParser = require('./fileParser');
+
       for (const file of files) {
         if (file.type.startsWith('image/')) {
-          // 图片文件
+          // 图片文件：同时发送 base64 图片和 OCR 识别文字
           const imageBuffer = await fs.readFile(file.path);
           const base64Image = imageBuffer.toString('base64');
+
+          // 1. 发送 base64 图片（Claude 可以直接看到图片内容）
           content.push({
             type: 'image',
             source: {
@@ -921,13 +926,45 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
               data: base64Image,
             },
           });
+
+          // 2. 异步提取文字（增强 AI 理解能力）
+          try {
+            const ocrText = await fileParser.parseImage(file.path);
+            content.push({
+              type: 'text',
+              text: `\n\n${ocrText}\n`,
+            });
+          } catch (ocrError) {
+            // OCR 失败不影响主流程，静默处理
+            safeLog('OCR 识别失败（非致命）:', ocrError.message);
+          }
         } else {
-          // 其他文件，读取文本内容
-          const fileContent = await fs.readFile(file.path, 'utf-8');
-          content.push({
-            type: 'text',
-            text: `\n\n[文件: ${file.name}]\n\`\`\`\n${fileContent}\n\`\`\`\n`,
-          });
+          // 其他文件：使用智能解析器
+          try {
+            const parsedContent = await fileParser.parseFile(file.path);
+            content.push({
+              type: 'text',
+              text: `\n\n[文件: ${file.name}]\n${parsedContent}\n`,
+            });
+          } catch (parseError) {
+            // 降级策略：尝试读取原始文本
+            safeLog('文件解析失败，使用降级策略:', parseError.message);
+
+            try {
+              const fileContent = await fs.readFile(file.path, 'utf-8');
+              content.push({
+                type: 'text',
+                text: `\n\n[文件: ${file.name} (原始内容)]\n\`\`\`\n${fileContent}\n\`\`\`\n`,
+              });
+            } catch (readError) {
+              // 最终降级：只发送文件名
+              safeError('无法读取文件内容:', readError.message);
+              content.push({
+                type: 'text',
+                text: `\n\n[文件: ${file.name}]\n⚠️ 无法读取文件内容，可能是文件损坏或格式不支持\n`,
+              });
+            }
+          }
         }
       }
     }

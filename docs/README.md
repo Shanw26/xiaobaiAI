@@ -44,6 +44,7 @@
 - **[Device ID & Guest Mode](./04-deviceid-guest-mode.md)** - 设备识别、游客数据、自动合并
 - **[File Path Click](./05-file-path-click.md)** - 路径识别、Markdown渲染、Electron集成
 - **[Thinking Process](./06-thinking-process.md)** - AI思考过程展示、用户信任度提升
+- **[File Parser (v2.20.5)](./11-file-parser.md)** - 文件解析、OCR识别、PDF/Word/Excel解析
 - **[系统提示词与工具优先级 (v2.10.27)](./v2.10.27-系统提示词与工具优先级.md)** - AI工具调用优先级、专用工具使用规范
 - **[官方API Key容错机制 (v2.10.26)](./v2.10.26-官方API Key容错机制.md)** - 自动从Supabase重新获取、缓存机制
 - **[并行任务与小红点提示 (v2.10.1)](./v2.10.1-并行任务与小红点提示.md)** - 多会话并行执行、后台任务完成通知
