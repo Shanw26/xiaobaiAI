@@ -297,13 +297,31 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // 🔥 Windows 修复：使用 loadURL + file:// 协议
-    // loadFile 在 Windows 上可能有问题，使用 loadURL 更可靠
-    const distPath = path.join(__dirname, '../dist/index.html');
-    const absolutePath = path.resolve(distPath);
+    // 🔥 v2.20.5 修复：优先从 app.asar.unpacked 加载 dist 文件
+    // app.asar.unpacked 是 electron-builder 解包原生模块时的特殊目录
+    let distPath;
 
+    // 检查是否在 asar 包中
+    if (__dirname.includes('app.asar')) {
+      // 在 asar 包中，使用 app.asar.unpacked
+      const asarUnpackedPath = __dirname.replace('app.asar', 'app.asar.unpacked');
+      distPath = path.join(asarUnpackedPath, 'dist/index.html');
+      safeLog('✨ [打包模式] 从 app.asar.unpacked 加载');
+    } else {
+      // 开发模式或未打包状态
+      distPath = path.join(__dirname, '../dist/index.html');
+      safeLog('✨ [开发模式] 从本地 dist 加载');
+    }
+
+    const absolutePath = path.resolve(distPath);
     safeLog('加载页面路径:', distPath);
     safeLog('绝对路径:', absolutePath);
+
+    // 检查文件是否存在
+    if (!require('fs').existsSync(absolutePath)) {
+      safeError(`❌ 文件不存在: ${absolutePath}`);
+      throw new Error(`Frontend files not found: ${absolutePath}`);
+    }
 
     // Windows 路径需要特殊处理：C:\path\to\file.html -> file:///C:/path/to/file.html
     // Unix 路径：/path/to/file.html -> file:///path/to/file.html
