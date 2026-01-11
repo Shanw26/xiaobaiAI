@@ -53,7 +53,7 @@ function setupGlobalErrorHandlers() {
 }
 
 // 当前应用版本
-const APP_VERSION = '2.20.7';
+const APP_VERSION = '2.20.8';
 const VERSION_FILE = '.version';
 
 let mainWindow = null;
