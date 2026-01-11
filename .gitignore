@@ -75,11 +75,16 @@ supabase/functions/login-test/
 # 通用测试和诊断工具（防止硬编码密钥）
 test-*.js
 test-*.html
+test-*.sh
 check-*.js
 diagnose-*.js
 verify-*.js
 compare-*.js
 *-fix-guide.md
+
+# 宣传和营销材料（临时设计文件）
+*-poster.html
+promotional-*.html
 
 # 安全检查报告（可能包含临时敏感信息）
 security-check-report-*.md
