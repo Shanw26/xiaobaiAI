@@ -322,6 +322,86 @@ const FILE_TOOLS = [
       required: ['content'],
     },
   },
+  // ========== 浏览器自动化工具 ==========
+  {
+    name: 'browser_open',
+    description: '打开浏览器并访问指定网址。\n\n功能：\n- 自动检测并使用系统默认浏览器（Chrome/Edge/Safari/Firefox）\n- 打开指定网址\n- 返回页面标题和 URL\n\n使用场景：\n- 用户说"打开百度"\n- 用户说"帮我打开这个网址 xxx"\n- 需要查看某个网站\n\n注意事项：\n- 必须使用完整的 URL（包含 http:// 或 https://）\n- 浏览器会以可见模式打开（用户可以看到操作过程）',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: '要访问的网址（必须包含协议，如 https://www.baidu.com）',
+        },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'browser_search',
+    description: '在搜索引擎中搜索指定内容。\n\n功能：\n- 自动打开搜索引擎并执行搜索\n- 支持百度、Google、Bing\n- 返回搜索结果页面 URL\n\n使用场景：\n- 用户说"在百度搜索 xxx"\n- 用户说"帮我查一下 xxx"\n- 需要搜索信息\n\n注意事项：\n- 默认使用百度搜索\n- 可指定搜索引擎（baidu/google/bing）',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: '搜索关键词',
+        },
+        searchEngine: {
+          type: 'string',
+          description: '搜索引擎（baidu/google/bing，默认 baidu）',
+          enum: ['baidu', 'google', 'bing'],
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'browser_screenshot',
+    description: '对当前网页进行截图。\n\n功能：\n- 截取当前网页的截图\n- 保存到临时目录\n- 返回截图文件路径\n\n使用场景：\n- 用户说"截图给我看看"\n- 需要保存当前页面状态\n- 用户想看网页效果\n\n注意事项：\n- 必须先打开网页才能截图\n- 截图保存在系统临时目录',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fullPage: {
+          type: 'boolean',
+          description: '是否截取整个网页（包括需要滚动才能看到的部分），默认 false（只截取可见区域）',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'browser_close',
+    description: '关闭浏览器。\n\n功能：\n- 关闭当前打开的浏览器\n- 释放系统资源\n\n使用场景：\n- 浏览操作完成后\n- 用户明确要求关闭\n\n注意事项：\n- 所有浏览器标签页都会被关闭\n- 关闭后如需继续浏览，需要重新调用 browser_open',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'browser_info',
+    description: '获取当前浏览器和页面信息。\n\n功能：\n- 获取当前页面标题\n- 获取当前页面 URL\n- 检查浏览器是否打开\n\n使用场景：\n- 用户问"现在打开的是什么网页"\n- 需要确认当前页面状态',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'browser_click',
+    description: '点击页面上的元素（如链接、按钮等）。\n\n功能：\n- 点击指定的页面元素\n- 自动等待元素可见\n- 等待页面响应\n\n使用场景：\n- 用户说"点击第一个搜索结果"\n- 用户说"点击登录按钮"\n- 需要与页面交互\n\n注意事项：\n- 必须使用 CSS 选择器（如 #id, .class, tag）\n- 如果选择器不明确，会点击第一个匹配的元素\n\n常用选择器示例：\n- 百度搜索结果：.result a （第一个结果）\n- Google 搜索结果：div#search a （第一个结果）\n- 按钮元素：button, .btn, #submit',
+    input_schema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'string',
+          description: 'CSS 选择器（如：.result a 点击第一个链接，#submit 点击提交按钮）',
+        },
+      },
+      required: ['selector'],
+    },
+  },
 ];
 
 /**
@@ -679,6 +759,100 @@ async function handleToolUse(toolName, input) {
         }
       }
 
+      // ========== 浏览器自动化工具处理 ==========
+      case 'browser_open': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 打开浏览器并访问网址
+          const result = await browserManager.openUrl(input.url);
+
+          return `✅ 浏览器已打开\n\n网页标题：${result.title}\n网页地址：\`${result.url}\``;
+        } catch (error) {
+          safeError('browser_open 失败:', error);
+          return `❌ 打开浏览器失败：${error.message}`;
+        }
+      }
+
+      case 'browser_search': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 执行搜索
+          const result = await browserManager.search(
+            input.query,
+            input.searchEngine || 'baidu'
+          );
+
+          return `✅ 搜索完成\n\n搜索关键词：${result.query}\n搜索引擎：${result.searchEngine}\n搜索结果页面：\`${result.url}\``;
+        } catch (error) {
+          safeError('browser_search 失败:', error);
+          return `❌ 搜索失败：${error.message}`;
+        }
+      }
+
+      case 'browser_screenshot': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 截图
+          const result = await browserManager.screenshot({
+            fullPage: input.fullPage || false
+          });
+
+          return `✅ 截图已保存\n\n文件路径：\`${result.path}\`\n文件名：${result.filename}`;
+        } catch (error) {
+          safeError('browser_screenshot 失败:', error);
+          return `❌ 截图失败：${error.message}`;
+        }
+      }
+
+      case 'browser_close': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 关闭浏览器
+          await browserManager.close();
+
+          return '✅ 浏览器已关闭';
+        } catch (error) {
+          safeError('browser_close 失败:', error);
+          return `❌ 关闭浏览器失败：${error.message}`;
+        }
+      }
+
+      case 'browser_info': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 获取页面信息
+          const result = await browserManager.getPageInfo();
+
+          if (result.success) {
+            return `✅ 当前浏览器信息\n\n网页标题：${result.title}\n网页地址：\`${result.url}\``;
+          } else {
+            return `⚠️ ${result.message}`;
+          }
+        } catch (error) {
+          safeError('browser_info 失败:', error);
+          return `❌ 获取浏览器信息失败：${error.message}`;
+        }
+      }
+
+      case 'browser_click': {
+        try {
+          const { browserManager } = require('./browser-automation');
+
+          // 点击元素
+          const result = await browserManager.clickElement(input.selector);
+
+          return `✅ 已点击元素\n\n选择器：\`${result.selector}\`\n\n提示：如果需要点击其他元素，请提供不同的选择器`;
+        } catch (error) {
+          safeError('browser_click 失败:', error);
+          return `❌ 点击元素失败：${error.message}\n\n提示：请检查选择器是否正确，或者先截图查看页面结构`;
+        }
+      }
+
       default:
         return `错误: 未知的工具 - ${toolName}`;
     }
@@ -1013,7 +1187,15 @@ ${aiMemory}
 - **读取文件** → 调用 \`read_file\` 工具
 - **写入文件** → 调用 \`write_file\` 工具
 
-### 2. 何时使用 execute_command
+### 2. 浏览器自动化操作
+- **打开网页** → 调用 \`browser_open\` 工具
+- **搜索引擎** → 调用 \`browser_search\` 工具（支持百度/Google/Bing）
+- **点击元素** → 调用 \`browser_click\` 工具（支持 CSS 选择器）
+- **网页截图** → 调用 \`browser_screenshot\` 工具
+- **关闭浏览器** → 调用 \`browser_close\` 工具
+- **查看网页信息** → 调用 \`browser_info\` 工具
+
+### 3. 何时使用 execute_command
 只有在以下情况才使用 \`execute_command\` 工具：
 - 查看系统信息（如：ps aux, top, df -h）
 - 查看进程列表
@@ -1021,7 +1203,7 @@ ${aiMemory}
 - 执行 git 命令
 - 其他无法用专用工具完成的操作
 
-### 3. 常见错误示例
+### 4. 常见错误示例
 ❌ 用户说"清空回收站"，你执行：rm -rf ~/.Trash/*
 ✅ 用户说"清空回收站"，你调用：empty_trash 工具
 
