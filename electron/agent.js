@@ -914,7 +914,15 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
       for (const file of files) {
         if (file.type.startsWith('image/')) {
           // 图片文件：同时发送 base64 图片和 OCR 识别文字
-          const imageBuffer = await fs.readFile(file.path);
+          let imageBuffer;
+
+          // ✨ v2.20.5 新增：支持粘贴的截图（有 data 字段，没有 path）
+          if (file.data) {
+            imageBuffer = file.data;
+          } else {
+            imageBuffer = await fs.readFile(file.path);
+          }
+
           const base64Image = imageBuffer.toString('base64');
 
           // 1. 发送 base64 图片（Claude 可以直接看到图片内容）
@@ -928,18 +936,30 @@ async function sendMessage(agentInstance, message, files = [], onDelta) {
           });
 
           // 2. 异步提取文字（增强 AI 理解能力）
-          try {
-            const ocrText = await fileParser.parseImage(file.path);
-            content.push({
-              type: 'text',
-              text: `\n\n${ocrText}\n`,
-            });
-          } catch (ocrError) {
-            // OCR 失败不影响主流程，静默处理
-            safeLog('OCR 识别失败（非致命）:', ocrError.message);
+          // ✨ v2.20.5: 粘贴的截图跳过 OCR（因为没有文件路径）
+          if (file.path) {
+            try {
+              const ocrText = await fileParser.parseImage(file.path);
+              content.push({
+                type: 'text',
+                text: `\n\n${ocrText}\n`,
+              });
+            } catch (ocrError) {
+              // OCR 失败不影响主流程，静默处理
+              safeLog('OCR 识别失败（非致命）:', ocrError.message);
+            }
           }
         } else {
           // 其他文件：使用智能解析器
+          // ✨ v2.20.5: 粘贴的文件跳过（没有 path）
+          if (!file.path) {
+            content.push({
+              type: 'text',
+              text: `\n\n[文件: ${file.name}]\n⚠️ 粘贴的文件暂不支持解析\n`,
+            });
+            continue;
+          }
+
           try {
             const parsedContent = await fileParser.parseFile(file.path);
             content.push({

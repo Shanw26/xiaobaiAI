@@ -297,51 +297,52 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // 🔥 v2.20.5 修复：优先从 app.asar.unpacked 加载 dist 文件
-    // app.asar.unpacked 是 electron-builder 解包原生模块时的特殊目录
+    // 🔥 v2.20.5 修复：正确处理打包模式下的 dist 路径
     let distPath;
+
+    safeLog('🔍 [调试] __dirname =', __dirname);
 
     // 检查是否在 asar 包中
     if (__dirname.includes('app.asar')) {
-      // 在 asar 包中，使用 app.asar.unpacked
-      const asarUnpackedPath = __dirname.replace('app.asar', 'app.asar.unpacked');
-      distPath = path.join(asarUnpackedPath, 'dist/index.html');
-      safeLog('✨ [打包模式] 从 app.asar.unpacked 加载');
+      // 在 asar 包中，需要特殊处理
+      // 问题：loadFile 会把 app.asar/.. 解析掉
+      // 解决：使用绝对路径，并确保 app.asar 不被移除
+
+      // 方法：直接使用 /path/to/app.asar/dist/index.html
+      // __dirname = /path/to/app.asar/electron
+      // 需要得到 /path/to/app.asar
+      const parts = __dirname.split(path.sep);
+      const asarIndex = parts.indexOf('app.asar');
+      if (asarIndex !== -1) {
+        const asarPath = parts.slice(0, asarIndex + 1).join(path.sep);
+        distPath = path.join(asarPath, 'dist', 'index.html');
+        safeLog('✨ [打包模式] 从 app.asar/dist 加载');
+        safeLog('asar 路径:', asarPath);
+        safeLog('dist 路径:', distPath);
+      } else {
+        throw new Error('无法找到 app.asar 路径');
+      }
     } else {
       // 开发模式或未打包状态
       distPath = path.join(__dirname, '../dist/index.html');
       safeLog('✨ [开发模式] 从本地 dist 加载');
+
+      const absolutePath = path.resolve(distPath);
+      safeLog('绝对路径:', absolutePath);
+
+      // 检查文件是否存在（仅在开发模式）
+      if (!require('fs').existsSync(absolutePath)) {
+        safeError(`❌ 文件不存在: ${absolutePath}`);
+        throw new Error(`Frontend files not found: ${absolutePath}`);
+      }
     }
 
-    const absolutePath = path.resolve(distPath);
-    safeLog('加载页面路径:', distPath);
-    safeLog('绝对路径:', absolutePath);
+    safeLog('📄 [加载] 准备加载:', distPath);
 
-    // 检查文件是否存在
-    if (!require('fs').existsSync(absolutePath)) {
-      safeError(`❌ 文件不存在: ${absolutePath}`);
-      throw new Error(`Frontend files not found: ${absolutePath}`);
-    }
-
-    // Windows 路径需要特殊处理：C:\path\to\file.html -> file:///C:/path/to/file.html
-    // Unix 路径：/path/to/file.html -> file:///path/to/file.html
-    let fileUrl;
-    if (process.platform === 'win32') {
-      // Windows: 需要三个斜杠 + 盘符 + 路径（反斜杠转正斜杠）
-      fileUrl = `file:///${absolutePath.replace(/\\/g, '/')}`;
-    } else {
-      // Unix/macOS: 需要三个斜杠 + 路径
-      fileUrl = `file://${absolutePath}`;
-    }
-
-    safeLog('File URL:', fileUrl);
-
-    // 使用 loadURL 而不是 loadFile（Windows 兼容性更好）
-    mainWindow.loadURL(fileUrl).catch(err => {
+    // 使用 loadFile 加载
+    mainWindow.loadFile(distPath).catch(err => {
       safeError('❌ 加载页面失败:', err);
-      // 降级：尝试 loadFile
-      safeLog('尝试降级方案：loadFile');
-      mainWindow.loadFile(distPath);
+      throw err;
     });
   }
 
@@ -1398,12 +1399,32 @@ ipcMain.handle('send-message', async (event, conversationId, message, files) => 
   if (files && files.length > 0) {
     for (const file of files) {
       try {
-        const stats = await fs.stat(file.path);
-        fileInfos.push({
-          ...file,
-          size: stats.size,
-          type: getFileType(file.name),
-        });
+        // ✨ v2.20.5 新增：支持粘贴的截图（有 blob/preview，没有 path）
+        if (file.blob || !file.path) {
+          // 粘贴的截图：从 base64 preview 获取数据
+          if (file.preview) {
+            // 移除 data:image/png;base64, 前缀
+            const base64Data = file.preview.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            fileInfos.push({
+              ...file,
+              size: buffer.length,
+              type: getFileType(file.name),
+              data: buffer, // 添加二进制数据
+              isPasted: true // 标记为粘贴的图片
+            });
+            safeLog(`✅ 处理粘贴的截图: ${file.name}, 大小: ${buffer.length} bytes`);
+          }
+        } else {
+          // 普通文件：从文件系统读取
+          const stats = await fs.stat(file.path);
+          fileInfos.push({
+            ...file,
+            size: stats.size,
+            type: getFileType(file.name),
+          });
+        }
       } catch (error) {
         safeError('读取文件信息失败:', error);
       }

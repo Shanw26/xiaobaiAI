@@ -54,7 +54,8 @@
     "remark-gfm": "^4.0.1",
     "tesseract.js": "^7.0.0",
     "unist-util-visit": "^5.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zhipuai-sdk-nodejs-v4": "^0.1.12"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
@@ -97,10 +98,7 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": "arm64"
         }
       ]
     },

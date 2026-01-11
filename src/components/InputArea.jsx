@@ -149,6 +149,49 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
     setPendingScreenshot(null);
   };
 
+  // ✨ v2.20.5 新增：支持粘贴截图
+  const handlePaste = async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    // 查找剪贴板中的图片
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      // 检查是否是图片类型
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault(); // 阻止默认粘贴行为
+
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        console.log('📋 粘贴了图片:', file.type, file.name, file.size);
+
+        // 🔥 关键修复：将 blob 转换为 base64
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target.result; // data:image/png;base64,xxxx
+
+          // 保存截图数据并显示预览
+          const screenshotData = {
+            path: null, // 粘贴的图片没有文件路径
+            name: `粘贴截图-${Date.now()}.png`,
+            preview: base64, // 直接使用 base64 作为预览
+            blob: file // 保存原始 blob 数据
+          };
+
+          setPendingScreenshot(screenshotData);
+          setShowPreview(true);
+        };
+
+        reader.readAsDataURL(file); // 读取为 base64
+
+        // 只处理第一个图片
+        break;
+      }
+    }
+  };
+
   const handleCancelPreview = () => {
     setShowPreview(false);
     setPendingScreenshot(null);
@@ -206,7 +249,7 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
             </svg>
           </button>
-          <button className="btn-screenshot" title="截图" onClick={handleScreenshot}>
+          <button className="btn-screenshot" title="截图 (Cmd+Shift+4)" onClick={handleScreenshot}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
@@ -218,7 +261,8 @@ function InputArea({ onSendMessage, hasApiKey, currentUser, guestStatus, userUsa
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
-            placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+            onPaste={handlePaste}
+            placeholder="输入消息... 支持上传文件、截图、或直接粘贴截图 (Enter 发送)"
             rows={1}
           />
           <button

@@ -261,14 +261,14 @@ function SettingsModal({ config, onSave, onClose, currentUser, onLogout, onUserU
         <div className="form-group">
           <label className="form-label">
             API Key
-            <span className="form-hint">（登录用户可设置自己的 Key）</span>
+            <span className="form-hint" style={{ marginLeft: '8px' }}>✨ 支持多个Key（用逗号分隔），系统会自动轮换</span>
           </label>
           <input
             type="password"
             className="form-input"
             value={localConfig.apiKey || ''}
             onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
-            placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key' : 'sk-ant-...'}
+            placeholder={localConfig.modelProvider === 'zhipu' ? '输入智谱 API Key（多个Key用逗号分隔）' : 'sk-ant-...（多个Key用逗号分隔）'}
           />
         </div>
       )}
